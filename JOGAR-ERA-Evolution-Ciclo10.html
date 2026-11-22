@@ -1699,6 +1699,7 @@ class GameScene extends Phaser.Scene {
     const bossTest=typeof window!=='undefined' && new URLSearchParams(window.location.search).get('testeChefe')==='1';
     if(bossTest&&this.eraIndex===0){
       this.kills=SETTINGS.eraKillGoal;
+      this.totalKills=SETTINGS.eraKillGoal;
       this.eraGoalAnnounced=true;
       for(let milestone=10;milestone<=90;milestone+=10)this.weapons.collect(weaponRewardForKills(milestone));
       this.weapons.select('orbe');
