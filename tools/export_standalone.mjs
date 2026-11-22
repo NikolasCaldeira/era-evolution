@@ -17,19 +17,25 @@ const modules=[
   'src/systems/MagnetSystem.js',
   'src/systems/BossSystem.js',
   'src/systems/IceAgeBossSystem.js',
+  'src/systems/FrostTrailSystem.js',
+  'src/systems/ActiveCombatSystem.js',
+  'src/systems/CivilizationBossSystem.js',
   'src/systems/RelicVisual.js',
   'src/world/IsoProjection.js',
   'src/world/NavigationGrid.js',
   'src/world/WorldGenerator.js',
   'src/world/PleistoceneWorld.js',
+  'src/world/CivilizationWorld.js',
   'src/art/CharacterArt.js',
   'src/art/PleistoceneArt.js',
   'src/art/BossArt.js',
   'src/art/IceAgeBossArt.js',
+  'src/art/CivilizationArt.js',
   'src/entities/Player.js',
   'src/entities/Creature.js',
   'src/entities/CretaceousBoss.js',
   'src/entities/PleistoceneBoss.js',
+  'src/entities/CivilizationBoss.js',
   'src/scenes/BootScene.js',
   'src/scenes/MenuScene.js',
   'src/scenes/PauseScene.js',
@@ -40,11 +46,16 @@ const modules=[
   'src/main.js'
 ];
 const combined=modules.map(filename=>{
-  let text=source(filename);
-  text=text.replace(/^\s*import\s+[^;]+;\s*$/gm,'');
-  text=text.replace(/^export\s+(?=(?:class|const|function)\s)/gm,'');
-  if (/^\s*(import|export)\b/m.test(text)) throw new Error(`Import/export não removido em ${filename}`);
-  return `\n// --- ${filename} ---\n${text}`;
+  let content=source(filename);
+  const exported=[...content.matchAll(/^\s*export\s+(?:class|const|function)\s+([A-Za-z_$][\w$]*)/gm)].map(m=>m[1]);
+  content=content.replace(/^\s*import\s+[^;]+;\s*$/gm,'');
+  content=content.replace(/^export\s+(?=(?:class|const|function)\s)/gm,'');
+  if (/^\s*(import|export)\b/m.test(content))throw new Error(`Import/export não removido em ${filename}`);
+  // Cada módulo fica isolado: nomes auxiliares (oval, poly, FACINGS) não colidem.
+  // Apenas exportações explícitas ficam disponíveis às cenas seguintes.
+  const declarations=exported.length?`const {${exported.join(',')}} = `:'';
+  const expression=`(() => {\n${content}\nreturn {${exported.join(',')}};\n})()`;
+  return `\n// --- ${filename} ---\n${declarations}${expression};`;
 }).join('\n');
 if(combined.includes('</script>')) throw new Error('Sequência insegura no script inline.');
 const css=source('src/style.css');
@@ -54,7 +65,7 @@ const html=`<!DOCTYPE html>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width,initial-scale=1" />
   <meta name="theme-color" content="#102820" />
-  <title>ERA: Evolution | O Mamute Ancestral — Ciclo 11</title>
+  <title>ERA: Evolution | Cinco Eras — Ciclo 12</title>
   <style>${css}</style>
 </head>
 <body>
@@ -76,5 +87,5 @@ const html=`<!DOCTYPE html>
 const destination=resolve(root,'publicar','index.html');
 mkdirSync(resolve(root,'publicar'),{recursive:true});
 writeFileSync(destination,html,'utf8');
-copyFileSync(destination,resolve(root,'JOGAR-ERA-Evolution-Ciclo11.html'));
+copyFileSync(destination,resolve(root,'JOGAR-ERA-Evolution-Ciclo12.html'));
 console.log(`Exportado ${destination} (${html.length} caracteres)`);

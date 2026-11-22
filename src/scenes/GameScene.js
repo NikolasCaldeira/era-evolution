@@ -10,43 +10,51 @@ import { NavigationGrid } from '../world/NavigationGrid.js';
 import { createCharacterArt } from '../art/CharacterArt.js';
 import { WeaponState, WEAPONS, weaponRewardForKills, createSalvo, attackCooldown } from '../systems/WeaponSystem.js';
 import { UpgradeState } from '../systems/UpgradeSystem.js';
-import { difficultyForKills, chooseSpawnPoint } from '../systems/DifficultySystem.js';
+import { difficultyForEra,chooseSpawnPoint } from '../systems/DifficultySystem.js';
 import { magnetRadius, advanceFragment } from '../systems/MagnetSystem.js';
 import { BOSS_CONFIG } from '../systems/BossSystem.js';
 import { createBossArt } from '../art/BossArt.js';
 import { CretaceousBoss } from '../entities/CretaceousBoss.js';
-import { eraAt,snapshotRun,restoreRun,pleistoceneRewardForKills } from '../systems/EraSystem.js';
+import {eraAt,snapshotRun,restoreRun,pleistoceneRewardForKills,rewardForEraKills} from '../systems/EraSystem.js';
 import { PleistoceneWorld } from '../world/PleistoceneWorld.js';
 import { createPleistoceneArt } from '../art/PleistoceneArt.js';
 import { ICE_BOSS_CONFIG } from '../systems/IceAgeBossSystem.js';
 import { createIceAgeBossArt } from '../art/IceAgeBossArt.js';
 import { PleistoceneBoss } from '../entities/PleistoceneBoss.js';
 import { createRelicVisual } from '../systems/RelicVisual.js';
-import { prepareNextEraProgress } from '../systems/EraSystem.js';
+import {prepareNextEraProgress} from '../systems/EraSystem.js';
+import {CivilizationWorld} from '../world/CivilizationWorld.js';
+import {createCivilizationArt,CIVILIZATION_SPECIES} from '../art/CivilizationArt.js';
+import {CIVILIZATION_BOSSES} from '../systems/CivilizationBossSystem.js';
+import {CivilizationBoss} from '../entities/CivilizationBoss.js';
+import {FrostTrailState} from '../systems/FrostTrailSystem.js';
+import {DASH,DashState,threatForEra,threatHits} from '../systems/ActiveCombatSystem.js';
 
 export class GameScene extends Phaser.Scene {
   constructor() { super('GameScene'); }
 
   init(data={}){
     const params=typeof window!=='undefined'?new URLSearchParams(window.location.search):new URLSearchParams();
-    const debugEra=params.get('testeEra')==='2'||params.get('testeChefe')==='2';
-    this.eraIndex=data.eraIndex===1||(!data.eraIndex&&debugEra)?1:0;
+    const testing=Number(params.get('testeChefe')||params.get('testeEra'));
+    const debugIndex=Number.isInteger(testing)&&testing>=1&&testing<=5?testing-1:0;
+    this.eraIndex=Number.isInteger(data.eraIndex)?Math.max(0,Math.min(4,data.eraIndex)):debugIndex;
     this.era=eraAt(this.eraIndex);
     this.carryProgress=data.progress||null;
   }
 
-  getDifficulty(){return difficultyForKills(this.kills+(this.eraIndex===1?10:0));}
+  getDifficulty(){return difficultyForEra(this.kills,this.eraIndex);}
 
   create() {
-    this.cameras.main.setBackgroundColor(this.eraIndex===1?'#213b46':'#122a24');
+    this.cameras.main.setBackgroundColor('#'+this.era.theme.toString(16).padStart(6,'0'));
     createCharacterArt(this);
     if(this.eraIndex===1){createPleistoceneArt(this);createIceAgeBossArt(this);}
+    if(this.eraIndex>=2)createCivilizationArt(this,this.era.id);
     createBossArt(this);
     this.projection = new IsoProjection(
       SETTINGS.tileWidth, SETTINGS.tileHeight,
       SETTINGS.mapRows * SETTINGS.tileWidth / 2, SETTINGS.tileHeight / 2
     );
-    this.world = this.eraIndex===1?new PleistoceneWorld(this,this.projection):new WorldGenerator(this,this.projection);
+    this.world=this.eraIndex>=2?new CivilizationWorld(this,this.projection,this.era.id):this.eraIndex===1?new PleistoceneWorld(this,this.projection):new WorldGenerator(this,this.projection);
     this.world.create(SETTINGS.mapColumns, SETTINGS.mapRows);
     this.createAtmosphere();
     this.navigation = new NavigationGrid({
@@ -66,7 +74,8 @@ export class GameScene extends Phaser.Scene {
     this.cameras.main.startFollow(this.player.sprite,true,.09,.09);
     this.cameras.main.setZoom(this.getZoom(this.scale.width));
 
-    this.keys=this.input.keyboard.addKeys('W,A,S,D,UP,DOWN,LEFT,RIGHT,ESC,F3');
+    this.keys=this.input.keyboard.addKeys('W,A,S,D,UP,DOWN,LEFT,RIGHT,ESC,F3,SPACE');
+    this.input.keyboard.addCapture('SPACE');
     this.onWeaponKey=(event)=>{
       if(event.repeat||this.ended||this.upgrading||!this.scene.isActive())return;
       const previous=this.weapons.active;
@@ -91,6 +100,8 @@ export class GameScene extends Phaser.Scene {
     };
     this.input.keyboard.on('keydown-F3',this.onRouteKey);
     this.input.keyboard.on('keydown-ESC',this.onPauseKey);
+    this.onDashKey=event=>{if(!event.repeat)this.activateDash();};
+    this.input.keyboard.on('keydown-SPACE',this.onDashKey);
 
     this.creatures=[];
     this.boss=null;
@@ -112,6 +123,12 @@ export class GameScene extends Phaser.Scene {
     this.spawnTimer=0;
     this.elapsedMs=0;
     this.coldUntil=0;
+    this.frost=new FrostTrailState();
+    this.dash=new DashState();
+    this.lastDirection={x:0,y:1};
+    this.playerIdleMs=0;
+    this.threats=[];
+    this.nextThreatAt=this.time.now+6000;
     this.upgrading=false;
     this.ended=false;
     this.eraGoalAnnounced=false;
@@ -122,8 +139,8 @@ export class GameScene extends Phaser.Scene {
     }
     this.createHud();
     this.createBossHud();
-    this.showMessage(this.eraIndex===1?'PRÉ-HISTÓRIA · O PLEISTOCENO COMEÇA!':'CRETÁCEO · Explore, sobreviva e recolha fragmentos');
-    if(this.eraIndex===1)this.cameras.main.fadeIn(900,17,39,50);
+    this.showMessage(`${this.era.name} · ${this.era.subtitle}`);
+    if(this.eraIndex>=1)this.cameras.main.fadeIn(900,17,39,50);
     this.onResize=size=>{
       this.cameras.main.setZoom(this.getZoom(size.width));
       this.layoutHud();
@@ -135,33 +152,34 @@ export class GameScene extends Phaser.Scene {
       this.input.keyboard.off('keydown',this.onWeaponKey);
       this.input.keyboard.off('keydown-F3',this.onRouteKey);
       this.input.keyboard.off('keydown-ESC',this.onPauseKey);
+      this.input.keyboard.off('keydown-SPACE',this.onDashKey);
+      this.clearThreats();
       this.scale.off('resize',this.onResize);
     });
-    // Teste direto do encontro: ?testeChefe=1. Não altera o fluxo normal.
-    const bossTest=typeof window!=='undefined' && new URLSearchParams(window.location.search).get('testeChefe')==='1';
-    if(bossTest&&this.eraIndex===0){
+    // ?testeChefe=N: encontro de depuração da era N, sem modificar uma partida normal.
+    const params=typeof window!=='undefined'?new URLSearchParams(window.location.search):new URLSearchParams();
+    const testBoss=params.get('testeChefe')===String(this.eraIndex+1);
+    const testEra=params.get('testeEra')===String(this.eraIndex+1);
+    if((testBoss||testEra)&&this.eraIndex>=2&&!this.carryProgress){
+      for(const m of [10,20,30,40])this.weapons.collect(rewardForEraKills(0,m));
+      for(const m of [10,20,30,40,50])this.weapons.collect(rewardForEraKills(1,m));
+      this.weapons.select('orbe');this.power=5+this.eraIndex;this.level=11+this.eraIndex;
+      this.upgrades.levels.velocidade=1;
+      this.player.speed+=26;
+    }
+    if(testBoss){
       this.kills=SETTINGS.eraKillGoal;
-      this.totalKills=SETTINGS.eraKillGoal;
+      this.totalKills=Math.max(this.totalKills,SETTINGS.eraKillGoal*(this.eraIndex+1));
       this.eraGoalAnnounced=true;
-      for(let milestone=10;milestone<=90;milestone+=10)this.weapons.collect(weaponRewardForKills(milestone));
-      this.weapons.select('orbe');
-      this.power=4;
+      for(let milestone=10;milestone<=90;milestone+=10)this.weapons.collect(rewardForEraKills(this.eraIndex,milestone));
+      this.weapons.select('orbe');this.power=Math.max(this.power,4+this.eraIndex);
       this.beginBossEncounter();
-    }else if(this.eraIndex===1 && typeof window!=='undefined' && new URLSearchParams(window.location.search).get('testeChefe')==='2'){
-      this.kills=SETTINGS.eraKillGoal;
-      this.totalKills=200;
-      this.eraGoalAnnounced=true;
-      for(let milestone=10;milestone<=90;milestone+=10){
-        const reward=pleistoceneRewardForKills(milestone);
-        this.weapons.collect(reward);
-      }
-      this.weapons.select('orbe');this.power=4;this.beginBossEncounter();
     }else this.spawnInitialCreatures();
     this.updateHud();
   }
 
   getZoom(width){return Math.min(1.1,Math.max(.72,width/1200));}
-  messageScreenY(){return this.scale.width<960?210:16;}
+  messageScreenY(){return this.scale.width<960?240:16;}
   spawnInitialCreatures(){for(let i=0;i<this.difficulty.maxAlive;i++)this.spawnCreature(i);}
   /** Geração evita posições sem caminho até o jogador. */
   spawnCreature(id){
@@ -191,10 +209,10 @@ export class GameScene extends Phaser.Scene {
   }
   createHud(){
     const h=this.hud=this.add.container(0,0).setScrollFactor(0).setDepth(10000);
-    this.hudBack=this.add.rectangle(0,0,390,207,this.eraIndex===1?0x1b3340:0x0d2420,.94).setOrigin(0).setStrokeStyle(1,0x719579,.68);
+    this.hudBack=this.add.rectangle(0,0,390,231,this.era.theme,.94).setOrigin(0).setStrokeStyle(1,0x719579,.68);
     h.add(this.hudBack);
-    h.add(this.add.rectangle(0,0,5,207,this.era.accent).setOrigin(0));
-    this.eraTitle=this.add.text(17,12,`ERA ${String(this.era.number).padStart(2,'0')}  |  ${this.era.name}`,{fontFamily:'Georgia,serif',fontSize:'17px',fontStyle:'bold',color:this.eraIndex===1?'#dbecf4':'#f1deb0'});
+    h.add(this.add.rectangle(0,0,5,231,this.era.accent).setOrigin(0));
+    this.eraTitle=this.add.text(17,12,`ERA ${String(this.era.number).padStart(2,'0')}  |  ${this.era.name}`,{fontFamily:'Georgia,serif',fontSize:'17px',fontStyle:'bold',color:'#'+this.era.accent.toString(16).padStart(6,'0')});
     this.eraSubtitle=this.add.text(17,38,this.era.subtitle,{fontFamily:'Arial',fontSize:'10px',color:'#9ec5a9',letterSpacing:1});
     h.add([this.eraTitle,this.eraSubtitle]);
     h.add(this.add.text(17,60,'VIDA',{fontFamily:'Arial',fontSize:'11px',fontStyle:'bold',color:'#c3d9c2'}));
@@ -209,8 +227,10 @@ export class GameScene extends Phaser.Scene {
     h.add([this.stats,this.weaponText,this.inventoryText]);
     this.threatText=this.add.text(17,163,'PRESSÃO 01  •  8 criaturas  •  6,7 s',{fontFamily:'Arial',fontSize:'10px',fontStyle:'bold',color:'#e5c17c'});
     h.add(this.threatText);
-    this.eraTrack=this.add.rectangle(17,192,352,5,0x314739).setOrigin(0);
-    this.eraFill=this.add.rectangle(17,192,0,5,0xe2c17a).setOrigin(0);
+    this.dodgeText=this.add.text(17,183,'ESPAÇO: esquiva · pronto',{fontFamily:'Arial',fontSize:'10px',color:'#9acfd6'});
+    h.add(this.dodgeText);
+    this.eraTrack=this.add.rectangle(17,215,352,5,0x314739).setOrigin(0);
+    this.eraFill=this.add.rectangle(17,215,0,5,0xe2c17a).setOrigin(0);
     h.add([this.eraTrack,this.eraFill]);
     this.layoutHud();
   }
@@ -218,7 +238,7 @@ export class GameScene extends Phaser.Scene {
     if(!this.hud)return;
     const width=Math.min(390,Math.max(275,this.scale.width-32));
     const track=width-34;
-    this.hudBack.setSize(width,207).setDisplaySize(width,207);
+    this.hudBack.setSize(width,231).setDisplaySize(width,231);
     this.healthTrack.setDisplaySize(track,8);
     this.eraTrack.setDisplaySize(track,4);
     this.hudWidth=width;
@@ -246,10 +266,10 @@ export class GameScene extends Phaser.Scene {
     if(!this.boss?.alive){this.bossHud?.setVisible(false);return;}
     this.bossHud.setVisible(true);
     this.bossHPFill.setDisplaySize(Math.max(.01,460*this.boss.state.healthRatio),13);
-    this.bossHPFill.setFillStyle(this.boss.phase===3?0xef856f:this.eraIndex===1?0x7ed6ea:0xe6a66f);
-    const config=this.eraIndex===1?ICE_BOSS_CONFIG:BOSS_CONFIG;
+    this.bossHPFill.setFillStyle(this.boss.phase===3?0xef856f:this.eraIndex===1?0x7ed6ea:this.eraIndex>=2?this.era.accent:0xe6a66f);
+    const config=this.eraIndex>=2?CIVILIZATION_BOSSES[this.era.id]:this.eraIndex===1?ICE_BOSS_CONFIG:BOSS_CONFIG;
     this.bossTitle.setText(`CHEFE  •  ${config.name}  •  FASE ${this.boss.phase}`);
-    this.bossHint.setText(this.eraIndex===1?'INVESTIDA · PISADA · GELO · MATILHA':'INVESTIDA · PISADA · RAJADA');
+    this.bossHint.setText(this.eraIndex===1?'INVESTIDA · PISADA · GELO · MATILHA':this.eraIndex>=2?'INVESTIDA · ONDA · FEIXE · APOIO':'INVESTIDA · PISADA · RAJADA');
   }
   updateHud(){
     if(!this.survival||!this.stats)return;
@@ -263,12 +283,17 @@ export class GameScene extends Phaser.Scene {
     this.inventoryText.setText(`${this.weapons.unlocked.length} armas  •  Q/E alternar  •  Ímã ${magnetRadius(this.upgrades.pickupRadius)} px`);
     this.threatText.setText(this.time.now<this.coldUntil?`CONGELAMENTO • ${(Math.max(0,this.coldUntil-this.time.now)/1000).toFixed(1)} s · Movimento reduzido`:`PRESSÃO ${String(this.difficulty.stage+1).padStart(2,'0')}  •  ${this.difficulty.maxAlive} criaturas  •  ${(this.difficulty.spawnIntervalMs/1000).toFixed(1)} s`);
     this.threatText.setColor(this.time.now<this.coldUntil?'#b0ebff':'#e5c17c');
+    const frostPhase=this.frost?.phase(this.time.now);
+    this.dodgeText.setText(frostPhase==='stun'?'GELO: PARALISADO!':frostPhase==='recuperando'?`GELO: RECUPERANDO MOVIMENTO · ${(this.frost.remaining(this.time.now)/1000).toFixed(1)} s`:
+      this.dash.remaining(this.time.now)>0?`ESPAÇO: ESQUIVA · ${(this.dash.remaining(this.time.now)/1000).toFixed(1)} s de recarga`:'ESPAÇO: ESQUIVA · PRONTO');
+    this.dodgeText.setColor(frostPhase!=='livre'?'#b0e9fb':'#9acfd6');
     this.eraFill.setDisplaySize(Math.max(.01,(this.hudWidth-34)*Math.min(1,this.kills/SETTINGS.eraKillGoal)),4);
     const compact=this.scale.width<470;
     this.stats.setFontSize(compact?10:12);
     this.weaponText.setFontSize(compact?9:11);
     this.inventoryText.setFontSize(compact?9:10);
     this.threatText.setFontSize(compact?9:10);
+    this.dodgeText.setFontSize(compact?8:10);
   }
   showMessage(message){
     if(this.message?.active)this.message.destroy();
@@ -291,10 +316,16 @@ export class GameScene extends Phaser.Scene {
       x:Number(this.keys.D.isDown||this.keys.RIGHT.isDown)-Number(this.keys.A.isDown||this.keys.LEFT.isDown),
       y:Number(this.keys.S.isDown||this.keys.DOWN.isDown)-Number(this.keys.W.isDown||this.keys.UP.isDown)
     };
-    this.player.update(delta*(this.time.now<this.coldUntil?ICE_BOSS_CONFIG.slowMultiplier:1),dir,this.world.obstacles,this.map);
+    if(dir.x||dir.y)this.lastDirection={...dir};
+    const oldX=this.player.x,oldY=this.player.y;
+    const moveFactor=Math.min(this.time.now<this.coldUntil?ICE_BOSS_CONFIG.slowMultiplier:1,this.frost.movementMultiplier(this.time.now));
+    this.player.update(delta*moveFactor,dir,this.world.obstacles,this.map);
+    const moved=Math.hypot(this.player.x-oldX,this.player.y-oldY)>1;
+    this.playerIdleMs=moved?0:this.playerIdleMs+delta;
     this.weaponAura.setPosition(this.player.x+20,this.player.y-20).setDepth(this.player.y+340).setFillStyle(this.weapons.current.color,.95);
     this.creatures.forEach(c=>c.update(delta,this.player,this.navigation,this.creatures));
     this.checkPlayerContact();
+    this.updateAreaThreats(delta);
     if(this.ended)return;
     // Piscar comunica invulnerabilidade temporária sem impedir movimento ou disparos.
     this.player.sprite.setAlpha(this.survival.isInvulnerable(this.time.now)?(Math.floor(this.time.now/115)%2?.43:1):1);
@@ -312,20 +343,68 @@ export class GameScene extends Phaser.Scene {
     this.updateHud();
     this.updateBossHud();
   }
+  applyFrostTrail(patch){
+    if(this.ended||!this.frost.touch(patch.id,this.time.now))return;
+    this.makeImpact(this.player.x,this.player.y-17,0xb6ecf3,20);
+    this.showMessage('GELO: PARALISAÇÃO CURTA → LENTIDÃO → RECUPERAÇÃO');
+  }
+  activateDash(){
+    if(this.ended||this.upgrading||!this.scene.isActive()||this.frost.phase(this.time.now)==='stun'||!this.dash.use(this.time.now))return false;
+    let {x,y}=this.lastDirection;const length=Math.hypot(x,y)||1;x/=length;y/=length;
+    let moved=0;
+    for(let i=0;i<14;i++){
+      const nx=this.player.x+x*DASH.distance/14,ny=this.player.y+y*DASH.distance/14;
+      if(!this.navigation.isOpen(nx,ny)||!this.player.insideMap(nx,ny,this.map)||this.player.collides(nx,ny,this.world.obstacles))break;
+      this.player.x=nx;this.player.y=ny;moved++;
+    }
+    this.player.sprite.setPosition(this.player.x,this.player.y);
+    this.player.shadow.setPosition(this.player.x,this.player.y+12);
+    this.survival.invulnerableUntil=Math.max(this.survival.invulnerableUntil,this.time.now+DASH.invulnerabilityMs);
+    this.makeImpact(this.player.x,this.player.y-14,0xa8dfda,16);
+    this.updateHud();
+    return moved>0;
+  }
+  clearThreats(){
+    for(const t of this.threats||[])if(t.ring?.active)t.ring.destroy();
+    this.threats=[];
+  }
+  updateAreaThreats(_delta){
+    const rules=threatForEra(this.eraIndex,this.difficulty.stage);
+    if(!rules||this.bossActive||this.ended)return;
+    const now=this.time.now;
+    const hasArcher=this.creatures.some(c=>c.alive&&!c.isBoss&&c.id%3===2);
+    if(now>=this.nextThreatAt&&(hasArcher||this.playerIdleMs>rules.idleTriggerMs)&&this.threats.length<2){
+      const x=this.player.x,y=this.player.y;
+      const ring=this.add.circle(x,y,rules.radius,this.era.accent,.11).setStrokeStyle(3,this.era.accent,.88).setDepth(y+25);
+      this.threats.push({x,y,radius:rules.radius,fireAt:now+rules.warningMs,ring,createdAt:now});
+      this.nextThreatAt=now+rules.intervalMs;
+    }
+    this.threats=this.threats.filter(t=>{
+      if(now<t.fireAt){
+        const progress=Math.max(0,Math.min(1,(now-t.createdAt)/(t.fireAt-t.createdAt)));
+        t.ring.setScale(1-.27*progress).setAlpha(.5+.45*progress);
+        return true;
+      }
+      if(t.ring?.active)t.ring.destroy();
+      this.makeImpact(t.x,t.y,this.era.accent,20);
+      if(threatHits(t,this.player,t.radius*.75))this.damagePlayer({x:t.x-20,y:t.y-12},1);
+      return false;
+    });
+  }
   applyCold(durationMs=ICE_BOSS_CONFIG.slowDurationMs){
     if(!this.ended)this.coldUntil=Math.max(this.coldUntil,this.time.now+durationMs);
   }
   spawnBossMinions(count=2){
-    if(!this.bossActive||this.ended||this.eraIndex!==1)return 0;
+    if(!this.bossActive||this.ended||this.eraIndex===0)return 0;
     let spawned=0;
     for(let i=0;i<count;i++){
       if(this.creatures.filter(c=>c.alive&&c.summoned).length>=3)break;
       const next=chooseSpawnPoint({navigation:this.navigation,projection:this.projection,
         player:this.player,sequence:this.spawnSequence++,minimumDistance:125});
       if(!next)continue;
-      const id=this.spawnSequence*3; // Smilodonte: espécie rápida do Pleistoceno.
+      const id=this.spawnSequence*3; // Primeira espécie de cada era atua como reforço.
       const creature=new Creature(this,next.x,next.y,id,{
-        era:'pleistoceno',speedMultiplier:this.difficulty.speedMultiplier,aggression:this.difficulty.aggression
+        era:this.era.id,speedMultiplier:this.difficulty.speedMultiplier,aggression:this.difficulty.aggression
       });
       creature.summoned=true;
       this.creatures.push(creature);spawned++;
@@ -466,7 +545,7 @@ export class GameScene extends Phaser.Scene {
         this.makeImpact(this.player.x,this.player.y-14,0xe9b875,35);
       }
       this.dropFragment(target.x,target.y);
-      const reward=this.eraIndex===1?pleistoceneRewardForKills(this.kills):weaponRewardForKills(this.kills);
+      const reward=rewardForEraKills(this.eraIndex,this.kills);
       if(reward)this.spawnWeaponPickup(reward);
       if(this.kills>=SETTINGS.eraKillGoal&&!this.eraGoalAnnounced){
         this.eraGoalAnnounced=true;
@@ -477,6 +556,7 @@ export class GameScene extends Phaser.Scene {
   beginBossEncounter(){
     if(this.bossActive||this.ended)return;
     this.bossActive=true;
+    this.clearThreats();
     this.spawnTimer=0;
     // Encontro isolado: os monstros comuns deixam a arena sem pontuar abates.
     for(const c of this.creatures)if(c.alive)c.destroy();
@@ -490,9 +570,9 @@ export class GameScene extends Phaser.Scene {
       // Evita encontro impossível se o mapa não tiver posição acessível.
       this.bossActive=false;this.showMessage('Não foi possível posicionar o chefe.');return;
     }
-    this.boss=this.eraIndex===1?new PleistoceneBoss(this,point.x,point.y):new CretaceousBoss(this,point.x,point.y);
+    this.boss=this.eraIndex>=2?new CivilizationBoss(this,point.x,point.y,this.era.id):this.eraIndex===1?new PleistoceneBoss(this,point.x,point.y):new CretaceousBoss(this,point.x,point.y);
     this.creatures.push(this.boss);
-    this.showMessage(this.eraIndex===1?'100 ELIMINAÇÕES! O MAMUTE ANCESTRAL DESPERTOU!':'100 ELIMINAÇÕES! O TRICERÁTOPS ANCESTRAL DESPERTOU!');
+    this.showMessage(`100 ELIMINAÇÕES! ${this.eraIndex>=2?CIVILIZATION_BOSSES[this.era.id].name:this.eraIndex===1?ICE_BOSS_CONFIG.name:BOSS_CONFIG.name} DESPERTOU!`);
     this.makeImpact(point.x,point.y-35,this.eraIndex===1?0xa4e2f6:0xe9b879,100);
     this.cameras.main.shake(240,.003);
     this.updateBossHud();
@@ -507,7 +587,7 @@ export class GameScene extends Phaser.Scene {
     this.scene.launch('EraCompleteScene',{
       eraIndex:this.eraIndex,kills:this.kills,totalKills:this.totalKills,level:this.level,
       seconds:Math.floor(this.elapsedMs/1000),
-      progress:this.eraIndex===1?prepareNextEraProgress(progress,this.survival.maxHealth):progress
+      progress:this.eraIndex>=1?prepareNextEraProgress(progress,this.survival.maxHealth,this.eraIndex+2):progress
     });
   }
   spawnWeaponPickup(reward){

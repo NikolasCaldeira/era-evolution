@@ -1,52 +1,55 @@
 import Phaser from 'phaser';
-/** Portal de eras: troca do Cretáceo para o Pleistoceno preservando a jornada. */
+import {ERAS,eraAt} from '../systems/EraSystem.js';
+/** Portal entre capítulos: mantém a expedição enquanto a linha do tempo avança. */
 export class EraCompleteScene extends Phaser.Scene {
   constructor(){super('EraCompleteScene');}
   init(data={}){
-    this.eraIndex=data.eraIndex===1?1:0;
-    this.kills=data.kills||100;
-    this.level=data.level||1;
-    this.seconds=data.seconds||0;
-    this.progress=data.progress||null;
-    this.changing=false;
+    this.eraIndex=Number.isInteger(data.eraIndex)?data.eraIndex:0;
+    this.era=eraAt(this.eraIndex);
+    this.nextEra=ERAS[this.eraIndex+1]||null;
+    this.kills=data.kills||100;this.level=data.level||1;this.seconds=data.seconds||0;
+    this.progress=data.progress||null;this.changing=false;
   }
   create(){
     const {width:w,height:h}=this.scale;
-    this.cameras.main.setBackgroundColor('#0e2530');
+    this.cameras.main.setBackgroundColor('#0c2428');
     const bg=this.add.graphics();
-    bg.fillStyle(0x0b2823);bg.fillRect(0,0,w/2,h);
-    bg.fillStyle(this.eraIndex===1?0x85715a:0x254653);bg.fillRect(w/2,0,w/2,h);
-    bg.fillStyle(0x466c4a,.75);bg.fillEllipse(w*.21,h*.78,w*.66,h*.48);
-    bg.fillStyle(0xa0bcc2,.65);bg.fillEllipse(w*.8,h*.8,w*.73,h*.5);
-    for(let i=0;i<7;i++){
-      const x=w*(i/6),y=h*.77+Math.sin(i*2.1)*30;
-      bg.fillStyle(i<3?0x183e36:0x576f7a,.75);
-      bg.fillTriangle(x-90,y+45,x,y-110,x+90,y+45);
-      if(i>2){bg.fillStyle(0xe2e7e3,.78);bg.fillTriangle(x-36,y-50,x,y-110,x+35,y-51);}
+    bg.fillStyle(this.era.theme);bg.fillRect(0,0,w/2,h);
+    bg.fillStyle(this.nextEra?.theme||0x30444d);bg.fillRect(w/2,0,w/2,h);
+    for(let i=0;i<12;i++){
+      const x=w*i/11,y=h*(.72+Math.sin(i*2.1)*.07);
+      bg.fillStyle(i<6?this.era.accent:this.nextEra?.accent||0xa6baaa,.12);
+      bg.fillEllipse(x,y,240,135);
+      bg.fillStyle(i%2?0x122d2c:0x29433a,.57);
+      bg.fillTriangle(x-80,y+55,x,y-80,x+80,y+55);
     }
-    const divider=this.add.rectangle(w/2,h/2,3,h,0xe9d5a5,.6);
-    this.tweens.add({targets:divider,alpha:.12,scaleX:2,yoyo:true,repeat:-1,duration:1600});
-    this.add.rectangle(w/2,h*.43,Math.min(w*.93,850),Math.min(h*.78,510),0x0b1e20,.87).setStrokeStyle(2,0xa5b7ac,.6);
-    const small=Math.max(12,Math.min(16,w*.018));
-    const title=this.add.text(w/2,h*.225,this.eraIndex===1?'ERA 02 CONCLUÍDA':'ERA 01 CONCLUÍDA',{fontFamily:'Arial',fontSize:`${small}px`,fontStyle:'bold',color:'#d4c18c',letterSpacing:3}).setOrigin(.5);
-    const headline=this.add.text(w/2,h*.35,this.eraIndex===1?'O INVERNO FOI SUPERADO':'A HISTÓRIA AVANÇA',{fontFamily:'Georgia,serif',fontSize:`${Math.min(46,Math.max(25,w*.047))}px`,fontStyle:'bold',color:'#f5e0b2'}).setOrigin(.5);
-    this.add.text(w/2,h*.465,this.eraIndex===1?'O Mamute Ancestral foi derrotado.\nPróximo capítulo: Civilizações Antigas.\nA Era 03 está em desenvolvimento.':'O Tricerátops Ancestral foi derrotado.\nMuito tempo depois, um novo desafio começa:\na Pré-História — o Pleistoceno, a era do gelo.',{
-      fontFamily:'Arial',fontSize:`${Math.min(16,Math.max(12,w*.02))}px`,color:'#d0e2df',align:'center',lineSpacing:5,wordWrap:{width:Math.min(w*.83,650)}
+    const middle=this.add.rectangle(w/2,h/2,3,h,0xe9d5a5,.5);
+    this.tweens.add({targets:middle,alpha:.1,scaleX:1.8,yoyo:true,repeat:-1,duration:1550});
+    this.add.rectangle(w/2,h*.5,Math.min(w*.94,850),Math.min(h*.81,515),0x0a1b23,.9).setStrokeStyle(2,0xb8c6bc,.67);
+    const fs=Math.min(48,Math.max(24,w*.052));
+    const title=this.add.text(w/2,h*.225,`ERA ${String(this.era.number).padStart(2,'0')} CONCLUÍDA`,{
+      fontFamily:'Arial',fontSize:`${Math.min(16,Math.max(12,w*.021))}px`,fontStyle:'bold',color:'#f0d69d',letterSpacing:3
     }).setOrigin(.5);
+    const headline=this.add.text(w/2,h*.35,this.nextEra?'A HISTÓRIA AVANÇA':'CINCO ERAS SUPERADAS!',{
+      fontFamily:'Georgia,serif',fontSize:`${fs}px`,fontStyle:'bold',color:'#f7e0b5'
+    }).setOrigin(.5);
+    const desc=this.nextEra?
+      `O guardião da ${this.era.name} foi derrotado.\nPróximo capítulo: ${this.nextEra.name}.\nArmas, melhorias e experiência acompanham a jornada.`:
+      `Concluíste os cinco primeiros capítulos desta expedição.\nA Revolução Industrial será o próximo período a desenvolver.`;
+    this.add.text(w/2,h*.48,desc,{fontFamily:'Arial',fontSize:`${Math.min(16,Math.max(12,w*.02))}px`,color:'#d4e2dd',align:'center',lineSpacing:6,wordWrap:{width:Math.min(w*.83,660)}}).setOrigin(.5);
     const time=`${Math.floor(this.seconds/60)}:${String(this.seconds%60).padStart(2,'0')}`;
-    this.add.text(w/2,h*.6,`${this.kills} ELIMINAÇÕES  •  NÍVEL ${this.level}  •  ${time}`,{
-      fontFamily:'Arial',fontSize:`${Math.min(14,Math.max(10,w*.017))}px`,color:'#efdbb4'
+    this.add.text(w/2,h*.62,`${this.kills} ELIMINAÇÕES  •  NÍVEL ${this.level}  •  ${time}`,{
+      fontFamily:'Arial',fontSize:`${Math.min(14,Math.max(10,w*.017))}px`,color:'#f1d7aa'
     }).setOrigin(.5);
-    const next=this.add.text(w/2,h*.705,this.eraIndex===1?'VOLTAR AO MENU  ▶':'AVANÇAR PARA A ERA DO GELO  ▶',{
-      fontFamily:'Arial',fontSize:`${Math.min(17,Math.max(12,w*.019))}px`,fontStyle:'bold',color:'#173340',backgroundColor:'#b6dbe5',padding:{x:24,y:14}
+    const button=this.add.text(w/2,h*.724,this.nextEra?`AVANÇAR PARA ${this.nextEra.name}  ▶`:'VOLTAR AO MENU  ▶',{
+      fontFamily:'Arial',fontSize:`${Math.min(16,Math.max(11,w*.018))}px`,fontStyle:'bold',color:'#18313d',backgroundColor:'#c0dfe9',padding:{x:Math.min(26,w*.02),y:15}
     }).setOrigin(.5).setInteractive({useHandCursor:true});
-    next.on('pointerover',()=>next.setStyle({backgroundColor:'#dceef6'}));
-    next.on('pointerout',()=>next.setStyle({backgroundColor:'#b6dbe5'}));
-    next.on('pointerdown',()=>this.advance());
-    this.add.text(w/2,h*.825,this.eraIndex===1?'ENTER: MENU    •    R: REINICIAR A EXPEDIÇÃO    •    ESC: MENU':'ENTER: CONTINUAR    •    R: REINICIAR    •    ESC: MENU',{fontFamily:'Arial',fontSize:`${Math.min(12,Math.max(9,w*.015))}px`,color:'#aac5c5'}).setOrigin(.5);
-    title.setAlpha(0);headline.setAlpha(0);next.setAlpha(0);
-    this.tweens.add({targets:[title,headline],alpha:1,duration:950});
-    this.tweens.add({targets:next,alpha:1,delay:600,duration:900});
+    button.on('pointerover',()=>button.setStyle({backgroundColor:'#e4f3f5'}));
+    button.on('pointerout',()=>button.setStyle({backgroundColor:'#c0dfe9'}));
+    button.on('pointerdown',()=>this.advance());
+    this.add.text(w/2,h*.844,'ENTER: CONTINUAR  •  R: REINICIAR EXPEDIÇÃO  •  ESC: MENU',{fontFamily:'Arial',fontSize:`${Math.min(12,Math.max(9,w*.015))}px`,color:'#acc5c4'}).setOrigin(.5);
+    title.setAlpha(0);headline.setAlpha(0);button.setAlpha(0);
+    this.tweens.add({targets:[title,headline],alpha:1,duration:900});this.tweens.add({targets:button,alpha:1,delay:550,duration:850});
     this.onContinue=()=>this.advance();this.onRestart=()=>this.restart();this.onMenu=()=>this.menu();
     this.input.keyboard.on('keydown-ENTER',this.onContinue);
     this.input.keyboard.on('keydown-R',this.onRestart);
@@ -58,13 +61,12 @@ export class EraCompleteScene extends Phaser.Scene {
     });
   }
   advance(){
-    if(this.eraIndex===1){this.menu();return;}
     if(this.changing)return;
+    if(!this.nextEra){this.menu();return;}
     this.changing=true;
-    this.cameras.main.fadeOut(450,16,33,44);
+    this.cameras.main.fadeOut(440,16,33,44);
     this.cameras.main.once(Phaser.Cameras.Scene2D.Events.FADE_OUT_COMPLETE,()=>{
-      this.scene.stop('GameScene');
-      this.scene.start('GameScene',{eraIndex:1,progress:this.progress});
+      this.scene.stop('GameScene');this.scene.start('GameScene',{eraIndex:this.eraIndex+1,progress:this.progress});
     });
   }
   restart(){if(this.changing)return;this.changing=true;this.scene.stop('GameScene');this.scene.start('GameScene',{eraIndex:0});}

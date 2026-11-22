@@ -15,7 +15,7 @@ export class PleistoceneBoss {
     this.nameplate=scene.add.text(x,y-171,'MAMUTE ANCESTRAL',{
       fontFamily:'Arial',fontSize:'13px',fontStyle:'bold',color:'#d9f5ff',stroke:'#18323e',strokeThickness:4
     }).setOrigin(.5).setDepth(y+375);
-    this.icePatches=[];
+    this.icePatches=[];this.patchSequence=0;
   }
   get hp(){return this.state.health;}
   get maxHp(){return this.state.maxHealth;}
@@ -42,9 +42,9 @@ export class PleistoceneBoss {
     this.scene.showMessage(`MAMUTE ANCESTRAL: ${title}`);
   }
   addIcePatch(x,y){
-    const ring=this.scene.add.circle(x,y,30,0xa8dfeb,.24).setStrokeStyle(2,0xd3faff,.45).setDepth(y+18);
-    this.scene.tweens.add({targets:ring,alpha:0,duration:2600,onComplete:()=>ring.destroy()});
-    this.icePatches.push({x,y,until:this.scene.time.now+2400});
+    const ring=this.scene.add.ellipse(x,y,69,31,0xa8dfeb,.35).setStrokeStyle(2,0xd3faff,.63).setDepth(y+18);
+    this.scene.tweens.add({targets:ring,alpha:0,delay:1850,duration:4250,onComplete:()=>ring.destroy()});
+    this.icePatches.push({id:++this.patchSequence,x,y,until:this.scene.time.now+6100,ring});
   }
   execute(now,target){
     const a=this.attack;if(!a||a.executed)return;
@@ -140,7 +140,11 @@ export class PleistoceneBoss {
       }
     }else this.navigate(delta,target,nav);
     this.icePatches=this.icePatches.filter(p=>p.until>now);
-    if(this.icePatches.some(p=>Math.hypot(p.x-target.x,p.y-target.y)<28))this.scene.applyCold(500);
+    const onTrail=this.icePatches.find(p=>Math.hypot(p.x-target.x,p.y-target.y)<33);
+    if(onTrail){
+      if(typeof this.scene.applyFrostTrail==='function')this.scene.applyFrostTrail(onTrail);
+      else this.scene.applyCold(500); // compatibilidade com cenas de teste anteriores
+    }
     this.animMs+=delta;
     if(this.animMs>=180){this.frame=(this.frame+1)%4;this.animMs=0;}
     this.sprite.setTexture(iceAgeBossTexture(this.toLeft,this.frame)).setPosition(this.x,this.y).setDepth(this.y+230);
@@ -149,7 +153,7 @@ export class PleistoceneBoss {
   }
   destroy(){
     if(!this.alive)return;
-    this.alive=false;this.attack=null;this.icePatches=[];
+    this.alive=false;this.attack=null;for(const p of this.icePatches)p.ring?.active&&p.ring.destroy();this.icePatches=[];this.patchSequence=0;
     this.telegraph.clear();this.telegraph.destroy();
     this.nameplate.destroy();this.shadow.destroy();
     this.scene.tweens.add({targets:this.sprite,alpha:0,scale:0,duration:420,onComplete:()=>this.sprite.destroy()});

@@ -37,3 +37,16 @@ export function chooseSpawnPoint({navigation,projection,player,sequence=0,minimu
   // Sem uma posição atingível, não gerar inimigo invisível ou bloqueado.
   return null;
 }
+
+/** Mantém progressão de 10 em 10 abates, somando pressão proporcional à era.
+ * Inimigos comuns continuam com três pontos de vida; a exigência cresce pelo comportamento. */
+export function difficultyForEra(kills,eraIndex=0){
+  const within=difficultyForKills(kills),era=Math.max(0,Math.min(4,Math.floor(eraIndex)||0));
+  return Object.freeze({
+    ...within,era,
+    maxAlive:Math.min(24,within.maxAlive+Math.round(era*1.5)),
+    spawnIntervalMs:Math.max(1500,Math.round(within.spawnIntervalMs*(1-era*.075))),
+    speedMultiplier:within.speedMultiplier*(1+era*.092),
+    aggression:within.aggression*(1+era*.13)
+  });
+}

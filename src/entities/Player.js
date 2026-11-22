@@ -1,6 +1,7 @@
 import Phaser from 'phaser';
 import { playerTexture } from '../art/CharacterArt.js';
 import { pleistocenePlayerTexture } from '../art/PleistoceneArt.js';
+import {civilizationPlayerTexture,CIVILIZATION_SPECIES} from '../art/CivilizationArt.js';
 
 const FACING = ['right','down-right','down','down-left','left','up-left','up','up-right'];
 export class Player {
@@ -12,7 +13,7 @@ export class Player {
     this.sprite=scene.add.image(x,y,this.texture('down',0)).setOrigin(.5,.83).setDepth(y+300);
     this.sprite.setScale(.85);
   }
-  texture(facing,frame){return this.era==='pleistoceno'?pleistocenePlayerTexture(facing,frame):playerTexture(facing,frame);}
+  texture(facing,frame){return CIVILIZATION_SPECIES[this.era]?civilizationPlayerTexture(this.era,facing,frame):this.era==='pleistoceno'?pleistocenePlayerTexture(facing,frame):playerTexture(facing,frame);}
   update(delta,direction,obstacles,map) {
     const dt=Math.min(delta,40)/1000;
     let dx=direction.x,dy=direction.y;

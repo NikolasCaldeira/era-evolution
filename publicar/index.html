@@ -4,7 +4,7 @@
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width,initial-scale=1" />
   <meta name="theme-color" content="#102820" />
-  <title>ERA: Evolution | O Mamute Ancestral — Ciclo 11</title>
+  <title>ERA: Evolution | Cinco Eras — Ciclo 12</title>
   <style>:root { color-scheme: dark; font-family: Inter, ui-sans-serif, system-ui, sans-serif; background:#0b1415; color:#edf2df; }
 * { box-sizing:border-box; }
 html,body { margin:0; width:100%; height:100%; overflow:hidden; background:#0b1415; }
@@ -28,6 +28,7 @@ canvas { display:block; width:100%; height:100%; object-fit:contain; touch-actio
   } else {
     
 // --- src/core/Settings.js ---
+const {SETTINGS} = (() => {
 const SETTINGS = Object.freeze({
   mapColumns: 34,
   mapRows: 28,
@@ -46,8 +47,11 @@ const SETTINGS = Object.freeze({
   eraKillGoal: 100
 });
 
+return {SETTINGS};
+})();
 
 // --- src/core/SurvivalState.js ---
+const {SurvivalState} = (() => {
 /** Regras puras de sobrevivência. Tempo em milissegundos (relógio da cena). */
 class SurvivalState {
   constructor({ maxHealth = 5, invulnerabilityMs = 1250 } = {}) {
@@ -85,8 +89,11 @@ class SurvivalState {
   }
 }
 
+return {SurvivalState};
+})();
 
 // --- src/core/ScreenAnchor.js ---
+const {screenAnchor} = (() => {
 /**
  * Converte coordenadas desejadas da tela em coordenadas de um objeto Phaser
  * com scrollFactor(0), compensando o zoom centralizado da câmera.
@@ -102,12 +109,18 @@ function screenAnchor(width,height,zoom,screenX,screenY){
   };
 }
 
+return {screenAnchor};
+})();
 
 // --- src/systems/EraSystem.js ---
-/** Capítulos jogáveis: Cretáceo fictício e Pleistoceno. Sem coexistência humana com dinossauros. */
+const {ERAS,eraAt,snapshotRun,restoreRun,pleistoceneRewardForKills,NEXT_ERA_PREVIEW,prepareNextEraProgress,rewardForEraKills} = (() => {
+/** Eras em ordem histórica; Cretáceo é fantasia temporal, não coexistência de humanos e dinossauros. */
 const ERAS = Object.freeze([
   Object.freeze({id:'cretaceo',number:1,name:'CRETÁCEO',subtitle:'SOBREVIVA AO MUNDO PRIMORDIAL',theme:0x193b30,accent:0xd7bd7f,goal:100}),
-  Object.freeze({id:'pleistoceno',number:2,name:'PRÉ-HISTÓRIA',subtitle:'PLEISTOCENO · A ERA DO GELO',theme:0x1d3847,accent:0x9ccae0,goal:100})
+  Object.freeze({id:'pleistoceno',number:2,name:'PRÉ-HISTÓRIA',subtitle:'PLEISTOCENO · A ERA DO GELO',theme:0x1d3847,accent:0x9ccae0,goal:100}),
+  Object.freeze({id:'antiga',number:3,name:'CIVILIZAÇÕES ANTIGAS',subtitle:'TEMPLOS, DESERTO E MITOS DE PEDRA',theme:0x55432d,accent:0xf0c67c,goal:100}),
+  Object.freeze({id:'medieval',number:4,name:'ERA MEDIEVAL',subtitle:'FORTALEZA SOB O CREPÚSCULO',theme:0x313d48,accent:0xb8cce0,goal:100}),
+  Object.freeze({id:'renascimento',number:5,name:'RENASCIMENTO',subtitle:'ENGENHOS, ARTE E ALQUIMIA',theme:0x374c45,accent:0xe5b879,goal:100})
 ]);
 function eraAt(index=0){return ERAS[index]||ERAS[0];}
 /** Congela somente os dados de uma partida. A transição não reinicia a jornada. */
@@ -146,16 +159,34 @@ function pleistoceneRewardForKills(kills){
   return {milestone:`era02-${kills}`,id:ids[index%ids.length],tier:index<5?3:4,kind:'evolucao'};
 }
 
-/** Metadados de planejamento; a Era 03 ainda não é jogável. */
-const NEXT_ERA_PREVIEW=Object.freeze({number:3,name:'CIVILIZAÇÕES ANTIGAS',status:'em desenvolvimento'});
+/** Compatibilidade com os capítulos anteriores, agora jogáveis até a Era 05. */
+const NEXT_ERA_PREVIEW=Object.freeze({number:3,name:'CIVILIZAÇÕES ANTIGAS',status:'jogável'});
 /** Bônus da vitória da Era 02, sem alterar o snapshot original. */
-function prepareNextEraProgress(progress,maxHealth=5){
+function prepareNextEraProgress(progress,maxHealth=5,nextEra=3){
   if(!progress)return null;
-  return {...progress,health:Math.min(maxHealth,(progress.health||1)+2),nextEra:NEXT_ERA_PREVIEW.number};
+  return {...progress,health:Math.min(maxHealth,(progress.health||1)+2),nextEra};
 }
 
+/** Recompensas novas por era, com marcos independentes dos capítulos anteriores. */
+function rewardForEraKills(index,kills){
+  if(index===0){
+    // Compatibilidade: a primeira era disponibiliza desbloqueios de armas.
+    const ids=['duplo','lanca','leque','orbe','artefato','duplo','lanca','leque','orbe'];
+    if(!Number.isInteger(kills)||kills<10||kills>90||kills%10!==0)return null;
+    const i=kills/10-1;
+    return {milestone:kills,id:ids[i],tier:i<4?1:2,kind:i<4?'nova':'evolucao'};
+  }
+  if(index===1)return pleistoceneRewardForKills(kills);
+  if(!Number.isInteger(kills)||kills<10||kills>90||kills%10!==0||index<2||index>4)return null;
+  const i=kills/10-1,ids=['artefato','duplo','lanca','leque','orbe'];
+  return {milestone:`era${String(index+1).padStart(2,'0')}-${kills}`,id:ids[i%5],tier:2*index+1+(i>=5?1:0),kind:'evolucao'};
+}
+
+return {ERAS,eraAt,snapshotRun,restoreRun,pleistoceneRewardForKills,NEXT_ERA_PREVIEW,prepareNextEraProgress,rewardForEraKills};
+})();
 
 // --- src/systems/WeaponSystem.js ---
+const {WEAPONS,WEAPON_ORDER,weaponRewardForKills,WeaponState,createSalvo,attackCooldown} = (() => {
 /** Arsenal do Cretáceo. Regras puras, sem dependências de renderização. */
 const WEAPONS = Object.freeze({
   artefato:{label:'Artefato Verde',desc:'Um disparo preciso de energia.',color:0x64f5d2,cooldown:650,speed:480,range:165,style:'pulse'},
@@ -224,8 +255,11 @@ function attackCooldown(weaponId,tier=1,cadence=0){
   return Math.max(230,Math.round(w.cooldown*(1-.09*(tier-1))*(1-.12*Math.min(cadence,4))));
 }
 
+return {WEAPONS,WEAPON_ORDER,weaponRewardForKills,WeaponState,createSalvo,attackCooldown};
+})();
 
 // --- src/systems/UpgradeSystem.js ---
+const {UPGRADES,UPGRADE_CAPS,UpgradeState} = (() => {
 /** Melhorias por fragmentos. Três cartas distintas por rodada. */
 const UPGRADES=Object.freeze({
   alcance:{title:'Visão de Caçador',description:'+17% de alcance para todas as armas.'},
@@ -264,8 +298,11 @@ class UpgradeState {
   get damagePower(){return 1+this.levels.potencia;}
 }
 
+return {UPGRADES,UPGRADE_CAPS,UpgradeState};
+})();
 
 // --- src/systems/DifficultySystem.js ---
+const {CREATURE_BEHAVIORS,MAX_STAGE,difficultyForKills,behaviorForCreature,chooseSpawnPoint,difficultyForEra} = (() => {
 /** Dificuldade progressiva do Cretáceo. Os inimigos mantêm 3 pontos de vida. */
 const CREATURE_BEHAVIORS = Object.freeze(['investida', 'resistente', 'flanqueador']);
 const MAX_STAGE = 9; // A partir de 100 eliminações, a arena passa para a luta do chefe.
@@ -306,8 +343,24 @@ function chooseSpawnPoint({navigation,projection,player,sequence=0,minimumDistan
   return null;
 }
 
+/** Mantém progressão de 10 em 10 abates, somando pressão proporcional à era.
+ * Inimigos comuns continuam com três pontos de vida; a exigência cresce pelo comportamento. */
+function difficultyForEra(kills,eraIndex=0){
+  const within=difficultyForKills(kills),era=Math.max(0,Math.min(4,Math.floor(eraIndex)||0));
+  return Object.freeze({
+    ...within,era,
+    maxAlive:Math.min(24,within.maxAlive+Math.round(era*1.5)),
+    spawnIntervalMs:Math.max(1500,Math.round(within.spawnIntervalMs*(1-era*.075))),
+    speedMultiplier:within.speedMultiplier*(1+era*.092),
+    aggression:within.aggression*(1+era*.13)
+  });
+}
+
+return {CREATURE_BEHAVIORS,MAX_STAGE,difficultyForKills,behaviorForCreature,chooseSpawnPoint,difficultyForEra};
+})();
 
 // --- src/systems/MagnetSystem.js ---
+const {FRAGMENT_COLLECT_DISTANCE,magnetRadius,advanceFragment} = (() => {
 /**
  * Atração de fragmentos em espaço 2D (sem Phaser).
  * A melhoria Ímã aumenta a zona onde os fragmentos começam a deslocar-se.
@@ -333,8 +386,11 @@ function advanceFragment(fragment, player, deltaMs, attractionRadius) {
   return { x: nx, y: ny, attracted: true, collected: Math.hypot(player.x - nx, player.y - ny) <= FRAGMENT_COLLECT_DISTANCE };
 }
 
+return {FRAGMENT_COLLECT_DISTANCE,magnetRadius,advanceFragment};
+})();
 
 // --- src/systems/BossSystem.js ---
+const {BOSS_CONFIG,BOSS_ATTACKS,BossState} = (() => {
 /** Modelo determinístico do primeiro chefe; permite testes sem renderizador. */
 const BOSS_CONFIG = Object.freeze({
   name: 'TRICERÁTOPS ANCESTRAL',
@@ -378,8 +434,11 @@ class BossState {
   cooldownMs(){return 3500-(this.phase-1)*420;}
 }
 
+return {BOSS_CONFIG,BOSS_ATTACKS,BossState};
+})();
 
 // --- src/systems/IceAgeBossSystem.js ---
+const {ICE_BOSS_CONFIG,ICE_BOSS_ATTACKS,inFrostCone,IceAgeBossState} = (() => {
 /** Regras de combate do Mamute Ancestral, independentes do renderizador. */
 const ICE_BOSS_CONFIG = Object.freeze({
   name: 'MAMUTE ANCESTRAL', maxHealth: 138, baseSpeed: 80,
@@ -430,8 +489,106 @@ class IceAgeBossState {
   cooldownMs(){return 3500-(this.phase-1)*440;}
 }
 
+return {ICE_BOSS_CONFIG,ICE_BOSS_ATTACKS,inFrostCone,IceAgeBossState};
+})();
+
+// --- src/systems/FrostTrailSystem.js ---
+const {FROST_TRAIL,FrostTrailState} = (() => {
+/** Rastro de gelo: imobilização curta seguida de recuperação gradual da velocidade. */
+const FROST_TRAIL = Object.freeze({
+  durationMs: 6100,
+  radius: 33,
+  stunMs: 420,
+  slowMs: 2650,
+  initialSlow: 0.34
+});
+class FrostTrailState {
+  constructor(config=FROST_TRAIL){this.config=config;this.reset();}
+  reset(){this.stunUntil=-Infinity;this.recoverUntil=-Infinity;this.lastTouched=new Set();}
+  /** Cada área gelada ativa o efeito uma única vez: permanecer parado não prende para sempre. */
+  touch(patchId,now){
+    if(this.lastTouched.has(patchId)||!Number.isFinite(now))return false;
+    this.lastTouched.add(patchId);
+    if(now<this.stunUntil)return false;
+    this.stunUntil=now+this.config.stunMs;
+    this.recoverUntil=this.stunUntil+this.config.slowMs;
+    return true;
+  }
+  movementMultiplier(now){
+    if(now<this.stunUntil)return 0;
+    if(now>=this.recoverUntil)return 1;
+    const t=Math.max(0,(now-this.stunUntil)/this.config.slowMs);
+    return this.config.initialSlow+(1-this.config.initialSlow)*t;
+  }
+  phase(now){return now<this.stunUntil?'stun':now<this.recoverUntil?'recuperando':'livre';}
+  remaining(now){return Math.max(0,this.recoverUntil-now);}
+}
+
+return {FROST_TRAIL,FrostTrailState};
+})();
+
+// --- src/systems/ActiveCombatSystem.js ---
+const {DASH,DashState,threatForEra,threatHits} = (() => {
+/** Ações manuais e ataques que devem ser esquivados: lógica pura e testável. */
+const DASH=Object.freeze({distance:94,cooldownMs:4900,invulnerabilityMs:320});
+class DashState{
+  constructor(config=DASH){this.config=config;this.lastUsed=-Infinity;}
+  canUse(now){return now-this.lastUsed>=this.config.cooldownMs;}
+  use(now){if(!this.canUse(now))return false;this.lastUsed=now;return true;}
+  remaining(now){return Math.max(0,this.config.cooldownMs-(now-this.lastUsed));}
+}
+function threatForEra(eraIndex,stage=0){
+  if(eraIndex<2&&stage<5)return null;
+  if(eraIndex<2)return Object.freeze({intervalMs:11500-stage*200,warningMs:1580,radius:35+Math.floor(stage/3)*3,idleTriggerMs:5100});
+  const era=eraIndex-2;
+  return Object.freeze({
+    intervalMs:Math.max(3900,8500-era*1400-Math.min(stage,9)*110),
+    warningMs:Math.max(830,1350-era*150),
+    radius:Math.min(61,40+era*7+Math.floor(stage/3)*3),
+    idleTriggerMs:Math.max(2500,3850-era*450)
+  });
+}
+function threatHits(target,player,radius){return Math.hypot(target.x-player.x,target.y-player.y)<radius;}
+
+return {DASH,DashState,threatForEra,threatHits};
+})();
+
+// --- src/systems/CivilizationBossSystem.js ---
+const {CIVILIZATION_BOSSES,CivilizationBossState,withinBossBeam} = (() => {
+/** Chefes dos três capítulos em desenvolvimento. Mecânicas comuns, identidades distintas. */
+const CIVILIZATION_BOSSES=Object.freeze({
+  antiga:Object.freeze({name:'GUARDIÃO DA ESFINGE',health:160,speed:81,color:0xf1c77e,charge:'AVANÇO DE ARENITO',stomp:'TERREMOTO DO TEMPLO',beam:'RAIO SOLAR',summon:'ESCARAVELHOS DESPERTAM'}),
+  medieval:Object.freeze({name:'GÁRGULA COROADA',health:188,speed:95,color:0xb4d9ed,charge:'MERGULHO SOMBRIO',stomp:'ONDA DA FORTALEZA',beam:'OLHAR DE PEDRA',summon:'MATILHA DA NOITE'}),
+  renascimento:Object.freeze({name:'AUTÔMATO MAGNO',health:220,speed:91,color:0xe9bd7b,charge:'ARRANCADA MECÂNICA',stomp:'ENGRENAGEM DE CHOQUE',beam:'FEIXE ALQUÍMICO',summon:'ENGENHOS DE APOIO'})
+});
+class CivilizationBossState {
+  constructor(era){this.config=CIVILIZATION_BOSSES[era];if(!this.config)throw new Error('Boss de era inválida');this.health=this.config.health;this.attackIndex=0;this.summons=0;}
+  get alive(){return this.health>0;}
+  get phase(){return this.health>this.config.health*.7?1:this.health>this.config.health*.35?2:3;}
+  get healthRatio(){return Math.max(0,this.health/this.config.health);}
+  takeDamage(damage){if(!this.alive)return false;this.health=Math.max(0,this.health-Math.max(1,Math.floor(damage)));return true;}
+  chooseAttack(distance){
+    const index=this.attackIndex++;
+    if(this.phase===3&&this.summons<2&&index%5===0){this.summons++;return 'summon';}
+    if(distance<130&&index%3===0)return 'stomp';
+    if(distance>250&&index%3===0)return 'charge';
+    return (this.phase===1?['charge','stomp','beam']:['beam','charge','stomp','beam'])[index%(this.phase===1?3:4)];
+  }
+  windupMs(){return Math.max(780,1250-(this.phase-1)*150);}
+  cooldownMs(){return Math.max(1450,3550-(this.phase-1)*560);}
+}
+function withinBossBeam(from,to,player,width=35){
+  const dx=to.x-from.x,dy=to.y-from.y,len2=dx*dx+dy*dy;
+  if(len2<1)return Math.hypot(player.x-from.x,player.y-from.y)<width;
+  const t=Math.max(0,Math.min(1,((player.x-from.x)*dx+(player.y-from.y)*dy)/len2));
+  return Math.hypot(player.x-(from.x+dx*t),player.y-(from.y+dy*t))<=width;
+}
+
+return {CIVILIZATION_BOSSES,CivilizationBossState,withinBossBeam};
+})();
 
 // --- src/systems/RelicVisual.js ---
+const {relicCenter,createRelicVisual} = (() => {
 /** Component único garante que estrela, halo e brilho partilham exatamente o mesmo centro. */
 function relicCenter(x,y){return {x,y:y-24};}
 function createRelicVisual(scene,x,y,color,title){
@@ -449,8 +606,11 @@ function createRelicVisual(scene,x,y,color,title){
   return {container,halo,glow,star,label,center,destroy(){container.destroy();label.destroy();}};
 }
 
+return {relicCenter,createRelicVisual};
+})();
 
 // --- src/world/IsoProjection.js ---
+const {IsoProjection} = (() => {
 class IsoProjection {
   constructor(tileWidth, tileHeight, originX = 0, originY = 0) {
     this.tileWidth = tileWidth; this.tileHeight = tileHeight;
@@ -467,8 +627,11 @@ class IsoProjection {
   depth(x, y) { return x + y; }
 }
 
+return {IsoProjection};
+})();
 
 // --- src/world/NavigationGrid.js ---
+const {NavigationGrid} = (() => {
 /**
  * Navegação em coordenadas de tela para um mundo desenhado em projeção isométrica.
  * A mesma regra de colisão é usada na procura de rota e no deslocamento real.
@@ -701,8 +864,11 @@ class MinHeap {
   }
 }
 
+return {NavigationGrid};
+})();
 
 // --- src/world/WorldGenerator.js ---
+const {WorldGenerator} = (() => {
 /** Mundo 2.5D do Cretáceo fictício. A arte é desenhada em vetor, em camadas,
  *  sem modificar o modelo de colisões aprovado no Ciclo 04.
  */
@@ -829,8 +995,11 @@ class WorldGenerator {
   }
 }
 
+return {WorldGenerator};
+})();
 
 // --- src/world/PleistoceneWorld.js ---
+const {PleistoceneWorld} = (() => {
 /** Terreno gelado do Pleistoceno, com geometria e colisões próprias. */
 class PleistoceneWorld {
   constructor(scene,projection){this.scene=scene;this.projection=projection;this.obstacles=[];}
@@ -897,8 +1066,126 @@ class PleistoceneWorld {
   }
 }
 
+return {PleistoceneWorld};
+})();
+
+// --- src/world/CivilizationWorld.js ---
+const {CIVILIZATION_WORLDS,CivilizationWorld} = (() => {
+/** Três arenas isométricas independentes: templos antigos, castelo medieval, jardins renascentistas. */
+const THEMES={
+  antiga:{palette:[0xc5aa70,0xd4b980,0xb69d68,0xc0a370,0xe0c28b,0xb9a06d],line:0x8c7046,
+    edge:['column','rubble','palm','column','rubble'],center:[['obelisk',8,8],['rubble',20,9],['column',25,15],['palm',11,18],['obelisk',23,21],['rubble',7,21],['column',15,5],['palm',28,9]]},
+  medieval:{palette:[0x586978,0x617282,0x6f7b83,0x4a5c68,0x697c84,0x65716e],line:0x243c4d,
+    edge:['wall','tower','pine','wall','wall'],center:[['well',9,8],['barrel',20,6],['tower',25,16],['pine',9,19],['well',22,19],['barrel',17,8],['tower',6,14],['pine',27,11]]},
+  renascimento:{palette:[0xb7b09a,0xbab89d,0x9eb5a8,0xc4bb9f,0xc1ad94,0xa6bdaf],line:0x788d80,
+    edge:['hedge','column','hedge','statue','hedge'],center:[['fountain',9,8],['column',19,7],['statue',25,15],['hedge',10,20],['fountain',23,20],['column',7,14],['hedge',17,9],['statue',27,8]]}
+};
+const CIVILIZATION_WORLDS=Object.freeze(Object.keys(THEMES));
+class CivilizationWorld {
+  constructor(scene,projection,era){
+    if(!THEMES[era])throw new Error('Civilização desconhecida: '+era);
+    this.scene=scene;this.projection=projection;this.era=era;this.theme=THEMES[era];this.obstacles=[];
+  }
+  create(columns,rows){
+    const t=this.theme,ground=this.scene.add.graphics();
+    for(let y=0;y<rows;y++)for(let x=0;x<columns;x++){
+      const p=this.projection.toScreen(x,y),seed=(x*59+y*41+x*y*13)%107;
+      ground.fillStyle(t.palette[(x*7+y*11+seed)%t.palette.length]);
+      ground.lineStyle(.65,t.line,.28);
+      ground.beginPath();ground.moveTo(p.x,p.y-24);ground.lineTo(p.x+48,p.y);ground.lineTo(p.x,p.y+24);ground.lineTo(p.x-48,p.y);ground.closePath();ground.fillPath();ground.strokePath();
+      if(seed%11===0){
+        ground.lineStyle(1.2,t.line,.32);
+        ground.lineBetween(p.x-18,p.y+5,p.x-7,p.y+1);
+        ground.lineBetween(p.x-7,p.y+1,p.x-1,p.y+6);
+      }
+      if(seed%19===0){
+        ground.fillStyle(this.era==='antiga'?0xf4d49a:this.era==='medieval'?0x789382:0xdce6b9,.54);
+        ground.fillEllipse(p.x-2,p.y+7,14,4);
+      }
+      if(seed%37===0)this.detail(p.x,p.y);
+    }
+    ground.setDepth(-1000);
+    for(let y=0;y<rows;y++)for(let x=0;x<columns;x++){
+      if(x!==0&&y!==0&&x!==columns-1&&y!==rows-1)continue;
+      const p=this.projection.toScreen(x,y);
+      this.addObstacle(p.x,p.y,t.edge[(x*5+y*3)%t.edge.length],true);
+    }
+    for(const [type,x,y] of t.center){const p=this.projection.toScreen(x,y);this.addObstacle(p.x,p.y,type,false);}
+  }
+  detail(x,y){
+    const g=this.scene.add.graphics().setDepth(y+18);
+    if(this.era==='antiga'){
+      g.lineStyle(1.3,0x856b43,.48);g.lineBetween(x-9,y+2,x,y-4);g.lineBetween(x+4,y-1,x+13,y+5);
+    }else if(this.era==='medieval'){
+      g.fillStyle(0x486a61,.63);for(let i=0;i<3;i++)g.fillEllipse(x-8+i*7,y+2+(i%2)*4,10,4);
+    }else{
+      for(let i=0;i<4;i++){g.fillStyle(i%2?0xeac68d:0xc87964,.65);g.fillCircle(x-9+i*6,y+2+(i%2)*4,2.6);}
+    }
+  }
+  addObstacle(x,y,kind,perimeter){
+    const g=this.scene.add.graphics().setDepth(y+220),colors={
+      antiga:[0x8c7857,0xe2be7c,0xf5dc9e,0x6f664b],
+      medieval:[0x293f4d,0x8997a0,0xb2b8ac,0x404e61],
+      renascimento:[0x486452,0xd2c5a6,0xf5e9c9,0x8ca6a1]
+    }[this.era];
+    const [dark,base,light,accent]=colors;
+    g.fillStyle(0x162925,.32);g.fillEllipse(x+5,y+14,83,17);
+    if(kind==='palm'||kind==='pine'){
+      g.fillStyle(kind==='palm'?0x806043:0x705b47);g.fillRoundedRect(x-6,y-48,12,69,3);
+      if(kind==='palm'){
+        for(let j=-2;j<=2;j++){g.lineStyle(9,j%2?0x4e7753:0x6e915f);g.lineBetween(x,y-55,x+j*20,y-68+Math.abs(j)*16);}
+      }else{
+        for(let i=0;i<3;i++){const top=y-103+i*25;g.fillStyle(i%2?0x2d5148:0x416a54);g.fillTriangle(x,top,x-38+i*5,top+53,x+38-i*5,top+53);}
+      }
+    }else if(kind==='hedge'){
+      g.fillStyle(dark);g.fillEllipse(x,y-11,77,38);g.fillStyle(0x729475);g.fillEllipse(x-11,y-23,45,18);
+      g.fillStyle(0x9ab280);g.fillEllipse(x+20,y-19,27,17);
+    }else if(kind==='fountain'||kind==='well'){
+      g.fillStyle(dark);g.fillEllipse(x,y+5,72,28);g.fillStyle(light);g.fillEllipse(x,y-3,64,25);
+      g.fillStyle(kind==='fountain'?0x72c2c1:0x304d63);g.fillEllipse(x,y-6,48,17);
+      if(kind==='fountain'){
+        g.fillStyle(base);g.fillRoundedRect(x-5,y-47,10,40,3);g.fillEllipse(x,y-42,29,8);
+        g.fillStyle(0xa4e6dc,.75);g.fillEllipse(x,y-39,22,4);
+      }
+    }else if(kind==='rubble'||kind==='barrel'){
+      if(kind==='barrel'){
+        g.fillStyle(0x6e523f);g.fillRoundedRect(x-23,y-42,46,49,9);
+        g.lineStyle(4,0xc1a572);g.lineBetween(x-21,y-29,x+21,y-29);g.lineBetween(x-20,y-4,x+20,y-4);
+      }else{
+        g.fillStyle(base);g.fillPoints([{x:x-33,y:y+7},{x:x-22,y:y-25},{x:x+1,y:y-44},{x:x+34,y:y+4}],true);
+        g.fillStyle(light);g.fillTriangle(x-22,y-25,x+1,y-44,x+13,y-11);
+      }
+    }else{
+      // Construções sólidas; não são apenas recolorações do mesmo obstáculo.
+      const column=kind==='column'||kind==='obelisk'||kind==='statue';
+      g.fillStyle(dark);g.fillRoundedRect(x-29,y-4,58,17,3);
+      if(column){
+        g.fillStyle(base);g.fillRoundedRect(x-17,y-80,34,83,3);
+        g.fillStyle(light);g.fillRoundedRect(x-18,y-86,36,12,1);
+        if(kind==='obelisk'){
+          g.fillStyle(base);g.fillTriangle(x-17,y-79,x,y-114,x+17,y-79);
+          g.lineStyle(1.2,accent,.8);g.lineBetween(x-3,y-52,x+5,y-42);
+        }
+        if(kind==='statue'){
+          g.fillStyle(accent);g.fillEllipse(x,y-101,19,22);
+          g.fillStyle(light);g.fillRoundedRect(x-6,y-90,12,22,3);
+        }
+      }else{
+        g.fillStyle(base);g.fillRoundedRect(x-28,y-60,56,58,1);
+        g.fillStyle(light);for(let i=0;i<3;i++)g.fillRoundedRect(x-28+i*21,y-72,14,16,1);
+        g.lineStyle(2,dark,.7);g.lineBetween(x-29,y-35,x+29,y-35);
+      }
+    }
+    const radius={hedge:[42,24],fountain:[38,23],well:[39,22],pine:[33,23],palm:[27,20],rubble:[40,26],barrel:[30,23],column:[31,23],obelisk:[35,25],statue:[34,24],wall:[36,29],tower:[36,29]}[kind]||[35,25];
+    this.obstacles.push({x,y,rx:radius[0],ry:radius[1],type:kind,perimeter});
+  }
+}
+
+return {CIVILIZATION_WORLDS,CivilizationWorld};
+})();
 
 // --- src/art/CharacterArt.js ---
+const {createCharacterArt,playerTexture,creatureTexture,creaturesList} = (() => {
 /** Arte original em Canvas. Sem dependências de imagens externas ou sprites de terceiros.
  *  Gera quadros 2D com oito direções do protagonista e três espécies distintas.
  */
@@ -1056,8 +1343,11 @@ function playerTexture(facing, frame){return `era-player-${PLAYER_FACINGS.includ
 function creatureTexture(species, toLeft, frame){return `era-${species}-${toLeft?'left':'right'}-${frame%CREATURE_FRAMES}`;}
 const creaturesList = CREATURE_SPECIES;
 
+return {createCharacterArt,playerTexture,creatureTexture,creaturesList};
+})();
 
 // --- src/art/PleistoceneArt.js ---
+const {PLEISTOCENE_SPECIES,createPleistoceneArt,pleistocenePlayerTexture,pleistoceneCreatureTexture} = (() => {
 /** Personagens originais do Pleistoceno desenhados em Canvas, sem assets externos. */
 const PLEISTOCENE_SPECIES=Object.freeze(['smilodonte','rinoceronte-lanoso','mamute-jovem']);
 const FACINGS=['down','down-right','right','up-right','up','up-left','left','down-left'];
@@ -1146,8 +1436,11 @@ function createPleistoceneArt(scene){
 function pleistocenePlayerTexture(facing,frame){return `era2-player-${FACINGS.includes(facing)?facing:'down'}-${frame%4}`;}
 function pleistoceneCreatureTexture(species,flip,frame){return `era2-${species}-${flip?'left':'right'}-${frame%4}`;}
 
+return {PLEISTOCENE_SPECIES,createPleistoceneArt,pleistocenePlayerTexture,pleistoceneCreatureTexture};
+})();
 
 // --- src/art/BossArt.js ---
+const {createBossArt,bossTexture} = (() => {
 /** Arte própria do Tricerátops Ancestral em Canvas, sem imagens externas. */
 function createBossArt(scene){
   for(const flip of [false,true])for(let frame=0;frame<4;frame++){
@@ -1185,8 +1478,11 @@ function createBossArt(scene){
 }
 function bossTexture(left,frame){return `era-boss-${left?'left':'right'}-${frame%4}`;}
 
+return {createBossArt,bossTexture};
+})();
 
 // --- src/art/IceAgeBossArt.js ---
+const {createIceAgeBossArt,iceAgeBossTexture} = (() => {
 /** Mamute Ancestral: sprite original em Canvas com pelagem, armadura de gelo e presas. */
 function createIceAgeBossArt(scene){
   const oval=(c,x,y,rx,ry,color)=>{c.beginPath();c.ellipse(x,y,rx,ry,0,0,2*Math.PI);c.fillStyle=color;c.fill();};
@@ -1238,8 +1534,173 @@ function createIceAgeBossArt(scene){
 }
 function iceAgeBossTexture(left,frame){return `era2-mamute-ancestral-${left?'left':'right'}-${frame%4}`;}
 
+return {createIceAgeBossArt,iceAgeBossTexture};
+})();
+
+// --- src/art/CivilizationArt.js ---
+const {CIVILIZATION_SPECIES,civilizationPlayerTexture,civilizationCreatureTexture,civilizationBossTexture,createCivilizationArt} = (() => {
+/** Sprites desenhados em Canvas, com silhuetas e equipamentos próprios para as eras III–V. */
+const CIVILIZATION_SPECIES=Object.freeze({
+  antiga:['escaravelho','guardiao-de-arenito','espirito-chacal'],
+  medieval:['lobo-sombrio','gargula','cavaleiro-encantado'],
+  renascimento:['automato','quimera-alquimica','sentinela-de-bronze']
+});
+const CIV_FACINGS=['right','down-right','down','down-left','left','up-left','up','up-right'];
+function civOval(c,x,y,rx,ry,color){c.beginPath();c.ellipse(x,y,rx,ry,0,0,Math.PI*2);c.fillStyle=color;c.fill();}
+function civPoly(c,pts,color,stroke=null){c.beginPath();c.moveTo(...pts[0]);for(const p of pts.slice(1))c.lineTo(...p);c.closePath();c.fillStyle=color;c.fill();if(stroke){c.lineWidth=2;c.strokeStyle=stroke;c.stroke();}}
+function civLine(c,x,y,tx,ty,color,width=3){c.beginPath();c.moveTo(x,y);c.lineTo(tx,ty);c.lineWidth=width;c.lineCap='round';c.strokeStyle=color;c.stroke();}
+function civTexture(scene,key,w,h,paint){if(scene.textures.exists(key))return;const t=scene.textures.createCanvas(key,w,h),c=t.getContext();c.clearRect(0,0,w,h);c.save();paint(c);c.restore();t.refresh();}
+function civHuman(c,era,facing,frame){
+  const left=facing.includes('left'),back=facing.startsWith('up'),stride=[-4,2,4,-2][frame],bob=[0,-2,0,-1][frame];
+  c.translate(50,87+bob);c.scale(left?-1:1,1);
+  const tunic=era==='antiga'?'#e8d8a4':era==='medieval'?'#5c7180':'#a36c52';
+  const coat=era==='antiga'?'#587e73':era==='medieval'?'#50687e':'#384f64';
+  const trim=era==='antiga'?'#cbb569':era==='medieval'?'#b4bbc0':'#ddb88a';
+  civPoly(c,[[-13,-1],[-4,0],[-8,22+stride],[-17,23+stride]],'#554b44');
+  civPoly(c,[[4,0],[13,-1],[17,23-stride],[8,23-stride]],'#5d4e45');
+  civOval(c,-13,23+stride,9,4,'#292e2e');civOval(c,13,23-stride,9,4,'#292e2e');
+  civPoly(c,[[-19,-37],[18,-37],[23,8],[-22,9]],tunic,'#5f5a4c');
+  civPoly(c,[[-20,-37],[3,-34],[-2,9],[-21,9]],coat);
+  civLine(c,-18,-35,-22,-6+stride*.5,'#b68c6f',7);civLine(c,18,-35,23,-8-stride*.5,'#c09a79',7);
+  civOval(c,-23,-6+stride*.5,5,4,'#d1a287');civOval(c,23,-8-stride*.5,5,4,'#d1a287');
+  civLine(c,-18,0,19,0,trim,4);civOval(c,4,0,4,3,'#e9ca7c');
+  civOval(c,0,-45,15,18,'#c99d7b');
+  if(era==='antiga'){
+    civPoly(c,[[-17,-57],[17,-57],[14,-67],[-14,-67]],'#bb914b');
+    civPoly(c,[[-10,-67],[10,-67],[4,-78],[-4,-78]],'#e6cb7f');
+  }else if(era==='medieval'){
+    civPoly(c,[[-17,-51],[-13,-66],[0,-74],[13,-66],[17,-51]],'#8796a2','#3f4b53');
+    civLine(c,-15,-56,15,-56,'#d2d4cd',3);
+  }else{
+    civOval(c,0,-59,24,8,'#704737');
+    civPoly(c,[[-15,-59],[-7,-73],[13,-71],[18,-59]],'#77503d');
+    civLine(c,11,-67,18,-82,'#e2b879',3);
+  }
+  if(back)civOval(c,0,-45,11,12,'#645047');else{
+    civOval(c,5,-45,2,2,'#31302b');if(!facing.includes('right')&&!left)civOval(c,-6,-45,2,2,'#31302b');
+    civLine(c,-4,-34,6,-34,'#a57b5e',1.5);
+  }
+  // Artefato mágico visível na mão em todas as eras.
+  civOval(c,29,-12,7,8,era==='antiga'?'#ffd691':era==='medieval'?'#a9e2ed':'#dbacfc');
+  civOval(c,29,-13,3,3,'#fff4da');
+}
+function civScarab(c,frame){
+  c.translate(55,76+[0,-2,0,-1][frame]);
+  for(const [x,y] of [[-23,-11],[-16,4],[0,10],[16,4],[23,-11]]){civLine(c,x,y,x+(x<0?-13:13),y+15,'#685338',5);}
+  civOval(c,0,-11,29,23,'#9d713b');civOval(c,0,-16,25,20,'#387878');
+  civPoly(c,[[-22,-19],[-6,-32],[0,-9],[-4,8]],'#6daca0');civPoly(c,[[22,-19],[6,-32],[0,-9],[4,8]],'#2d5d68');
+  civOval(c,0,-8,4,4,'#dfbd67');civOval(c,-10,-31,4,3,'#e1b873');civOval(c,10,-31,4,3,'#e1b873');
+}
+function civSandstone(c,frame){
+  c.translate(55,80+[0,-2,0,-1][frame]);
+  for(const x of [-19,19]){civPoly(c,[[x-9,-5],[x+7,-5],[x+11,21],[x-10,21]],'#8c744c');}
+  civPoly(c,[[-28,-38],[24,-38],[30,-5],[-30,-5]],'#c4a66b','#7f694f');
+  civPoly(c,[[-32,-45],[31,-45],[25,-69],[-24,-67]],'#d6bd84');
+  civPoly(c,[[-23,-76],[23,-76],[19,-49],[-21,-49]],'#bea071');
+  civOval(c,-10,-65,3,4,'#b8e8d4');civOval(c,10,-65,3,4,'#b8e8d4');
+  civLine(c,-30,-32,-35,6,'#927b55',9);civLine(c,30,-32,35,6,'#927b55',9);
+}
+function civJackal(c,frame){
+  c.translate(55,75+[0,-3,0,-1][frame]);const step=[-3,3,-2,2][frame];
+  civPoly(c,[[-35,-21],[-54,-45],[-49,-7]],'#424443');
+  for(const x of [-24,-3,18,29]){civLine(c,x,-8,x+2,19+(x%2?step:-step),'#484742',8);}
+  civOval(c,-7,-19,36,22,'#544d42');civOval(c,18,-32,26,19,'#474744');
+  civPoly(c,[[16,-42],[19,-68],[29,-47]],'#454640');civPoly(c,[[28,-44],[39,-65],[39,-33]],'#454640');
+  civPoly(c,[[34,-30],[56,-22],[40,-12]],'#595044');civOval(c,34,-32,3,3,'#e0cc71');
+  civLine(c,40,-15,52,-20,'#d0a879',3);
+}
+function civWolf(c,frame){
+  c.translate(52,75+[0,-3,0,-1][frame]);const stride=[-4,3,4,-3][frame];
+  civPoly(c,[[-27,-26],[-52,-42],[-42,-12]],'#455363');
+  for(const x of [-25,-3,17,31])civLine(c,x,-5,x+3,18+(x%2?stride:-stride),'#33404e',8);
+  civOval(c,0,-22,34,21,'#64758a');civOval(c,23,-29,22,21,'#445263');
+  civPoly(c,[[9,-40],[13,-65],[27,-46]],'#354755');civPoly(c,[[26,-45],[37,-63],[40,-37]],'#354755');
+  civPoly(c,[[31,-26],[57,-17],[39,-9]],'#7d8b8c');civOval(c,34,-34,3,3,'#f1d4ad');
+}
+function civGargoyle(c,frame){
+  c.translate(54,80+[0,-4,0,-2][frame]);
+  civPoly(c,[[-12,-25],[-42,-53],[-51,-20],[-45,5],[-21,-3]],'#677e90');
+  civPoly(c,[[13,-25],[40,-53],[53,-20],[46,5],[21,-3]],'#465f74');
+  for(const x of [-15,15]){civLine(c,x,-1,x+2,18,'#394a56',10);}
+  civOval(c,0,-21,24,26,'#6e8799');civOval(c,0,-50,16,17,'#9ab1b5');
+  civPoly(c,[[-10,-57],[-19,-79],[-2,-62]],'#7e959e');civPoly(c,[[10,-57],[19,-79],[2,-62]],'#7e959e');
+  civOval(c,-7,-51,3,3,'#f0d47e');civOval(c,8,-51,3,3,'#f0d47e');
+}
+function civKnight(c,frame){
+  c.translate(55,82+[0,-2,0,-1][frame]);
+  for(const x of [-14,14]){civPoly(c,[[x-8,-10],[x+7,-10],[x+9,21],[x-9,21]],'#4e5964');}
+  civPoly(c,[[-26,-43],[27,-43],[25,-5],[-24,-5]],'#8094a1','#40515d');
+  civPoly(c,[[-18,-47],[19,-47],[12,-66],[-13,-66]],'#a6b8bd');
+  civOval(c,0,-66,19,17,'#899eaa');
+  civPoly(c,[[-16,-79],[15,-79],[8,-88],[-10,-88]],'#b7c0b9');
+  civLine(c,-26,-29,-35,3,'#a7bbc3',9);civLine(c,26,-30,34,1,'#778b93',9);
+  civLine(c,-6,-65,7,-65,'#33414c',4);civOval(c,0,-20,4,4,'#f0d28a');
+}
+function civAutomaton(c,frame){
+  c.translate(55,79+[0,-2,0,-1][frame]);
+  for(const x of [-18,17]){civLine(c,x,-6,x+2,22,'#735c3b',11);civOval(c,x+2,22,10,5,'#3e5147');}
+  civPoly(c,[[-27,-44],[26,-44],[30,-5],[-29,-5]],'#a98346','#715b3c');
+  civOval(c,0,-28,17,17,'#6a867b');civOval(c,0,-28,10,10,'#d8b87a');civOval(c,0,-28,4,4,'#5b6b64');
+  civOval(c,0,-57,20,20,'#c6a76b');
+  for(const x of [-9,9])civOval(c,x,-60,4,3,'#8de6df');
+  civLine(c,-29,-33,-39,2,'#b59c6d',9);civLine(c,29,-33,39,2,'#b59c6d',9);
+  civLine(c,0,-77,0,-90,'#7d7353',3);civOval(c,0,-91,5,5,'#e9ce92');
+}
+function civChimera(c,frame){
+  c.translate(54,81+[0,-4,0,-2][frame]);
+  civPoly(c,[[-29,-24],[-48,-44],[-52,-13],[-32,4]],'#86b9aa');
+  civPoly(c,[[29,-24],[48,-44],[52,-13],[32,4]],'#6897a2');
+  civOval(c,0,-18,25,27,'#65a9a3');civOval(c,0,-46,18,18,'#a4cfb4');
+  civPoly(c,[[-15,-53],[-22,-76],[-2,-62]],'#b4dda9');civPoly(c,[[15,-53],[22,-76],[2,-62]],'#c1e3c2');
+  civOval(c,-6,-45,3.3,3.3,'#f2e2a4');civOval(c,7,-45,3.3,3.3,'#f2e2a4');
+  for(const x of [-14,14])civLine(c,x,1,x,17,'#5a8d85',8);
+}
+function civSentry(c,frame){
+  c.translate(54,80+[0,-2,0,-1][frame]);
+  for(const x of [-14,14]){civLine(c,x,-1,x,23,'#5c685b',9);}
+  civPoly(c,[[-24,-44],[25,-44],[32,-5],[-31,-5]],'#bca36c','#7d765b');
+  civOval(c,0,-29,20,19,'#d0b57d');civOval(c,0,-29,11,12,'#507a79');
+  civPoly(c,[[-20,-50],[-14,-72],[14,-72],[22,-50]],'#b5a27a');
+  civOval(c,0,-64,19,13,'#d1ba8f');civOval(c,-7,-64,3,3,'#70dccc');civOval(c,8,-64,3,3,'#70dccc');
+  civLine(c,-27,-29,-38,-1,'#a8a386',10);civLine(c,27,-29,38,-1,'#a8a386',10);
+  for(let i=0;i<6;i++){const a=i*Math.PI/3;civLine(c,Math.cos(a)*11,Math.sin(a)*11-29,Math.cos(a)*19,Math.sin(a)*19-29,'#a38b56',3);}
+}
+const PAINTERS={
+  'escaravelho':civScarab,'guardiao-de-arenito':civSandstone,'espirito-chacal':civJackal,
+  'lobo-sombrio':civWolf,'gargula':civGargoyle,'cavaleiro-encantado':civKnight,
+  'automato':civAutomaton,'quimera-alquimica':civChimera,'sentinela-de-bronze':civSentry
+};
+function civilizationPlayerTexture(era,facing,frame){return `era-${era}-player-${CIV_FACINGS.includes(facing)?facing:'down'}-${frame%4}`;}
+function civilizationCreatureTexture(era,species,flip,frame){return `era-${era}-${species}-${flip?'left':'right'}-${frame%4}`;}
+function civilizationBossTexture(era,flip,frame){return `era-${era}-boss-${flip?'left':'right'}-${frame%4}`;}
+function createCivilizationArt(scene,era){
+  if(!CIVILIZATION_SPECIES[era])throw new Error('Era inválida');
+  for(const facing of CIV_FACINGS)for(let frame=0;frame<4;frame++)
+    civTexture(scene,civilizationPlayerTexture(era,facing,frame),100,122,c=>civHuman(c,era,facing,frame));
+  for(const species of CIVILIZATION_SPECIES[era])for(const flip of [false,true])for(let frame=0;frame<4;frame++){
+    civTexture(scene,civilizationCreatureTexture(era,species,flip,frame),112,112,c=>{
+      if(flip){c.translate(112,0);c.scale(-1,1);}
+      PAINTERS[species](c,frame);
+    });
+  }
+  for(const flip of [false,true])for(let frame=0;frame<4;frame++){
+    civTexture(scene,civilizationBossTexture(era,flip,frame),174,182,c=>{
+      c.translate(19,30);c.scale(1.23,1.22);
+      if(flip){c.translate(112,0);c.scale(-1,1);}
+      const prototype=CIVILIZATION_SPECIES[era][era==='antiga'?1:era==='medieval'?1:0];
+      PAINTERS[prototype](c,frame);
+      c.fillStyle=era==='antiga'?'#f7df8d':era==='medieval'?'#cce1f1':'#efcd8e';
+      c.beginPath();c.moveTo(30,14);c.lineTo(41,-7);c.lineTo(54,7);c.lineTo(68,-7);c.lineTo(80,14);c.closePath();c.fill();
+    });
+  }
+}
+
+return {CIVILIZATION_SPECIES,civilizationPlayerTexture,civilizationCreatureTexture,civilizationBossTexture,createCivilizationArt};
+})();
 
 // --- src/entities/Player.js ---
+const {Player} = (() => {
+
 
 
 
@@ -1253,7 +1714,7 @@ class Player {
     this.sprite=scene.add.image(x,y,this.texture('down',0)).setOrigin(.5,.83).setDepth(y+300);
     this.sprite.setScale(.85);
   }
-  texture(facing,frame){return this.era==='pleistoceno'?pleistocenePlayerTexture(facing,frame):playerTexture(facing,frame);}
+  texture(facing,frame){return CIVILIZATION_SPECIES[this.era]?civilizationPlayerTexture(this.era,facing,frame):this.era==='pleistoceno'?pleistocenePlayerTexture(facing,frame):playerTexture(facing,frame);}
   update(delta,direction,obstacles,map) {
     const dt=Math.min(delta,40)/1000;
     let dx=direction.x,dy=direction.y;
@@ -1280,18 +1741,22 @@ class Player {
   collides(x,y,obstacles) {return obstacles.some(o=>Math.abs(x-o.x)<o.rx&&Math.abs(y-o.y)<o.ry);}
 }
 
+return {Player};
+})();
 
 // --- src/entities/Creature.js ---
+const {Creature} = (() => {
+
 
 
 
 class Creature {
   constructor(scene,x,y,id,config={}) {
     this.scene=scene;this.id=id;this.era=config.era||'cretaceo';
-    this.species=this.era==='pleistoceno'?PLEISTOCENE_SPECIES[id%PLEISTOCENE_SPECIES.length]:creaturesList[id%creaturesList.length];
+    this.species=CIVILIZATION_SPECIES[this.era]?CIVILIZATION_SPECIES[this.era][id%3]:this.era==='pleistoceno'?PLEISTOCENE_SPECIES[id%PLEISTOCENE_SPECIES.length]:creaturesList[id%creaturesList.length];
     this.x=x;this.y=y;this.radius=15;this.hp=3;
-    this.behavior=this.era==='pleistoceno'?['investida','resistente','resistente'][id%3]:behaviorForCreature(id);
-    this.baseSpeed=(this.era==='pleistoceno'?[80,55,45][id%3]:55+(id%3)*10);
+    this.behavior=CIVILIZATION_SPECIES[this.era]?['investida','resistente','flanqueador'][(id+(['antiga','medieval','renascimento'].indexOf(this.era)))%3]:this.era==='pleistoceno'?['investida','resistente','resistente'][id%3]:behaviorForCreature(id);
+    this.baseSpeed=CIVILIZATION_SPECIES[this.era]?({antiga:[78,56,82],medieval:[85,74,61],renascimento:[74,88,71]})[this.era][id%3]:this.era==='pleistoceno'?[80,55,45][id%3]:55+(id%3)*10;
     this.speed=this.baseSpeed*(config.speedMultiplier||1);
     this.aggression=config.aggression||1;
     this.alive=true;
@@ -1312,7 +1777,7 @@ class Creature {
     }
   }
 
-  texture(flip,frame){return this.era==='pleistoceno'?pleistoceneCreatureTexture(this.species,flip,frame):creatureTexture(this.species,flip,frame);}
+  texture(flip,frame){return CIVILIZATION_SPECIES[this.era]?civilizationCreatureTexture(this.era,this.species,flip,frame):this.era==='pleistoceno'?pleistoceneCreatureTexture(this.species,flip,frame):creatureTexture(this.species,flip,frame);}
   update(delta,target,nav,creatures) {
     if(!this.alive)return;
     const dt=Math.min(delta,40)/1000;
@@ -1420,8 +1885,11 @@ class Creature {
   }
 }
 
+return {Creature};
+})();
 
 // --- src/entities/CretaceousBoss.js ---
+const {CretaceousBoss} = (() => {
 
 
 /** Encontro com o chefe do Cretáceo. Telegrafa os ataques para permitir reação. */
@@ -1578,8 +2046,11 @@ class CretaceousBoss {
   }
 }
 
+return {CretaceousBoss};
+})();
 
 // --- src/entities/PleistoceneBoss.js ---
+const {PleistoceneBoss} = (() => {
 
 
 /** Mamute Ancestral: investida, pisada, cone de gelo e convocação de apoio. */
@@ -1596,7 +2067,7 @@ class PleistoceneBoss {
     this.nameplate=scene.add.text(x,y-171,'MAMUTE ANCESTRAL',{
       fontFamily:'Arial',fontSize:'13px',fontStyle:'bold',color:'#d9f5ff',stroke:'#18323e',strokeThickness:4
     }).setOrigin(.5).setDepth(y+375);
-    this.icePatches=[];
+    this.icePatches=[];this.patchSequence=0;
   }
   get hp(){return this.state.health;}
   get maxHp(){return this.state.maxHealth;}
@@ -1623,9 +2094,9 @@ class PleistoceneBoss {
     this.scene.showMessage(`MAMUTE ANCESTRAL: ${title}`);
   }
   addIcePatch(x,y){
-    const ring=this.scene.add.circle(x,y,30,0xa8dfeb,.24).setStrokeStyle(2,0xd3faff,.45).setDepth(y+18);
-    this.scene.tweens.add({targets:ring,alpha:0,duration:2600,onComplete:()=>ring.destroy()});
-    this.icePatches.push({x,y,until:this.scene.time.now+2400});
+    const ring=this.scene.add.ellipse(x,y,69,31,0xa8dfeb,.35).setStrokeStyle(2,0xd3faff,.63).setDepth(y+18);
+    this.scene.tweens.add({targets:ring,alpha:0,delay:1850,duration:4250,onComplete:()=>ring.destroy()});
+    this.icePatches.push({id:++this.patchSequence,x,y,until:this.scene.time.now+6100,ring});
   }
   execute(now,target){
     const a=this.attack;if(!a||a.executed)return;
@@ -1721,7 +2192,11 @@ class PleistoceneBoss {
       }
     }else this.navigate(delta,target,nav);
     this.icePatches=this.icePatches.filter(p=>p.until>now);
-    if(this.icePatches.some(p=>Math.hypot(p.x-target.x,p.y-target.y)<28))this.scene.applyCold(500);
+    const onTrail=this.icePatches.find(p=>Math.hypot(p.x-target.x,p.y-target.y)<33);
+    if(onTrail){
+      if(typeof this.scene.applyFrostTrail==='function')this.scene.applyFrostTrail(onTrail);
+      else this.scene.applyCold(500); // compatibilidade com cenas de teste anteriores
+    }
     this.animMs+=delta;
     if(this.animMs>=180){this.frame=(this.frame+1)%4;this.animMs=0;}
     this.sprite.setTexture(iceAgeBossTexture(this.toLeft,this.frame)).setPosition(this.x,this.y).setDepth(this.y+230);
@@ -1730,23 +2205,142 @@ class PleistoceneBoss {
   }
   destroy(){
     if(!this.alive)return;
-    this.alive=false;this.attack=null;this.icePatches=[];
+    this.alive=false;this.attack=null;for(const p of this.icePatches)p.ring?.active&&p.ring.destroy();this.icePatches=[];this.patchSequence=0;
     this.telegraph.clear();this.telegraph.destroy();
     this.nameplate.destroy();this.shadow.destroy();
     this.scene.tweens.add({targets:this.sprite,alpha:0,scale:0,duration:420,onComplete:()=>this.sprite.destroy()});
   }
 }
 
+return {PleistoceneBoss};
+})();
+
+// --- src/entities/CivilizationBoss.js ---
+const {CivilizationBoss} = (() => {
+
+
+/** Chefe temático de cada civilização. Investida, onda e feixe com telegráficos próprios. */
+class CivilizationBoss {
+  constructor(scene,x,y,era){
+    this.scene=scene;this.x=x;this.y=y;this.era=era;this.id=99500;this.isBoss=true;
+    this.config=CIVILIZATION_BOSSES[era];this.state=new CivilizationBossState(era);
+    this.alive=true;this.contactRadius=57;this.phase=1;this.path=[];this.pathIndex=0;this.repathAt=0;
+    this.attack=null;this.nextAttack=scene.time.now+1650;this.frame=0;this.animMs=0;this.toLeft=false;
+    this.telegraph=scene.add.graphics().setDepth(9700);
+    this.shadow=scene.add.ellipse(x,y+14,122,33,0x11211d,.39).setDepth(y+170);
+    this.sprite=scene.add.image(x,y,civilizationBossTexture(era,false,0)).setOrigin(.5,.83).setDepth(y+260).setScale(1.04);
+    this.nameplate=scene.add.text(x,y-140,this.config.name,{fontFamily:'Arial',fontSize:'12px',fontStyle:'bold',color:'#fff1cc',stroke:'#26302f',strokeThickness:4}).setOrigin(.5).setDepth(y+400);
+  }
+  damage(amount){
+    const prev=this.state.phase;
+    if(!this.state.takeDamage(amount))return false;
+    this.phase=this.state.phase;
+    if(this.sprite?.active)this.sprite.setTintFill(0xffffff);
+    this.scene.time.delayedCall(110,()=>this.sprite?.active&&this.sprite.clearTint());
+    if(this.alive&&prev!==this.phase){this.scene.showMessage(`${this.config.name}: FASE ${this.phase}`);this.scene.makeImpact(this.x,this.y-35,this.config.color,65);}
+    if(!this.state.alive)this.destroy();
+    return true;
+  }
+  startAttack(now,target){
+    const type=this.state.chooseAttack(Math.hypot(target.x-this.x,target.y-this.y));
+    this.attack={type,start:now,fireAt:now+this.state.windupMs(),originX:this.x,originY:this.y,targetX:target.x,targetY:target.y,executed:false};
+    this.nextAttack=this.attack.fireAt+this.state.cooldownMs();
+    this.scene.showMessage(`${this.config.name} — ${this.config[type].toUpperCase()}!`);
+  }
+  move(dx,dy,nav){
+    let nx=this.x+dx,ny=this.y+dy;
+    if(nav.isOpen(nx,ny)){this.x=nx;this.y=ny;return true;}
+    if(nav.isOpen(nx,this.y)){this.x=nx;return true;}
+    if(nav.isOpen(this.x,ny)){this.y=ny;return true;}
+    return false;
+  }
+  navigate(delta,target,nav){
+    const now=this.scene.time.now;
+    if(Math.hypot(target.x-this.x,target.y-this.y)<145)return;
+    if(now>=this.repathAt||!this.path.length||this.pathIndex>=this.path.length){
+      this.path=nav.findPath(this.x,this.y,target.x,target.y);this.pathIndex=0;this.repathAt=now+600;
+    }
+    while(this.pathIndex<this.path.length&&Math.hypot(this.path[this.pathIndex].x-this.x,this.path[this.pathIndex].y-this.y)<18)this.pathIndex++;
+    const waypoint=this.path[this.pathIndex]||target;
+    const dx=waypoint.x-this.x,dy=waypoint.y-this.y,d=Math.hypot(dx,dy)||1;
+    this.toLeft=dx<0;
+    const s=Math.min(d,(this.config.speed+(this.phase-1)*15)*Math.min(delta,40)/1000);
+    if(!this.move(dx/d*s,dy/d*s,nav))this.repathAt=0;
+  }
+  warn(now){
+    const g=this.telegraph,a=this.attack;g.clear();if(!a||a.executed)return;
+    const t=Math.min(1,(now-a.start)/(a.fireAt-a.start));
+    g.lineStyle(3+t*2,this.config.color,.45+t*.45);
+    if(a.type==='charge'||a.type==='beam'){
+      g.lineBetween(a.originX,a.originY-20,a.targetX,a.targetY);
+      g.strokeCircle(a.targetX,a.targetY,a.type==='beam'?32:17);
+    }else{
+      const radius=a.type==='summon'?104:133;
+      g.strokeCircle(this.x,this.y,radius);
+      g.strokeCircle(this.x,this.y,radius*(1-t));
+    }
+  }
+  execute(now,target){
+    const a=this.attack;if(!a||a.executed)return;
+    a.executed=true;
+    if(a.type==='charge'){
+      const dx=a.targetX-a.originX,dy=a.targetY-a.originY,d=Math.hypot(dx,dy)||1;
+      a.direction={x:dx/d,y:dy/d};a.chargeUntil=now+510;
+      this.scene.makeImpact(this.x,this.y-23,this.config.color,28);
+    }else if(a.type==='stomp'){
+      this.scene.makeImpact(this.x,this.y-18,this.config.color,115);
+      if(Math.hypot(target.x-this.x,target.y-this.y)<135)this.scene.damagePlayer(this,1);
+    }else if(a.type==='beam'){
+      this.scene.makeImpact(a.targetX,a.targetY,this.config.color,45);
+      if(withinBossBeam({x:a.originX,y:a.originY-20},{x:a.targetX,y:a.targetY},target,36))this.scene.damagePlayer(this,1);
+    }else{
+      this.scene.makeImpact(this.x,this.y-20,this.config.color,65);
+      this.scene.spawnBossMinions(2);
+    }
+  }
+  update(delta,target,nav){
+    if(!this.alive)return;
+    const now=this.scene.time.now;
+    if(!this.attack&&now>=this.nextAttack)this.startAttack(now,target);
+    if(this.attack){
+      const a=this.attack;this.warn(now);
+      if(!a.executed&&now>=a.fireAt)this.execute(now,target);
+      if(a.executed&&a.type==='charge'&&now<a.chargeUntil){
+        const s=(325+(this.phase-1)*40)*Math.min(delta,40)/1000;
+        if(!this.move(a.direction.x*s,a.direction.y*s,nav))a.chargeUntil=now;
+        if(Math.hypot(this.x-target.x,this.y-target.y)<this.contactRadius)this.scene.damagePlayer(this,1);
+      }
+      if(a.executed&&(a.type!=='charge'||now>=a.chargeUntil)){this.attack=null;this.telegraph.clear();this.repathAt=0;}
+    }else this.navigate(delta,target,nav);
+    this.animMs+=delta;if(this.animMs>190){this.frame=(this.frame+1)%4;this.animMs=0;}
+    this.sprite.setTexture(civilizationBossTexture(this.era,this.toLeft,this.frame)).setPosition(this.x,this.y).setDepth(this.y+260);
+    this.shadow.setPosition(this.x,this.y+14).setDepth(this.y+170);
+    this.nameplate.setPosition(this.x,this.y-140).setDepth(this.y+400);
+  }
+  destroy(){
+    if(!this.alive)return;
+    this.alive=false;this.attack=null;
+    this.telegraph.clear();this.telegraph.destroy();this.nameplate.destroy();this.shadow.destroy();
+    this.scene.tweens.add({targets:this.sprite,alpha:0,scale:.1,duration:360,onComplete:()=>this.sprite.destroy()});
+  }
+}
+
+return {CivilizationBoss};
+})();
 
 // --- src/scenes/BootScene.js ---
+const {BootScene} = (() => {
 
 class BootScene extends Phaser.Scene {
   constructor() { super('BootScene'); }
   create() { this.scene.start('MenuScene'); }
 }
 
+return {BootScene};
+})();
 
 // --- src/scenes/MenuScene.js ---
+const {MenuScene} = (() => {
 
 class MenuScene extends Phaser.Scene {
   constructor(){super('MenuScene');}
@@ -1770,19 +2364,22 @@ class MenuScene extends Phaser.Scene {
     const titleSize=Math.min(98,Math.max(49,w*.095));
     this.add.text(w/2,h*.27,'ERA',{fontFamily:'Georgia,serif',fontSize:`${titleSize}px`,fontStyle:'bold',color:'#f3e3b5',stroke:'#0b241c',strokeThickness:5}).setOrigin(.5);
     this.add.text(w/2,h*.39,'E V O L U T I O N',{fontFamily:'Arial',fontSize:`${Math.min(23,Math.max(13,w*.023))}px`,fontStyle:'bold',color:'#c8dabc'}).setOrigin(.5);
-    this.add.text(w/2,h*.49,'CAPÍTULOS I–II · CRETÁCEO / PLEISTOCENO',{fontFamily:'Arial',fontSize:'15px',fontStyle:'bold',color:'#e9c17f',letterSpacing:3}).setOrigin(.5);
-    this.add.text(w/2,h*.57,'Derrote o Tricerátops e enfrente o Mamute Ancestral na Era do Gelo.',{fontFamily:'Arial',fontSize:'13px',color:'#b6c9b2',align:'center',wordWrap:{width:Math.min(520,w*.75)}}).setOrigin(.5);
+    this.add.text(w/2,h*.49,'CAPÍTULOS I–V · DA ORIGEM AO RENASCIMENTO',{fontFamily:'Arial',fontSize:'15px',fontStyle:'bold',color:'#e9c17f',letterSpacing:3}).setOrigin(.5);
+    this.add.text(w/2,h*.57,'Explore cinco épocas, evolua as armas e vença os guardiões da história.',{fontFamily:'Arial',fontSize:'13px',color:'#b6c9b2',align:'center',wordWrap:{width:Math.min(520,w*.75)}}).setOrigin(.5);
     const start=this.add.text(w/2,h*.72,'COMEÇAR EXPEDIÇÃO',{fontFamily:'Arial',fontSize:'18px',fontStyle:'bold',color:'#193329',backgroundColor:'#e6ce93',padding:{x:27,y:16}}).setOrigin(.5).setInteractive({useHandCursor:true});
     start.on('pointerover',()=>start.setStyle({backgroundColor:'#ffe1a4'}));
     start.on('pointerout',()=>start.setStyle({backgroundColor:'#e6ce93'}));
     start.on('pointerdown',()=>this.scene.start('GameScene'));
-    this.add.text(w/2,h*.88,'WASD / SETAS: MOVER  •  Q/E: ARMAS  •  1–5: EQUIPAR  •  F3: ROTAS  •  ESC: PAUSAR',{fontFamily:'Arial',fontSize:'12px',color:'#94b4a1'}).setOrigin(.5);
+    this.add.text(w/2,h*.88,'WASD / SETAS: MOVER  •  ESPAÇO: ESQUIVA  •  Q/E: ARMAS  •  1–5: EQUIPAR  •  ESC: PAUSAR',{fontFamily:'Arial',fontSize:'12px',color:'#94b4a1'}).setOrigin(.5);
     this.scale.on('resize',()=>this.scene.restart());
   }
 }
 
+return {MenuScene};
+})();
 
 // --- src/scenes/PauseScene.js ---
+const {PauseScene} = (() => {
 
 class PauseScene extends Phaser.Scene {
   constructor() { super('PauseScene'); }
@@ -1799,8 +2396,11 @@ class PauseScene extends Phaser.Scene {
   }
 }
 
+return {PauseScene};
+})();
 
 // --- src/scenes/UpgradeScene.js ---
+const {UpgradeScene} = (() => {
 
 
 /** Pausa o jogo e apresenta três melhorias únicas, também selecionáveis por 1/2/3. */
@@ -1853,8 +2453,17 @@ class UpgradeScene extends Phaser.Scene {
   }
 }
 
+return {UpgradeScene};
+})();
 
 // --- src/scenes/GameScene.js ---
+const {GameScene} = (() => {
+
+
+
+
+
+
 
 
 
@@ -1885,24 +2494,26 @@ class GameScene extends Phaser.Scene {
 
   init(data={}){
     const params=typeof window!=='undefined'?new URLSearchParams(window.location.search):new URLSearchParams();
-    const debugEra=params.get('testeEra')==='2'||params.get('testeChefe')==='2';
-    this.eraIndex=data.eraIndex===1||(!data.eraIndex&&debugEra)?1:0;
+    const testing=Number(params.get('testeChefe')||params.get('testeEra'));
+    const debugIndex=Number.isInteger(testing)&&testing>=1&&testing<=5?testing-1:0;
+    this.eraIndex=Number.isInteger(data.eraIndex)?Math.max(0,Math.min(4,data.eraIndex)):debugIndex;
     this.era=eraAt(this.eraIndex);
     this.carryProgress=data.progress||null;
   }
 
-  getDifficulty(){return difficultyForKills(this.kills+(this.eraIndex===1?10:0));}
+  getDifficulty(){return difficultyForEra(this.kills,this.eraIndex);}
 
   create() {
-    this.cameras.main.setBackgroundColor(this.eraIndex===1?'#213b46':'#122a24');
+    this.cameras.main.setBackgroundColor('#'+this.era.theme.toString(16).padStart(6,'0'));
     createCharacterArt(this);
     if(this.eraIndex===1){createPleistoceneArt(this);createIceAgeBossArt(this);}
+    if(this.eraIndex>=2)createCivilizationArt(this,this.era.id);
     createBossArt(this);
     this.projection = new IsoProjection(
       SETTINGS.tileWidth, SETTINGS.tileHeight,
       SETTINGS.mapRows * SETTINGS.tileWidth / 2, SETTINGS.tileHeight / 2
     );
-    this.world = this.eraIndex===1?new PleistoceneWorld(this,this.projection):new WorldGenerator(this,this.projection);
+    this.world=this.eraIndex>=2?new CivilizationWorld(this,this.projection,this.era.id):this.eraIndex===1?new PleistoceneWorld(this,this.projection):new WorldGenerator(this,this.projection);
     this.world.create(SETTINGS.mapColumns, SETTINGS.mapRows);
     this.createAtmosphere();
     this.navigation = new NavigationGrid({
@@ -1922,7 +2533,8 @@ class GameScene extends Phaser.Scene {
     this.cameras.main.startFollow(this.player.sprite,true,.09,.09);
     this.cameras.main.setZoom(this.getZoom(this.scale.width));
 
-    this.keys=this.input.keyboard.addKeys('W,A,S,D,UP,DOWN,LEFT,RIGHT,ESC,F3');
+    this.keys=this.input.keyboard.addKeys('W,A,S,D,UP,DOWN,LEFT,RIGHT,ESC,F3,SPACE');
+    this.input.keyboard.addCapture('SPACE');
     this.onWeaponKey=(event)=>{
       if(event.repeat||this.ended||this.upgrading||!this.scene.isActive())return;
       const previous=this.weapons.active;
@@ -1947,6 +2559,8 @@ class GameScene extends Phaser.Scene {
     };
     this.input.keyboard.on('keydown-F3',this.onRouteKey);
     this.input.keyboard.on('keydown-ESC',this.onPauseKey);
+    this.onDashKey=event=>{if(!event.repeat)this.activateDash();};
+    this.input.keyboard.on('keydown-SPACE',this.onDashKey);
 
     this.creatures=[];
     this.boss=null;
@@ -1968,6 +2582,12 @@ class GameScene extends Phaser.Scene {
     this.spawnTimer=0;
     this.elapsedMs=0;
     this.coldUntil=0;
+    this.frost=new FrostTrailState();
+    this.dash=new DashState();
+    this.lastDirection={x:0,y:1};
+    this.playerIdleMs=0;
+    this.threats=[];
+    this.nextThreatAt=this.time.now+6000;
     this.upgrading=false;
     this.ended=false;
     this.eraGoalAnnounced=false;
@@ -1978,8 +2598,8 @@ class GameScene extends Phaser.Scene {
     }
     this.createHud();
     this.createBossHud();
-    this.showMessage(this.eraIndex===1?'PRÉ-HISTÓRIA · O PLEISTOCENO COMEÇA!':'CRETÁCEO · Explore, sobreviva e recolha fragmentos');
-    if(this.eraIndex===1)this.cameras.main.fadeIn(900,17,39,50);
+    this.showMessage(`${this.era.name} · ${this.era.subtitle}`);
+    if(this.eraIndex>=1)this.cameras.main.fadeIn(900,17,39,50);
     this.onResize=size=>{
       this.cameras.main.setZoom(this.getZoom(size.width));
       this.layoutHud();
@@ -1991,33 +2611,34 @@ class GameScene extends Phaser.Scene {
       this.input.keyboard.off('keydown',this.onWeaponKey);
       this.input.keyboard.off('keydown-F3',this.onRouteKey);
       this.input.keyboard.off('keydown-ESC',this.onPauseKey);
+      this.input.keyboard.off('keydown-SPACE',this.onDashKey);
+      this.clearThreats();
       this.scale.off('resize',this.onResize);
     });
-    // Teste direto do encontro: ?testeChefe=1. Não altera o fluxo normal.
-    const bossTest=typeof window!=='undefined' && new URLSearchParams(window.location.search).get('testeChefe')==='1';
-    if(bossTest&&this.eraIndex===0){
+    // ?testeChefe=N: encontro de depuração da era N, sem modificar uma partida normal.
+    const params=typeof window!=='undefined'?new URLSearchParams(window.location.search):new URLSearchParams();
+    const testBoss=params.get('testeChefe')===String(this.eraIndex+1);
+    const testEra=params.get('testeEra')===String(this.eraIndex+1);
+    if((testBoss||testEra)&&this.eraIndex>=2&&!this.carryProgress){
+      for(const m of [10,20,30,40])this.weapons.collect(rewardForEraKills(0,m));
+      for(const m of [10,20,30,40,50])this.weapons.collect(rewardForEraKills(1,m));
+      this.weapons.select('orbe');this.power=5+this.eraIndex;this.level=11+this.eraIndex;
+      this.upgrades.levels.velocidade=1;
+      this.player.speed+=26;
+    }
+    if(testBoss){
       this.kills=SETTINGS.eraKillGoal;
-      this.totalKills=SETTINGS.eraKillGoal;
+      this.totalKills=Math.max(this.totalKills,SETTINGS.eraKillGoal*(this.eraIndex+1));
       this.eraGoalAnnounced=true;
-      for(let milestone=10;milestone<=90;milestone+=10)this.weapons.collect(weaponRewardForKills(milestone));
-      this.weapons.select('orbe');
-      this.power=4;
+      for(let milestone=10;milestone<=90;milestone+=10)this.weapons.collect(rewardForEraKills(this.eraIndex,milestone));
+      this.weapons.select('orbe');this.power=Math.max(this.power,4+this.eraIndex);
       this.beginBossEncounter();
-    }else if(this.eraIndex===1 && typeof window!=='undefined' && new URLSearchParams(window.location.search).get('testeChefe')==='2'){
-      this.kills=SETTINGS.eraKillGoal;
-      this.totalKills=200;
-      this.eraGoalAnnounced=true;
-      for(let milestone=10;milestone<=90;milestone+=10){
-        const reward=pleistoceneRewardForKills(milestone);
-        this.weapons.collect(reward);
-      }
-      this.weapons.select('orbe');this.power=4;this.beginBossEncounter();
     }else this.spawnInitialCreatures();
     this.updateHud();
   }
 
   getZoom(width){return Math.min(1.1,Math.max(.72,width/1200));}
-  messageScreenY(){return this.scale.width<960?210:16;}
+  messageScreenY(){return this.scale.width<960?240:16;}
   spawnInitialCreatures(){for(let i=0;i<this.difficulty.maxAlive;i++)this.spawnCreature(i);}
   /** Geração evita posições sem caminho até o jogador. */
   spawnCreature(id){
@@ -2047,10 +2668,10 @@ class GameScene extends Phaser.Scene {
   }
   createHud(){
     const h=this.hud=this.add.container(0,0).setScrollFactor(0).setDepth(10000);
-    this.hudBack=this.add.rectangle(0,0,390,207,this.eraIndex===1?0x1b3340:0x0d2420,.94).setOrigin(0).setStrokeStyle(1,0x719579,.68);
+    this.hudBack=this.add.rectangle(0,0,390,231,this.era.theme,.94).setOrigin(0).setStrokeStyle(1,0x719579,.68);
     h.add(this.hudBack);
-    h.add(this.add.rectangle(0,0,5,207,this.era.accent).setOrigin(0));
-    this.eraTitle=this.add.text(17,12,`ERA ${String(this.era.number).padStart(2,'0')}  |  ${this.era.name}`,{fontFamily:'Georgia,serif',fontSize:'17px',fontStyle:'bold',color:this.eraIndex===1?'#dbecf4':'#f1deb0'});
+    h.add(this.add.rectangle(0,0,5,231,this.era.accent).setOrigin(0));
+    this.eraTitle=this.add.text(17,12,`ERA ${String(this.era.number).padStart(2,'0')}  |  ${this.era.name}`,{fontFamily:'Georgia,serif',fontSize:'17px',fontStyle:'bold',color:'#'+this.era.accent.toString(16).padStart(6,'0')});
     this.eraSubtitle=this.add.text(17,38,this.era.subtitle,{fontFamily:'Arial',fontSize:'10px',color:'#9ec5a9',letterSpacing:1});
     h.add([this.eraTitle,this.eraSubtitle]);
     h.add(this.add.text(17,60,'VIDA',{fontFamily:'Arial',fontSize:'11px',fontStyle:'bold',color:'#c3d9c2'}));
@@ -2065,8 +2686,10 @@ class GameScene extends Phaser.Scene {
     h.add([this.stats,this.weaponText,this.inventoryText]);
     this.threatText=this.add.text(17,163,'PRESSÃO 01  •  8 criaturas  •  6,7 s',{fontFamily:'Arial',fontSize:'10px',fontStyle:'bold',color:'#e5c17c'});
     h.add(this.threatText);
-    this.eraTrack=this.add.rectangle(17,192,352,5,0x314739).setOrigin(0);
-    this.eraFill=this.add.rectangle(17,192,0,5,0xe2c17a).setOrigin(0);
+    this.dodgeText=this.add.text(17,183,'ESPAÇO: esquiva · pronto',{fontFamily:'Arial',fontSize:'10px',color:'#9acfd6'});
+    h.add(this.dodgeText);
+    this.eraTrack=this.add.rectangle(17,215,352,5,0x314739).setOrigin(0);
+    this.eraFill=this.add.rectangle(17,215,0,5,0xe2c17a).setOrigin(0);
     h.add([this.eraTrack,this.eraFill]);
     this.layoutHud();
   }
@@ -2074,7 +2697,7 @@ class GameScene extends Phaser.Scene {
     if(!this.hud)return;
     const width=Math.min(390,Math.max(275,this.scale.width-32));
     const track=width-34;
-    this.hudBack.setSize(width,207).setDisplaySize(width,207);
+    this.hudBack.setSize(width,231).setDisplaySize(width,231);
     this.healthTrack.setDisplaySize(track,8);
     this.eraTrack.setDisplaySize(track,4);
     this.hudWidth=width;
@@ -2102,10 +2725,10 @@ class GameScene extends Phaser.Scene {
     if(!this.boss?.alive){this.bossHud?.setVisible(false);return;}
     this.bossHud.setVisible(true);
     this.bossHPFill.setDisplaySize(Math.max(.01,460*this.boss.state.healthRatio),13);
-    this.bossHPFill.setFillStyle(this.boss.phase===3?0xef856f:this.eraIndex===1?0x7ed6ea:0xe6a66f);
-    const config=this.eraIndex===1?ICE_BOSS_CONFIG:BOSS_CONFIG;
+    this.bossHPFill.setFillStyle(this.boss.phase===3?0xef856f:this.eraIndex===1?0x7ed6ea:this.eraIndex>=2?this.era.accent:0xe6a66f);
+    const config=this.eraIndex>=2?CIVILIZATION_BOSSES[this.era.id]:this.eraIndex===1?ICE_BOSS_CONFIG:BOSS_CONFIG;
     this.bossTitle.setText(`CHEFE  •  ${config.name}  •  FASE ${this.boss.phase}`);
-    this.bossHint.setText(this.eraIndex===1?'INVESTIDA · PISADA · GELO · MATILHA':'INVESTIDA · PISADA · RAJADA');
+    this.bossHint.setText(this.eraIndex===1?'INVESTIDA · PISADA · GELO · MATILHA':this.eraIndex>=2?'INVESTIDA · ONDA · FEIXE · APOIO':'INVESTIDA · PISADA · RAJADA');
   }
   updateHud(){
     if(!this.survival||!this.stats)return;
@@ -2119,12 +2742,17 @@ class GameScene extends Phaser.Scene {
     this.inventoryText.setText(`${this.weapons.unlocked.length} armas  •  Q/E alternar  •  Ímã ${magnetRadius(this.upgrades.pickupRadius)} px`);
     this.threatText.setText(this.time.now<this.coldUntil?`CONGELAMENTO • ${(Math.max(0,this.coldUntil-this.time.now)/1000).toFixed(1)} s · Movimento reduzido`:`PRESSÃO ${String(this.difficulty.stage+1).padStart(2,'0')}  •  ${this.difficulty.maxAlive} criaturas  •  ${(this.difficulty.spawnIntervalMs/1000).toFixed(1)} s`);
     this.threatText.setColor(this.time.now<this.coldUntil?'#b0ebff':'#e5c17c');
+    const frostPhase=this.frost?.phase(this.time.now);
+    this.dodgeText.setText(frostPhase==='stun'?'GELO: PARALISADO!':frostPhase==='recuperando'?`GELO: RECUPERANDO MOVIMENTO · ${(this.frost.remaining(this.time.now)/1000).toFixed(1)} s`:
+      this.dash.remaining(this.time.now)>0?`ESPAÇO: ESQUIVA · ${(this.dash.remaining(this.time.now)/1000).toFixed(1)} s de recarga`:'ESPAÇO: ESQUIVA · PRONTO');
+    this.dodgeText.setColor(frostPhase!=='livre'?'#b0e9fb':'#9acfd6');
     this.eraFill.setDisplaySize(Math.max(.01,(this.hudWidth-34)*Math.min(1,this.kills/SETTINGS.eraKillGoal)),4);
     const compact=this.scale.width<470;
     this.stats.setFontSize(compact?10:12);
     this.weaponText.setFontSize(compact?9:11);
     this.inventoryText.setFontSize(compact?9:10);
     this.threatText.setFontSize(compact?9:10);
+    this.dodgeText.setFontSize(compact?8:10);
   }
   showMessage(message){
     if(this.message?.active)this.message.destroy();
@@ -2147,10 +2775,16 @@ class GameScene extends Phaser.Scene {
       x:Number(this.keys.D.isDown||this.keys.RIGHT.isDown)-Number(this.keys.A.isDown||this.keys.LEFT.isDown),
       y:Number(this.keys.S.isDown||this.keys.DOWN.isDown)-Number(this.keys.W.isDown||this.keys.UP.isDown)
     };
-    this.player.update(delta*(this.time.now<this.coldUntil?ICE_BOSS_CONFIG.slowMultiplier:1),dir,this.world.obstacles,this.map);
+    if(dir.x||dir.y)this.lastDirection={...dir};
+    const oldX=this.player.x,oldY=this.player.y;
+    const moveFactor=Math.min(this.time.now<this.coldUntil?ICE_BOSS_CONFIG.slowMultiplier:1,this.frost.movementMultiplier(this.time.now));
+    this.player.update(delta*moveFactor,dir,this.world.obstacles,this.map);
+    const moved=Math.hypot(this.player.x-oldX,this.player.y-oldY)>1;
+    this.playerIdleMs=moved?0:this.playerIdleMs+delta;
     this.weaponAura.setPosition(this.player.x+20,this.player.y-20).setDepth(this.player.y+340).setFillStyle(this.weapons.current.color,.95);
     this.creatures.forEach(c=>c.update(delta,this.player,this.navigation,this.creatures));
     this.checkPlayerContact();
+    this.updateAreaThreats(delta);
     if(this.ended)return;
     // Piscar comunica invulnerabilidade temporária sem impedir movimento ou disparos.
     this.player.sprite.setAlpha(this.survival.isInvulnerable(this.time.now)?(Math.floor(this.time.now/115)%2?.43:1):1);
@@ -2168,20 +2802,68 @@ class GameScene extends Phaser.Scene {
     this.updateHud();
     this.updateBossHud();
   }
+  applyFrostTrail(patch){
+    if(this.ended||!this.frost.touch(patch.id,this.time.now))return;
+    this.makeImpact(this.player.x,this.player.y-17,0xb6ecf3,20);
+    this.showMessage('GELO: PARALISAÇÃO CURTA → LENTIDÃO → RECUPERAÇÃO');
+  }
+  activateDash(){
+    if(this.ended||this.upgrading||!this.scene.isActive()||this.frost.phase(this.time.now)==='stun'||!this.dash.use(this.time.now))return false;
+    let {x,y}=this.lastDirection;const length=Math.hypot(x,y)||1;x/=length;y/=length;
+    let moved=0;
+    for(let i=0;i<14;i++){
+      const nx=this.player.x+x*DASH.distance/14,ny=this.player.y+y*DASH.distance/14;
+      if(!this.navigation.isOpen(nx,ny)||!this.player.insideMap(nx,ny,this.map)||this.player.collides(nx,ny,this.world.obstacles))break;
+      this.player.x=nx;this.player.y=ny;moved++;
+    }
+    this.player.sprite.setPosition(this.player.x,this.player.y);
+    this.player.shadow.setPosition(this.player.x,this.player.y+12);
+    this.survival.invulnerableUntil=Math.max(this.survival.invulnerableUntil,this.time.now+DASH.invulnerabilityMs);
+    this.makeImpact(this.player.x,this.player.y-14,0xa8dfda,16);
+    this.updateHud();
+    return moved>0;
+  }
+  clearThreats(){
+    for(const t of this.threats||[])if(t.ring?.active)t.ring.destroy();
+    this.threats=[];
+  }
+  updateAreaThreats(_delta){
+    const rules=threatForEra(this.eraIndex,this.difficulty.stage);
+    if(!rules||this.bossActive||this.ended)return;
+    const now=this.time.now;
+    const hasArcher=this.creatures.some(c=>c.alive&&!c.isBoss&&c.id%3===2);
+    if(now>=this.nextThreatAt&&(hasArcher||this.playerIdleMs>rules.idleTriggerMs)&&this.threats.length<2){
+      const x=this.player.x,y=this.player.y;
+      const ring=this.add.circle(x,y,rules.radius,this.era.accent,.11).setStrokeStyle(3,this.era.accent,.88).setDepth(y+25);
+      this.threats.push({x,y,radius:rules.radius,fireAt:now+rules.warningMs,ring,createdAt:now});
+      this.nextThreatAt=now+rules.intervalMs;
+    }
+    this.threats=this.threats.filter(t=>{
+      if(now<t.fireAt){
+        const progress=Math.max(0,Math.min(1,(now-t.createdAt)/(t.fireAt-t.createdAt)));
+        t.ring.setScale(1-.27*progress).setAlpha(.5+.45*progress);
+        return true;
+      }
+      if(t.ring?.active)t.ring.destroy();
+      this.makeImpact(t.x,t.y,this.era.accent,20);
+      if(threatHits(t,this.player,t.radius*.75))this.damagePlayer({x:t.x-20,y:t.y-12},1);
+      return false;
+    });
+  }
   applyCold(durationMs=ICE_BOSS_CONFIG.slowDurationMs){
     if(!this.ended)this.coldUntil=Math.max(this.coldUntil,this.time.now+durationMs);
   }
   spawnBossMinions(count=2){
-    if(!this.bossActive||this.ended||this.eraIndex!==1)return 0;
+    if(!this.bossActive||this.ended||this.eraIndex===0)return 0;
     let spawned=0;
     for(let i=0;i<count;i++){
       if(this.creatures.filter(c=>c.alive&&c.summoned).length>=3)break;
       const next=chooseSpawnPoint({navigation:this.navigation,projection:this.projection,
         player:this.player,sequence:this.spawnSequence++,minimumDistance:125});
       if(!next)continue;
-      const id=this.spawnSequence*3; // Smilodonte: espécie rápida do Pleistoceno.
+      const id=this.spawnSequence*3; // Primeira espécie de cada era atua como reforço.
       const creature=new Creature(this,next.x,next.y,id,{
-        era:'pleistoceno',speedMultiplier:this.difficulty.speedMultiplier,aggression:this.difficulty.aggression
+        era:this.era.id,speedMultiplier:this.difficulty.speedMultiplier,aggression:this.difficulty.aggression
       });
       creature.summoned=true;
       this.creatures.push(creature);spawned++;
@@ -2322,7 +3004,7 @@ class GameScene extends Phaser.Scene {
         this.makeImpact(this.player.x,this.player.y-14,0xe9b875,35);
       }
       this.dropFragment(target.x,target.y);
-      const reward=this.eraIndex===1?pleistoceneRewardForKills(this.kills):weaponRewardForKills(this.kills);
+      const reward=rewardForEraKills(this.eraIndex,this.kills);
       if(reward)this.spawnWeaponPickup(reward);
       if(this.kills>=SETTINGS.eraKillGoal&&!this.eraGoalAnnounced){
         this.eraGoalAnnounced=true;
@@ -2333,6 +3015,7 @@ class GameScene extends Phaser.Scene {
   beginBossEncounter(){
     if(this.bossActive||this.ended)return;
     this.bossActive=true;
+    this.clearThreats();
     this.spawnTimer=0;
     // Encontro isolado: os monstros comuns deixam a arena sem pontuar abates.
     for(const c of this.creatures)if(c.alive)c.destroy();
@@ -2346,9 +3029,9 @@ class GameScene extends Phaser.Scene {
       // Evita encontro impossível se o mapa não tiver posição acessível.
       this.bossActive=false;this.showMessage('Não foi possível posicionar o chefe.');return;
     }
-    this.boss=this.eraIndex===1?new PleistoceneBoss(this,point.x,point.y):new CretaceousBoss(this,point.x,point.y);
+    this.boss=this.eraIndex>=2?new CivilizationBoss(this,point.x,point.y,this.era.id):this.eraIndex===1?new PleistoceneBoss(this,point.x,point.y):new CretaceousBoss(this,point.x,point.y);
     this.creatures.push(this.boss);
-    this.showMessage(this.eraIndex===1?'100 ELIMINAÇÕES! O MAMUTE ANCESTRAL DESPERTOU!':'100 ELIMINAÇÕES! O TRICERÁTOPS ANCESTRAL DESPERTOU!');
+    this.showMessage(`100 ELIMINAÇÕES! ${this.eraIndex>=2?CIVILIZATION_BOSSES[this.era.id].name:this.eraIndex===1?ICE_BOSS_CONFIG.name:BOSS_CONFIG.name} DESPERTOU!`);
     this.makeImpact(point.x,point.y-35,this.eraIndex===1?0xa4e2f6:0xe9b879,100);
     this.cameras.main.shake(240,.003);
     this.updateBossHud();
@@ -2363,7 +3046,7 @@ class GameScene extends Phaser.Scene {
     this.scene.launch('EraCompleteScene',{
       eraIndex:this.eraIndex,kills:this.kills,totalKills:this.totalKills,level:this.level,
       seconds:Math.floor(this.elapsedMs/1000),
-      progress:this.eraIndex===1?prepareNextEraProgress(progress,this.survival.maxHealth):progress
+      progress:this.eraIndex>=1?prepareNextEraProgress(progress,this.survival.maxHealth,this.eraIndex+2):progress
     });
   }
   spawnWeaponPickup(reward){
@@ -2449,8 +3132,11 @@ class GameScene extends Phaser.Scene {
   }
 }
 
+return {GameScene};
+})();
 
 // --- src/scenes/GameOverScene.js ---
+const {GameOverScene} = (() => {
 
 /** Tela de fim de partida: reinicia a expedição sem progresso permanente. */
 class GameOverScene extends Phaser.Scene {
@@ -2509,57 +3195,63 @@ class GameOverScene extends Phaser.Scene {
   }
 }
 
+return {GameOverScene};
+})();
 
 // --- src/scenes/EraCompleteScene.js ---
+const {EraCompleteScene} = (() => {
 
-/** Portal de eras: troca do Cretáceo para o Pleistoceno preservando a jornada. */
+
+/** Portal entre capítulos: mantém a expedição enquanto a linha do tempo avança. */
 class EraCompleteScene extends Phaser.Scene {
   constructor(){super('EraCompleteScene');}
   init(data={}){
-    this.eraIndex=data.eraIndex===1?1:0;
-    this.kills=data.kills||100;
-    this.level=data.level||1;
-    this.seconds=data.seconds||0;
-    this.progress=data.progress||null;
-    this.changing=false;
+    this.eraIndex=Number.isInteger(data.eraIndex)?data.eraIndex:0;
+    this.era=eraAt(this.eraIndex);
+    this.nextEra=ERAS[this.eraIndex+1]||null;
+    this.kills=data.kills||100;this.level=data.level||1;this.seconds=data.seconds||0;
+    this.progress=data.progress||null;this.changing=false;
   }
   create(){
     const {width:w,height:h}=this.scale;
-    this.cameras.main.setBackgroundColor('#0e2530');
+    this.cameras.main.setBackgroundColor('#0c2428');
     const bg=this.add.graphics();
-    bg.fillStyle(0x0b2823);bg.fillRect(0,0,w/2,h);
-    bg.fillStyle(this.eraIndex===1?0x85715a:0x254653);bg.fillRect(w/2,0,w/2,h);
-    bg.fillStyle(0x466c4a,.75);bg.fillEllipse(w*.21,h*.78,w*.66,h*.48);
-    bg.fillStyle(0xa0bcc2,.65);bg.fillEllipse(w*.8,h*.8,w*.73,h*.5);
-    for(let i=0;i<7;i++){
-      const x=w*(i/6),y=h*.77+Math.sin(i*2.1)*30;
-      bg.fillStyle(i<3?0x183e36:0x576f7a,.75);
-      bg.fillTriangle(x-90,y+45,x,y-110,x+90,y+45);
-      if(i>2){bg.fillStyle(0xe2e7e3,.78);bg.fillTriangle(x-36,y-50,x,y-110,x+35,y-51);}
+    bg.fillStyle(this.era.theme);bg.fillRect(0,0,w/2,h);
+    bg.fillStyle(this.nextEra?.theme||0x30444d);bg.fillRect(w/2,0,w/2,h);
+    for(let i=0;i<12;i++){
+      const x=w*i/11,y=h*(.72+Math.sin(i*2.1)*.07);
+      bg.fillStyle(i<6?this.era.accent:this.nextEra?.accent||0xa6baaa,.12);
+      bg.fillEllipse(x,y,240,135);
+      bg.fillStyle(i%2?0x122d2c:0x29433a,.57);
+      bg.fillTriangle(x-80,y+55,x,y-80,x+80,y+55);
     }
-    const divider=this.add.rectangle(w/2,h/2,3,h,0xe9d5a5,.6);
-    this.tweens.add({targets:divider,alpha:.12,scaleX:2,yoyo:true,repeat:-1,duration:1600});
-    this.add.rectangle(w/2,h*.43,Math.min(w*.93,850),Math.min(h*.78,510),0x0b1e20,.87).setStrokeStyle(2,0xa5b7ac,.6);
-    const small=Math.max(12,Math.min(16,w*.018));
-    const title=this.add.text(w/2,h*.225,this.eraIndex===1?'ERA 02 CONCLUÍDA':'ERA 01 CONCLUÍDA',{fontFamily:'Arial',fontSize:`${small}px`,fontStyle:'bold',color:'#d4c18c',letterSpacing:3}).setOrigin(.5);
-    const headline=this.add.text(w/2,h*.35,this.eraIndex===1?'O INVERNO FOI SUPERADO':'A HISTÓRIA AVANÇA',{fontFamily:'Georgia,serif',fontSize:`${Math.min(46,Math.max(25,w*.047))}px`,fontStyle:'bold',color:'#f5e0b2'}).setOrigin(.5);
-    this.add.text(w/2,h*.465,this.eraIndex===1?'O Mamute Ancestral foi derrotado.\nPróximo capítulo: Civilizações Antigas.\nA Era 03 está em desenvolvimento.':'O Tricerátops Ancestral foi derrotado.\nMuito tempo depois, um novo desafio começa:\na Pré-História — o Pleistoceno, a era do gelo.',{
-      fontFamily:'Arial',fontSize:`${Math.min(16,Math.max(12,w*.02))}px`,color:'#d0e2df',align:'center',lineSpacing:5,wordWrap:{width:Math.min(w*.83,650)}
+    const middle=this.add.rectangle(w/2,h/2,3,h,0xe9d5a5,.5);
+    this.tweens.add({targets:middle,alpha:.1,scaleX:1.8,yoyo:true,repeat:-1,duration:1550});
+    this.add.rectangle(w/2,h*.5,Math.min(w*.94,850),Math.min(h*.81,515),0x0a1b23,.9).setStrokeStyle(2,0xb8c6bc,.67);
+    const fs=Math.min(48,Math.max(24,w*.052));
+    const title=this.add.text(w/2,h*.225,`ERA ${String(this.era.number).padStart(2,'0')} CONCLUÍDA`,{
+      fontFamily:'Arial',fontSize:`${Math.min(16,Math.max(12,w*.021))}px`,fontStyle:'bold',color:'#f0d69d',letterSpacing:3
     }).setOrigin(.5);
+    const headline=this.add.text(w/2,h*.35,this.nextEra?'A HISTÓRIA AVANÇA':'CINCO ERAS SUPERADAS!',{
+      fontFamily:'Georgia,serif',fontSize:`${fs}px`,fontStyle:'bold',color:'#f7e0b5'
+    }).setOrigin(.5);
+    const desc=this.nextEra?
+      `O guardião da ${this.era.name} foi derrotado.\nPróximo capítulo: ${this.nextEra.name}.\nArmas, melhorias e experiência acompanham a jornada.`:
+      `Concluíste os cinco primeiros capítulos desta expedição.\nA Revolução Industrial será o próximo período a desenvolver.`;
+    this.add.text(w/2,h*.48,desc,{fontFamily:'Arial',fontSize:`${Math.min(16,Math.max(12,w*.02))}px`,color:'#d4e2dd',align:'center',lineSpacing:6,wordWrap:{width:Math.min(w*.83,660)}}).setOrigin(.5);
     const time=`${Math.floor(this.seconds/60)}:${String(this.seconds%60).padStart(2,'0')}`;
-    this.add.text(w/2,h*.6,`${this.kills} ELIMINAÇÕES  •  NÍVEL ${this.level}  •  ${time}`,{
-      fontFamily:'Arial',fontSize:`${Math.min(14,Math.max(10,w*.017))}px`,color:'#efdbb4'
+    this.add.text(w/2,h*.62,`${this.kills} ELIMINAÇÕES  •  NÍVEL ${this.level}  •  ${time}`,{
+      fontFamily:'Arial',fontSize:`${Math.min(14,Math.max(10,w*.017))}px`,color:'#f1d7aa'
     }).setOrigin(.5);
-    const next=this.add.text(w/2,h*.705,this.eraIndex===1?'VOLTAR AO MENU  ▶':'AVANÇAR PARA A ERA DO GELO  ▶',{
-      fontFamily:'Arial',fontSize:`${Math.min(17,Math.max(12,w*.019))}px`,fontStyle:'bold',color:'#173340',backgroundColor:'#b6dbe5',padding:{x:24,y:14}
+    const button=this.add.text(w/2,h*.724,this.nextEra?`AVANÇAR PARA ${this.nextEra.name}  ▶`:'VOLTAR AO MENU  ▶',{
+      fontFamily:'Arial',fontSize:`${Math.min(16,Math.max(11,w*.018))}px`,fontStyle:'bold',color:'#18313d',backgroundColor:'#c0dfe9',padding:{x:Math.min(26,w*.02),y:15}
     }).setOrigin(.5).setInteractive({useHandCursor:true});
-    next.on('pointerover',()=>next.setStyle({backgroundColor:'#dceef6'}));
-    next.on('pointerout',()=>next.setStyle({backgroundColor:'#b6dbe5'}));
-    next.on('pointerdown',()=>this.advance());
-    this.add.text(w/2,h*.825,this.eraIndex===1?'ENTER: MENU    •    R: REINICIAR A EXPEDIÇÃO    •    ESC: MENU':'ENTER: CONTINUAR    •    R: REINICIAR    •    ESC: MENU',{fontFamily:'Arial',fontSize:`${Math.min(12,Math.max(9,w*.015))}px`,color:'#aac5c5'}).setOrigin(.5);
-    title.setAlpha(0);headline.setAlpha(0);next.setAlpha(0);
-    this.tweens.add({targets:[title,headline],alpha:1,duration:950});
-    this.tweens.add({targets:next,alpha:1,delay:600,duration:900});
+    button.on('pointerover',()=>button.setStyle({backgroundColor:'#e4f3f5'}));
+    button.on('pointerout',()=>button.setStyle({backgroundColor:'#c0dfe9'}));
+    button.on('pointerdown',()=>this.advance());
+    this.add.text(w/2,h*.844,'ENTER: CONTINUAR  •  R: REINICIAR EXPEDIÇÃO  •  ESC: MENU',{fontFamily:'Arial',fontSize:`${Math.min(12,Math.max(9,w*.015))}px`,color:'#acc5c4'}).setOrigin(.5);
+    title.setAlpha(0);headline.setAlpha(0);button.setAlpha(0);
+    this.tweens.add({targets:[title,headline],alpha:1,duration:900});this.tweens.add({targets:button,alpha:1,delay:550,duration:850});
     this.onContinue=()=>this.advance();this.onRestart=()=>this.restart();this.onMenu=()=>this.menu();
     this.input.keyboard.on('keydown-ENTER',this.onContinue);
     this.input.keyboard.on('keydown-R',this.onRestart);
@@ -2571,21 +3263,23 @@ class EraCompleteScene extends Phaser.Scene {
     });
   }
   advance(){
-    if(this.eraIndex===1){this.menu();return;}
     if(this.changing)return;
+    if(!this.nextEra){this.menu();return;}
     this.changing=true;
-    this.cameras.main.fadeOut(450,16,33,44);
+    this.cameras.main.fadeOut(440,16,33,44);
     this.cameras.main.once(Phaser.Cameras.Scene2D.Events.FADE_OUT_COMPLETE,()=>{
-      this.scene.stop('GameScene');
-      this.scene.start('GameScene',{eraIndex:1,progress:this.progress});
+      this.scene.stop('GameScene');this.scene.start('GameScene',{eraIndex:this.eraIndex+1,progress:this.progress});
     });
   }
   restart(){if(this.changing)return;this.changing=true;this.scene.stop('GameScene');this.scene.start('GameScene',{eraIndex:0});}
   menu(){if(this.changing)return;this.changing=true;this.scene.stop('GameScene');this.scene.start('MenuScene');}
 }
 
+return {EraCompleteScene};
+})();
 
 // --- src/main.js ---
+(() => {
 
 
 
@@ -2611,6 +3305,8 @@ window.addEventListener('load', () => {
   });
 });
 
+return {};
+})();
   }
   </script>
 </body>

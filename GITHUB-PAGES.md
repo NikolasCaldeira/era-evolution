@@ -1,10 +1,14 @@
-# Publicação do ERA Evolution
+# Publicação e testes — Ciclo 12
 
-Repositório: https://github.com/NikolasCaldeira/era-evolution
-Site: https://nikolascaldeira.github.io/era-evolution/
+O GitHub Actions compila com Vite, executa testes e publica em https://nikolascaldeira.github.io/era-evolution/ .
 
-O workflow `.github/workflows/deploy.yml` usa Node 22, instala dependências, executa `npm test`, compila com Vite e publica `dist/` via GitHub Pages.
+Após `git push` na branch `main`, verifique **Actions > Publicar ERA Evolution no GitHub Pages**.
 
-Ciclo 10: após o chefe do Cretáceo, use **Avançar para a Era do Gelo**. Para testes rápidos: `?testeChefe=1` ou `?testeEra=2`.
+Atalhos de teste:
+- ?testeEra=3 (Civilizações Antigas)
+- ?testeEra=4 (Era Medieval)
+- ?testeEra=5 (Renascimento)
+- ?testeChefe=2 (Mamute glacial)
+- ?testeChefe=3, 4 ou 5 (chefes das novas eras)
 
-Depois de uma publicação, caso o jogo mostre arquivos antigos, execute `Ctrl+F5` para atualizar o cache.
+Os três chefes novos possuem ataques de primeira versão. O jogo pode ser testado sem baixar arquivos, pela mesma URL.

@@ -1,7 +1,10 @@
-/** Capítulos jogáveis: Cretáceo fictício e Pleistoceno. Sem coexistência humana com dinossauros. */
+/** Eras em ordem histórica; Cretáceo é fantasia temporal, não coexistência de humanos e dinossauros. */
 export const ERAS = Object.freeze([
   Object.freeze({id:'cretaceo',number:1,name:'CRETÁCEO',subtitle:'SOBREVIVA AO MUNDO PRIMORDIAL',theme:0x193b30,accent:0xd7bd7f,goal:100}),
-  Object.freeze({id:'pleistoceno',number:2,name:'PRÉ-HISTÓRIA',subtitle:'PLEISTOCENO · A ERA DO GELO',theme:0x1d3847,accent:0x9ccae0,goal:100})
+  Object.freeze({id:'pleistoceno',number:2,name:'PRÉ-HISTÓRIA',subtitle:'PLEISTOCENO · A ERA DO GELO',theme:0x1d3847,accent:0x9ccae0,goal:100}),
+  Object.freeze({id:'antiga',number:3,name:'CIVILIZAÇÕES ANTIGAS',subtitle:'TEMPLOS, DESERTO E MITOS DE PEDRA',theme:0x55432d,accent:0xf0c67c,goal:100}),
+  Object.freeze({id:'medieval',number:4,name:'ERA MEDIEVAL',subtitle:'FORTALEZA SOB O CREPÚSCULO',theme:0x313d48,accent:0xb8cce0,goal:100}),
+  Object.freeze({id:'renascimento',number:5,name:'RENASCIMENTO',subtitle:'ENGENHOS, ARTE E ALQUIMIA',theme:0x374c45,accent:0xe5b879,goal:100})
 ]);
 export function eraAt(index=0){return ERAS[index]||ERAS[0];}
 /** Congela somente os dados de uma partida. A transição não reinicia a jornada. */
@@ -40,10 +43,25 @@ export function pleistoceneRewardForKills(kills){
   return {milestone:`era02-${kills}`,id:ids[index%ids.length],tier:index<5?3:4,kind:'evolucao'};
 }
 
-/** Metadados de planejamento; a Era 03 ainda não é jogável. */
-export const NEXT_ERA_PREVIEW=Object.freeze({number:3,name:'CIVILIZAÇÕES ANTIGAS',status:'em desenvolvimento'});
+/** Compatibilidade com os capítulos anteriores, agora jogáveis até a Era 05. */
+export const NEXT_ERA_PREVIEW=Object.freeze({number:3,name:'CIVILIZAÇÕES ANTIGAS',status:'jogável'});
 /** Bônus da vitória da Era 02, sem alterar o snapshot original. */
-export function prepareNextEraProgress(progress,maxHealth=5){
+export function prepareNextEraProgress(progress,maxHealth=5,nextEra=3){
   if(!progress)return null;
-  return {...progress,health:Math.min(maxHealth,(progress.health||1)+2),nextEra:NEXT_ERA_PREVIEW.number};
+  return {...progress,health:Math.min(maxHealth,(progress.health||1)+2),nextEra};
+}
+
+/** Recompensas novas por era, com marcos independentes dos capítulos anteriores. */
+export function rewardForEraKills(index,kills){
+  if(index===0){
+    // Compatibilidade: a primeira era disponibiliza desbloqueios de armas.
+    const ids=['duplo','lanca','leque','orbe','artefato','duplo','lanca','leque','orbe'];
+    if(!Number.isInteger(kills)||kills<10||kills>90||kills%10!==0)return null;
+    const i=kills/10-1;
+    return {milestone:kills,id:ids[i],tier:i<4?1:2,kind:i<4?'nova':'evolucao'};
+  }
+  if(index===1)return pleistoceneRewardForKills(kills);
+  if(!Number.isInteger(kills)||kills<10||kills>90||kills%10!==0||index<2||index>4)return null;
+  const i=kills/10-1,ids=['artefato','duplo','lanca','leque','orbe'];
+  return {milestone:`era${String(index+1).padStart(2,'0')}-${kills}`,id:ids[i%5],tier:2*index+1+(i>=5?1:0),kind:'evolucao'};
 }

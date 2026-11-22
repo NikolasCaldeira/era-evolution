@@ -1,37 +1,43 @@
-# ERA: Evolution — Ciclo 11 · O Mamute Ancestral
+# ERA: Evolution — Ciclo 12 · Cinco Eras
 
-Roguelike isométrico em **Phaser 3.90**, JavaScript e Vite. Os testes e o build são executados pelo GitHub Actions; a versão compilada é publicada no GitHub Pages.
+Protótipo roguelike de sobrevivência isométrico em **Phaser 3.90**, JavaScript e Vite. O projeto é publicado automaticamente via GitHub Pages, sem necessidade de terminal para quem joga.
 
 ## Capítulos jogáveis
 
-1. **Cretáceo (Era 01, fictícia):** 100 eliminações desbloqueiam o Tricerátops Ancestral. Ao vencê-lo, o jogador atravessa a transição para o Pleistoceno, preservando a progressão.
-2. **Pré-História / Pleistoceno (Era 02):** terreno gelado, smilodontes, rinocerontes-lanosos e mamutes juvenis. Após **100 eliminações nesta era**, aparece o **Mamute Ancestral**.
+| Era | Cenário | Criaturas | Guardião ao completar 100 eliminações |
+|---|---|---|---|
+| I · Cretáceo (fantasia temporal) | Floresta tropical e rochas | Compsognato, anquilossauro, pterossauro | Tricerátops Ancestral |
+| II · Pré-História (Pleistoceno) | Neve, pinheiros, geleiras | Smilodonte, rinoceronte-lanoso, mamute juvenil | Mamute Ancestral |
+| III · Civilizações Antigas | Areias, ruínas e colunas | Escaravelho, guardião de arenito, espírito-chacal | Guardião da Esfinge |
+| IV · Era Medieval | Fortaleza, pátio de pedra, torres | Lobo sombrio, gárgula, cavaleiro encantado | Gárgula Coroada |
+| V · Renascimento | Jardins, fontes e estátuas | Autômato, quimera alquímica, sentinela de bronze | Autômato Magno |
 
-A primeira era é ficcional; dinossauros e humanos não coexistiram.
+Ao derrotar o guardião, a próxima era é desbloqueada na mesma partida. A quinta era termina com uma tela de conclusão da expedição; os capítulos VI–X ainda **não** foram construídos. A fidelidade histórica é estilizada/fantástica, especialmente no primeiro capítulo.
 
-## Novidades do Ciclo 11
+## Novidades do Ciclo 12
 
-- **Relíquias centralizadas:** estrela, brilho e anel compartilham um mesmo centro; o pulso anima somente os círculos. O mesmo componente é usado nas duas eras.
-- **Mamute Ancestral:** arte original, barra de vida e três fases (70% e 35% da vida delimitam as mudanças).
-- **Investida Glacial:** direção marcada antes da corrida; cria rastros de gelo temporários.
-- **Pisada Sísmica:** aviso circular antes do impacto.
-- **Rajada Congelante:** aviso em cone a partir da fase 2; ao acertar, reduz temporariamente a velocidade do jogador.
-- **Matilha:** na fase 3, invoca até dois smilodontes de apoio por convocação, com limite de três aliados vivos e duas convocações. Esses aliados não geram eliminações ou fragmentos.
-- **Vitória da Era 02:** tela de conclusão apresenta o próximo capítulo, **Civilizações Antigas (Era 03)**, como *em desenvolvimento*. Os dados de continuidade são preparados com até +2 pontos de vida, sem ativar uma era incompleta.
+- **Rastro do Mamute** dura cerca de **6,1 segundos**; ao tocá-lo há uma **paralisação de 0,42 s**, seguida de **2,65 s de desaceleração com recuperação gradual**. A mesma marca de gelo não paralisa infinitamente quem continua sobre ela.
+- **Dificuldade entre eras:** cada capítulo aumenta a quantidade, a velocidade e a agressividade de criaturas. Mantida a progressão a cada dez eliminações dentro de cada era.
+- **Combate ativo:** áreas de perigo avisam antes de atingir; surgem da metade das Eras I–II e passam a ser características importantes das Eras III–V. Mover-se para fora do círculo evita o impacto.
+- **Esquiva manual no ESPAÇO:** avanço curto na direção do movimento, respeitando limites e obstáculos; recarga de 4,9 s e breve proteção. Não substitui automaticamente o deslocamento.
+- **Novos cenários, arte direcional, três espécies e chefes temáticos** das Eras III, IV e V. Os chefes desses capítulos são uma primeira versão funcional; animações e habilidades exclusivas poderão ser aprimoradas nos próximos ciclos.
+- Vida, armas, melhorias, níveis, fragmentos, estatísticas e tempo seguem entre eras, com recuperação limitada de vida após a Era II.
 
-## Controles
+## Comandos
 
-- **WASD/setas:** movimentar. O ataque é automático em todas as direções.
-- **Q/E:** alternar artefatos. **1–5:** selecionar um artefato disponível.
-- **ESC:** pausar. **F3:** visualizar rotas. **R:** reiniciar após a derrota.
-- A cada **10 eliminações**, surge uma relíquia. A cada **10 fragmentos**, o jogo pausa para escolha de melhoria.
-- Dano e morte reiniciam todo o progresso da expedição, sem melhorias permanentes.
+- **WASD / setas:** mover em oito direções.
+- **Espaço:** esquiva manual com recarga.
+- **Q/E, 1–5:** alternar ou selecionar armas.
+- **ESC:** pausa. **F3:** exibir as rotas dos inimigos.
+- **R:** reiniciar depois de perder ou concluir.
+- A cada **10 eliminações** surge uma relíquia; cada **10 fragmentos** abre três opções de melhoria.
 
-## Acessos de teste
+## Testes de acesso direto
 
-- `?testeChefe=1` — Tricerátops Ancestral, para testar o primeiro portal.
-- `?testeEra=2` — entrar diretamente no Pleistoceno sem progresso anterior.
-- `?testeChefe=2` — entrar diretamente no encontro do **Mamute Ancestral**, com alguns artefatos evoluídos. Atalho de desenvolvimento que não interfere na partida normal.
+- `?testeEra=3`, `?testeEra=4`, `?testeEra=5` — visitar imediatamente os novos cenários com equipamento de teste.
+- `?testeChefe=2` — encontro do Mamute para verificar a recuperação depois do gelo.
+- `?testeChefe=3`, `?testeChefe=4`, `?testeChefe=5` — encontros dos novos chefes.
+- Sem parâmetros — expedição completa desde o Cretáceo.
 
 ## Desenvolvimento
 
@@ -43,6 +49,4 @@ npm run build
 npm run export:web
 ```
 
-`publicar/index.html` e `JOGAR-ERA-Evolution-Ciclo11.html` são HTMLs de página única que usam Phaser via CDN e requerem internet. Para publicar no GitHub Pages, o workflow `.github/workflows/deploy.yml` executa os testes e o build Vite a cada push em `main`.
-
-**Ainda não implementado:** cenário e personagens da Era 03. A tela de vitória apresenta somente uma prévia do capítulo futuro.
+O workflow em `.github/workflows/deploy.yml` executa `npm test`, `npm run build` e publica automaticamente `dist/` no GitHub Pages. O HTML único (`JOGAR-ERA-Evolution-Ciclo12.html`) carrega Phaser via CDN e exige internet; não substitui o bundle Vite publicado pelo GitHub Pages.

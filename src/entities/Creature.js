@@ -1,13 +1,14 @@
 import { creatureTexture, creaturesList } from '../art/CharacterArt.js';
 import { behaviorForCreature } from '../systems/DifficultySystem.js';
 import { PLEISTOCENE_SPECIES,pleistoceneCreatureTexture } from '../art/PleistoceneArt.js';
+import {CIVILIZATION_SPECIES,civilizationCreatureTexture} from '../art/CivilizationArt.js';
 export class Creature {
   constructor(scene,x,y,id,config={}) {
     this.scene=scene;this.id=id;this.era=config.era||'cretaceo';
-    this.species=this.era==='pleistoceno'?PLEISTOCENE_SPECIES[id%PLEISTOCENE_SPECIES.length]:creaturesList[id%creaturesList.length];
+    this.species=CIVILIZATION_SPECIES[this.era]?CIVILIZATION_SPECIES[this.era][id%3]:this.era==='pleistoceno'?PLEISTOCENE_SPECIES[id%PLEISTOCENE_SPECIES.length]:creaturesList[id%creaturesList.length];
     this.x=x;this.y=y;this.radius=15;this.hp=3;
-    this.behavior=this.era==='pleistoceno'?['investida','resistente','resistente'][id%3]:behaviorForCreature(id);
-    this.baseSpeed=(this.era==='pleistoceno'?[80,55,45][id%3]:55+(id%3)*10);
+    this.behavior=CIVILIZATION_SPECIES[this.era]?['investida','resistente','flanqueador'][(id+(['antiga','medieval','renascimento'].indexOf(this.era)))%3]:this.era==='pleistoceno'?['investida','resistente','resistente'][id%3]:behaviorForCreature(id);
+    this.baseSpeed=CIVILIZATION_SPECIES[this.era]?({antiga:[78,56,82],medieval:[85,74,61],renascimento:[74,88,71]})[this.era][id%3]:this.era==='pleistoceno'?[80,55,45][id%3]:55+(id%3)*10;
     this.speed=this.baseSpeed*(config.speedMultiplier||1);
     this.aggression=config.aggression||1;
     this.alive=true;
@@ -28,7 +29,7 @@ export class Creature {
     }
   }
 
-  texture(flip,frame){return this.era==='pleistoceno'?pleistoceneCreatureTexture(this.species,flip,frame):creatureTexture(this.species,flip,frame);}
+  texture(flip,frame){return CIVILIZATION_SPECIES[this.era]?civilizationCreatureTexture(this.era,this.species,flip,frame):this.era==='pleistoceno'?pleistoceneCreatureTexture(this.species,flip,frame):creatureTexture(this.species,flip,frame);}
   update(delta,target,nav,creatures) {
     if(!this.alive)return;
     const dt=Math.min(delta,40)/1000;
