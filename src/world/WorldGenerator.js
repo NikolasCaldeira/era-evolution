@@ -83,7 +83,7 @@ export class WorldGenerator {
       const a=i*Math.PI*2/11,ex=x+Math.cos(a)*39*scale,ey=y-28*scale+Math.sin(a)*17*scale;
       g.lineStyle(3*scale,0x2c563b,1);g.lineBetween(x,y-25*scale,ex,ey);
       g.fillStyle(i%2?0x7fa663:0x446c47);
-      g.fillEllipse((ex+x)/2,(ey+y-25*scale)/2,37*scale,7*scale,a);
+      g.fillEllipse((ex+x)/2,(ey+y-25*scale)/2,37*scale,7*scale,24);
     }
     g.fillStyle(0xb29f68);g.fillEllipse(x,y-23*scale,8*scale,12*scale);
   }
