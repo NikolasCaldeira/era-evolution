@@ -10,6 +10,7 @@ import { NavigationGrid } from '../world/NavigationGrid.js';
 import { createCharacterArt } from '../art/CharacterArt.js';
 import { WeaponState, WEAPONS, weaponRewardForKills, createSalvo, attackCooldown } from '../systems/WeaponSystem.js';
 import { UpgradeState } from '../systems/UpgradeSystem.js';
+import { difficultyForKills, chooseSpawnPoint } from '../systems/DifficultySystem.js';
 
 export class GameScene extends Phaser.Scene {
   constructor() { super('GameScene'); }
@@ -75,6 +76,8 @@ export class GameScene extends Phaser.Scene {
     this.upgrades=new UpgradeState();
     this.weaponAura=this.add.circle(this.player.x+20,this.player.y-20,5,WEAPONS.artefato.color,.95).setDepth(this.player.y+340);
     this.kills=0;
+    this.difficulty=difficultyForKills(0);
+    this.spawnSequence=0;
     this.fragmentCount=0;
     this.level=1;
     this.power=1;
@@ -104,14 +107,17 @@ export class GameScene extends Phaser.Scene {
 
   getZoom(width){return Math.min(1.1,Math.max(.72,width/1200));}
   messageScreenY(){return this.scale.width<960?210:16;}
-  spawnInitialCreatures(){for(let i=0;i<8;i++)this.spawnCreature(i);}
+  spawnInitialCreatures(){for(let i=0;i<this.difficulty.maxAlive;i++)this.spawnCreature(i);}
+  /** Geração evita posições sem caminho até o jogador. */
   spawnCreature(id){
-    const candidates=[[5,5],[28,5],[5,22],[28,22],[12,4],[22,23],[8,14],[26,13]];
-    const t=candidates[id%candidates.length];
-    const p=this.projection.toScreen(t[0],t[1]);
-    const spawn=this.navigation.isOpen(p.x,p.y)?p:this.navigation.nearestOpenPoint(p.x,p.y);
-    if(spawn)this.creatures.push(new Creature(this,spawn.x,spawn.y,id));
+    const next=chooseSpawnPoint({navigation:this.navigation,projection:this.projection,
+      player:this.player,sequence:this.spawnSequence++,minimumDistance:235});
+    if(next)this.creatures.push(new Creature(this,next.x,next.y,id,{
+      speedMultiplier:this.difficulty.speedMultiplier,aggression:this.difficulty.aggression
+    }));
+    return Boolean(next);
   }
+
   createAtmosphere(){
     this.ambientMotes=[];
     for(let i=0;i<24;i++){
@@ -130,9 +136,9 @@ export class GameScene extends Phaser.Scene {
   }
   createHud(){
     const h=this.hud=this.add.container(0,0).setScrollFactor(0).setDepth(10000);
-    this.hudBack=this.add.rectangle(0,0,390,184,0x0d2420,.94).setOrigin(0).setStrokeStyle(1,0x719579,.68);
+    this.hudBack=this.add.rectangle(0,0,390,207,0x0d2420,.94).setOrigin(0).setStrokeStyle(1,0x719579,.68);
     h.add(this.hudBack);
-    h.add(this.add.rectangle(0,0,5,184,0xd7bd7f).setOrigin(0));
+    h.add(this.add.rectangle(0,0,5,207,0xd7bd7f).setOrigin(0));
     h.add(this.add.text(17,12,'ERA 01  |  CRETÁCEO',{fontFamily:'Georgia,serif',fontSize:'17px',fontStyle:'bold',color:'#f1deb0'}));
     h.add(this.add.text(17,38,'SOBREVIVA AO MUNDO PRIMORDIAL',{fontFamily:'Arial',fontSize:'10px',color:'#9ec5a9',letterSpacing:1}));
     h.add(this.add.text(17,60,'VIDA',{fontFamily:'Arial',fontSize:'11px',fontStyle:'bold',color:'#c3d9c2'}));
@@ -145,8 +151,10 @@ export class GameScene extends Phaser.Scene {
     this.weaponText=this.add.text(17,125,'Nível 1  •  Artefato Verde Nv.1',{fontFamily:'Arial',fontSize:'11px',color:'#bdd5c0'});
     this.inventoryText=this.add.text(17,143,'Q/E troca arma  •  1–5 seleção rápida',{fontFamily:'Arial',fontSize:'10px',color:'#96b9ae'});
     h.add([this.stats,this.weaponText,this.inventoryText]);
-    this.eraTrack=this.add.rectangle(17,171,352,5,0x314739).setOrigin(0);
-    this.eraFill=this.add.rectangle(17,171,0,5,0xe2c17a).setOrigin(0);
+    this.threatText=this.add.text(17,163,'PRESSÃO 01  •  8 criaturas  •  6,7 s',{fontFamily:'Arial',fontSize:'10px',fontStyle:'bold',color:'#e5c17c'});
+    h.add(this.threatText);
+    this.eraTrack=this.add.rectangle(17,192,352,5,0x314739).setOrigin(0);
+    this.eraFill=this.add.rectangle(17,192,0,5,0xe2c17a).setOrigin(0);
     h.add([this.eraTrack,this.eraFill]);
     this.layoutHud();
   }
@@ -154,7 +162,7 @@ export class GameScene extends Phaser.Scene {
     if(!this.hud)return;
     const width=Math.min(390,Math.max(275,this.scale.width-32));
     const track=width-34;
-    this.hudBack.setSize(width,184).setDisplaySize(width,184);
+    this.hudBack.setSize(width,207).setDisplaySize(width,207);
     this.healthTrack.setDisplaySize(track,8);
     this.eraTrack.setDisplaySize(track,4);
     this.hudWidth=width;
@@ -171,11 +179,13 @@ export class GameScene extends Phaser.Scene {
     this.weaponText.setText(`Nível ${this.level}  •  ${this.weapons.current.label} Nv.${this.weapons.tier}  •  Poder ${this.power}`);
     this.weaponText.setColor('#'+this.weapons.current.color.toString(16).padStart(6,'0'));
     this.inventoryText.setText(`${this.weapons.unlocked.length} armas  •  Q/E alternar  •  1–5 equipar`);
+    this.threatText.setText(`PRESSÃO ${String(this.difficulty.stage+1).padStart(2,'0')}  •  ${this.difficulty.maxAlive} criaturas  •  ${(this.difficulty.spawnIntervalMs/1000).toFixed(1)} s`);
     this.eraFill.setDisplaySize(Math.max(.01,(this.hudWidth-34)*Math.min(1,this.kills/SETTINGS.eraKillGoal)),4);
     const compact=this.scale.width<470;
     this.stats.setFontSize(compact?10:12);
     this.weaponText.setFontSize(compact?9:11);
     this.inventoryText.setFontSize(compact?9:10);
+    this.threatText.setFontSize(compact?9:10);
   }
   showMessage(message){
     if(this.message?.active)this.message.destroy();
@@ -211,8 +221,10 @@ export class GameScene extends Phaser.Scene {
     this.collectWeaponPickups();
     this.collectFragments();
     this.spawnTimer+=delta;
-    if(this.spawnTimer>7000&&this.creatures.filter(c=>c.alive).length<8){
-      this.spawnTimer=0;this.spawnCreature(this.kills+this.creatures.length);
+    if(this.spawnTimer>=this.difficulty.spawnIntervalMs){
+      this.spawnTimer=0;
+      if(this.creatures.filter(c=>c.alive).length<this.difficulty.maxAlive)
+        this.spawnCreature(this.kills+this.spawnSequence);
     }
     this.updateHud();
   }
@@ -328,6 +340,17 @@ export class GameScene extends Phaser.Scene {
     this.addFloatingNumber(target.x,target.y-58,String(damage),'#'+color.toString(16).padStart(6,'0'));
     if(!target.alive){
       this.kills++;
+      const nextDifficulty=difficultyForKills(this.kills);
+      if(nextDifficulty.stage!==this.difficulty.stage){
+        this.difficulty=nextDifficulty;
+        // As criaturas já presentes também se adaptam à nova pressão.
+        for(const c of this.creatures){
+          if(!c.alive)continue;
+          c.speed=c.baseSpeed*nextDifficulty.speedMultiplier;
+          c.aggression=nextDifficulty.aggression;
+        }
+        this.makeImpact(this.player.x,this.player.y-14,0xe9b875,35);
+      }
       this.dropFragment(target.x,target.y);
       const reward=weaponRewardForKills(this.kills);
       if(reward)this.spawnWeaponPickup(reward);

@@ -15,6 +15,7 @@ export class NavigationGrid {
     this.width = Math.ceil((columns + rows) * projection.tileWidth / 2 / cellSize) + 2;
     this.height = Math.ceil((columns + rows) * projection.tileHeight / 2 / cellSize + projection.originY / cellSize) + 2;
     this.count = this.width * this.height;
+    this.edgeCache = new Map();
 
     // Índice espacial para não verificar todas as árvores/rochas a cada movimento.
     this.bucketSize = 96;
@@ -87,6 +88,32 @@ export class NavigationGrid {
     return best;
   }
 
+  /** Uma aresta só é válida se o segmento real for livre (não basta ambas as células). */
+  edgeClear(from,to) {
+    const a=Math.min(from,to),b=Math.max(from,to);
+    const key=a*this.count+b;
+    if(this.edgeCache.has(key))return this.edgeCache.get(key);
+    const p=this.point(from),q=this.point(to);
+    const clear=this.lineClear(p.x,p.y,q.x,q.y);
+    this.edgeCache.set(key,clear);
+    return clear;
+  }
+
+  /** Saída acessível quando o movimento fica preso numa concavidade ou esquina. */
+  escapeWaypoint(x,y,targetX,targetY,side=1) {
+    let best=null,bestScore=Infinity;
+    const direction=Math.atan2(targetY-y,targetX-x);
+    for(const radius of [28,48,72,96])for(let i=0;i<16;i++){
+      const angle=direction+side*(i+1)*Math.PI/8;
+      const point={x:x+Math.cos(angle)*radius,y:y+Math.sin(angle)*radius};
+      if(!this.isOpen(point.x,point.y)||!this.lineClear(x,y,point.x,point.y))continue;
+      const progress=Math.hypot(point.x-targetX,point.y-targetY);
+      const score=progress+radius*.2+(i%16)*.8;
+      if(score<bestScore){bestScore=score;best=point;}
+    }
+    return best;
+  }
+
   nearestOpenPoint(x, y) {
     const index = this.closestIndex(x, y, 12);
     return index === -1 ? null : this.point(index);
@@ -95,8 +122,8 @@ export class NavigationGrid {
   findPath(startX, startY, endX, endY) {
     if (!this.isOpen(startX, startY)) return [];
     if (this.lineClear(startX, startY, endX, endY)) return [{ x: endX, y: endY }];
-    const start = this.closestIndex(startX, startY, 5, true);
-    const goal = this.closestIndex(endX, endY, 9, this.isOpen(endX, endY));
+    const start = this.closestIndex(startX, startY, 9, true);
+    const goal = this.closestIndex(endX, endY, 12, this.isOpen(endX, endY));
     if (start < 0 || goal < 0) return [];
 
     const cost = new Float64Array(this.count); cost.fill(Infinity);
@@ -126,7 +153,7 @@ export class NavigationGrid {
         const nextCol = col + dx, nextRow = row + dy;
         if (nextCol < 0 || nextCol >= this.width || nextRow < 0 || nextRow >= this.height) continue;
         const next = nextRow * this.width + nextCol;
-        if (!this.walkable[next] || closed[next]) continue;
+        if (!this.walkable[next] || closed[next] || !this.edgeClear(index,next)) continue;
         // Impede passar por diagonal entre duas células bloqueadas.
         if (dx !== 0 && dy !== 0 &&
           (!this.walkable[row * this.width + nextCol] || !this.walkable[nextRow * this.width + col])) continue;

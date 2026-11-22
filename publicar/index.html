@@ -4,7 +4,7 @@
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width,initial-scale=1" />
   <meta name="theme-color" content="#102820" />
-  <title>ERA: Evolution | Cretáceo — Ciclo 07</title>
+  <title>ERA: Evolution | Cretáceo — Ciclo 08</title>
   <style>:root { color-scheme: dark; font-family: Inter, ui-sans-serif, system-ui, sans-serif; background:#0b1415; color:#edf2df; }
 * { box-sizing:border-box; }
 html,body { margin:0; width:100%; height:100%; overflow:hidden; background:#0b1415; }
@@ -213,6 +213,48 @@ class UpgradeState {
 }
 
 
+// --- src/systems/DifficultySystem.js ---
+/** Dificuldade progressiva do Cretáceo. Os inimigos mantêm 3 pontos de vida. */
+const CREATURE_BEHAVIORS = Object.freeze(['investida', 'resistente', 'flanqueador']);
+const MAX_STAGE = 9; // 100 eliminações reservadas ao chefe no próximo ciclo
+function difficultyForKills(kills) {
+  const stage=Math.max(0,Math.min(MAX_STAGE,Math.floor(Math.max(0,kills)/10)));
+  return Object.freeze({
+    stage,
+    bandStart:stage*10,
+    maxAlive:8+stage,
+    spawnIntervalMs:Math.max(2350,6700-stage*465),
+    speedMultiplier:1+stage*.037,
+    aggression:1+stage*.085
+  });
+}
+function behaviorForCreature(id) {
+  return CREATURE_BEHAVIORS[Math.abs(id)%CREATURE_BEHAVIORS.length];
+}
+/** Determina de forma consistente de onde nascem as criaturas sem teletransporte visível.
+ * Não permite posições isoladas por pedras, árvores ou fronteiras do mapa. */
+function chooseSpawnPoint({navigation,projection,player,sequence=0,minimumDistance=250}) {
+  const candidates=[];
+  // Distribuir os nascimentos pelo mapa e alternar os lados da arena.
+  for(let i=0;i<52;i++){
+    const x=2+((sequence*13+i*17)%30);
+    const y=2+((sequence*7+i*11)%24);
+    const point=projection.toScreen(x,y);
+    const distance=Math.hypot(point.x-player.x,point.y-player.y);
+    if(distance<minimumDistance||!navigation.isOpen(point.x,point.y))continue;
+    candidates.push({point,distance});
+  }
+  // Examinar primeiro os pontos menos distantes, para não alongar a perseguição.
+  candidates.sort((a,b)=>a.distance-b.distance);
+  for(let i=0;i<Math.min(20,candidates.length);i++){
+    const p=candidates[(i*7+sequence)%Math.min(20,candidates.length)].point;
+    if(navigation.findPath(p.x,p.y,player.x,player.y).length)return p;
+  }
+  // Sem uma posição atingível, não gerar inimigo invisível ou bloqueado.
+  return null;
+}
+
+
 // --- src/world/IsoProjection.js ---
 class IsoProjection {
   constructor(tileWidth, tileHeight, originX = 0, originY = 0) {
@@ -249,6 +291,7 @@ class NavigationGrid {
     this.width = Math.ceil((columns + rows) * projection.tileWidth / 2 / cellSize) + 2;
     this.height = Math.ceil((columns + rows) * projection.tileHeight / 2 / cellSize + projection.originY / cellSize) + 2;
     this.count = this.width * this.height;
+    this.edgeCache = new Map();
 
     // Índice espacial para não verificar todas as árvores/rochas a cada movimento.
     this.bucketSize = 96;
@@ -321,6 +364,32 @@ class NavigationGrid {
     return best;
   }
 
+  /** Uma aresta só é válida se o segmento real for livre (não basta ambas as células). */
+  edgeClear(from,to) {
+    const a=Math.min(from,to),b=Math.max(from,to);
+    const key=a*this.count+b;
+    if(this.edgeCache.has(key))return this.edgeCache.get(key);
+    const p=this.point(from),q=this.point(to);
+    const clear=this.lineClear(p.x,p.y,q.x,q.y);
+    this.edgeCache.set(key,clear);
+    return clear;
+  }
+
+  /** Saída acessível quando o movimento fica preso numa concavidade ou esquina. */
+  escapeWaypoint(x,y,targetX,targetY,side=1) {
+    let best=null,bestScore=Infinity;
+    const direction=Math.atan2(targetY-y,targetX-x);
+    for(const radius of [28,48,72,96])for(let i=0;i<16;i++){
+      const angle=direction+side*(i+1)*Math.PI/8;
+      const point={x:x+Math.cos(angle)*radius,y:y+Math.sin(angle)*radius};
+      if(!this.isOpen(point.x,point.y)||!this.lineClear(x,y,point.x,point.y))continue;
+      const progress=Math.hypot(point.x-targetX,point.y-targetY);
+      const score=progress+radius*.2+(i%16)*.8;
+      if(score<bestScore){bestScore=score;best=point;}
+    }
+    return best;
+  }
+
   nearestOpenPoint(x, y) {
     const index = this.closestIndex(x, y, 12);
     return index === -1 ? null : this.point(index);
@@ -329,8 +398,8 @@ class NavigationGrid {
   findPath(startX, startY, endX, endY) {
     if (!this.isOpen(startX, startY)) return [];
     if (this.lineClear(startX, startY, endX, endY)) return [{ x: endX, y: endY }];
-    const start = this.closestIndex(startX, startY, 5, true);
-    const goal = this.closestIndex(endX, endY, 9, this.isOpen(endX, endY));
+    const start = this.closestIndex(startX, startY, 9, true);
+    const goal = this.closestIndex(endX, endY, 12, this.isOpen(endX, endY));
     if (start < 0 || goal < 0) return [];
 
     const cost = new Float64Array(this.count); cost.fill(Infinity);
@@ -360,7 +429,7 @@ class NavigationGrid {
         const nextCol = col + dx, nextRow = row + dy;
         if (nextCol < 0 || nextCol >= this.width || nextRow < 0 || nextRow >= this.height) continue;
         const next = nextRow * this.width + nextCol;
-        if (!this.walkable[next] || closed[next]) continue;
+        if (!this.walkable[next] || closed[next] || !this.edgeClear(index,next)) continue;
         // Impede passar por diagonal entre duas células bloqueadas.
         if (dx !== 0 && dy !== 0 &&
           (!this.walkable[row * this.width + nextCol] || !this.walkable[nextRow * this.width + col])) continue;
@@ -766,12 +835,22 @@ class Player {
 
 // --- src/entities/Creature.js ---
 
+
 class Creature {
-  constructor(scene,x,y,id) {
+  constructor(scene,x,y,id,config={}) {
     this.scene=scene;this.id=id;this.species=creaturesList[id%creaturesList.length];
-    this.x=x;this.y=y;this.radius=15;this.hp=3;this.speed=55+(id%3)*10;this.alive=true;
+    this.x=x;this.y=y;this.radius=15;this.hp=3;
+    this.behavior=behaviorForCreature(id);
+    this.baseSpeed=55+(id%3)*10;
+    this.speed=this.baseSpeed*(config.speedMultiplier||1);
+    this.aggression=config.aggression||1;
+    this.alive=true;
+    this.dashUntil=0;this.nextDash=0;
     this.path=[];this.pathIndex=0;this.repathAt=0;
     this.lastGoal={x:NaN,y:NaN};this.stuckMs=0;
+    this.sampleX=x;this.sampleY=y;this.sampleAt=scene.time.now||0;
+    this.stallCount=0;this.detourSide=id%2===0?1:-1;
+    this.forcedWaypoint=null;this.forcedUntil=0;
     this.frame=0;this.animTime=0;this.toLeft=false;
     this.shadow=scene.add.ellipse(x,y+10,41,13,0x0a1711,.36).setDepth(y+180);
     this.sprite=scene.add.image(x,y,creatureTexture(this.species,false,0)).setOrigin(.5,.81).setScale(.79).setDepth(y+200);
@@ -786,9 +865,21 @@ class Creature {
   update(delta,target,nav,creatures) {
     if(!this.alive)return;
     const dt=Math.min(delta,40)/1000;
+    // Check movement over a full second, not a single frame: wall sliding and
+    // oscillation used to be wrongly counted as forward progress.
+    if(this.scene.time.now-this.sampleAt>900){
+      const travelled=Math.hypot(this.x-this.sampleX,this.y-this.sampleY);
+      if(travelled<19){this.stallCount++;this.path=[];this.pathIndex=0;
+        this.detourSide*=-1;this.repathAt=0;
+        this.forcedWaypoint=nav.escapeWaypoint(this.x,this.y,target.x,target.y,this.detourSide);
+        this.forcedUntil=this.scene.time.now+680;
+      }else this.stallCount=0;
+      this.sampleX=this.x;this.sampleY=this.y;this.sampleAt=this.scene.time.now;
+    }
     const distance=Math.hypot(target.x-this.x,target.y-this.y);
     if(distance>29){
       let waypoint={x:target.x,y:target.y};
+      if(this.forcedWaypoint && this.scene.time.now>=this.forcedUntil) this.forcedWaypoint=null;
       if(!nav.lineClear(this.x,this.y,target.x,target.y)){
         const goalMoved=Math.hypot(target.x-this.lastGoal.x,target.y-this.lastGoal.y)>44;
         if(!this.path.length||this.pathIndex>=this.path.length||
@@ -803,7 +894,22 @@ class Creature {
         if(this.pathIndex<this.path.length) waypoint=this.path[this.pathIndex];
         else waypoint={x:this.x,y:this.y};
       }else{this.path=[];this.pathIndex=0;this.stuckMs=0;}
-      this.moveToward(waypoint,dt,delta,nav,creatures);
+      if(this.forcedWaypoint)waypoint=this.forcedWaypoint;
+      // Flanqueadores tentam aproximar-se lateralmente sem atravessar obstáculos.
+      let flank=0;
+      if(this.behavior==='flanqueador'&&distance>75&&distance<240&& !this.forcedWaypoint){
+        flank=.32*this.detourSide;
+      }
+      // Os pequenos corredores fazem investidas curtas a intervalos crescentes.
+      let speedBoost=1;
+      if(this.behavior==='investida'&&distance<220&&distance>65){
+        if(this.scene.time.now>this.nextDash){
+          this.dashUntil=this.scene.time.now+Math.round(320*this.aggression);
+          this.nextDash=this.scene.time.now+Math.max(950,2500/this.aggression);
+        }
+        if(this.scene.time.now<this.dashUntil)speedBoost=1.38;
+      }
+      this.moveToward(waypoint,dt,delta,nav,creatures,flank,speedBoost);
     }
     this.animTime+=delta;
     if(this.animTime>145){this.animTime=0;this.frame=(this.frame+1)%4;}
@@ -812,7 +918,7 @@ class Creature {
     this.shadow.setPosition(this.x,this.y+10).setDepth(this.y+180);
     this.lifeDots.forEach((dot,i)=>dot.setPosition(this.x-10+i*10,this.y-49).setDepth(this.y+310));
   }
-  moveToward(waypoint,dt,delta,nav,creatures) {
+  moveToward(waypoint,dt,delta,nav,creatures,flank=0,speedBoost=1) {
     let dx=waypoint.x-this.x,dy=waypoint.y-this.y;
     const distance=Math.hypot(dx,dy);if(distance<.01)return;
     dx/=distance;dy/=distance;this.toLeft=dx<-.04;
@@ -822,10 +928,22 @@ class Creature {
       const ox=this.x-other.x,oy=this.y-other.y,d=Math.hypot(ox,oy);
       if(d>.1&&d<31){const intensity=(31-d)/31;sepX+=ox/d*intensity;sepY+=oy/d*intensity;}
     }
-    const steerX=dx+sepX*.22,steerY=dy+sepY*.22;
-    const length=Math.hypot(steerX,steerY)||1,step=Math.min(this.speed*dt,distance);
+    const steerX=dx+sepX*.22-dy*flank,steerY=dy+sepY*.22+dx*flank;
+    const length=Math.hypot(steerX,steerY)||1,step=Math.min(this.speed*speedBoost*dt,distance);
     let moved=this.tryMove(steerX/length*step,steerY/length*step,nav);
     if(!moved)moved=this.tryMove(dx*step,dy*step,nav);
+    if(!moved){
+      // Tentativa local à volta de uma quina antes do novo cálculo de rota.
+      const angle=Math.atan2(dy,dx);
+      for(const offset of [Math.PI/4,Math.PI/2,3*Math.PI/4,Math.PI]){
+        for(const side of [this.detourSide,-this.detourSide]){
+          if(this.tryMove(Math.cos(angle+offset*side)*step,Math.sin(angle+offset*side)*step,nav)){
+            moved=true;break;
+          }
+        }
+        if(moved)break;
+      }
+    }
     if(!moved)this.stuckMs+=delta;else this.stuckMs=0;
   }
   tryMove(dx,dy,nav){
@@ -981,6 +1099,7 @@ class UpgradeScene extends Phaser.Scene {
 
 
 
+
 class GameScene extends Phaser.Scene {
   constructor() { super('GameScene'); }
 
@@ -1045,6 +1164,8 @@ class GameScene extends Phaser.Scene {
     this.upgrades=new UpgradeState();
     this.weaponAura=this.add.circle(this.player.x+20,this.player.y-20,5,WEAPONS.artefato.color,.95).setDepth(this.player.y+340);
     this.kills=0;
+    this.difficulty=difficultyForKills(0);
+    this.spawnSequence=0;
     this.fragmentCount=0;
     this.level=1;
     this.power=1;
@@ -1074,14 +1195,17 @@ class GameScene extends Phaser.Scene {
 
   getZoom(width){return Math.min(1.1,Math.max(.72,width/1200));}
   messageScreenY(){return this.scale.width<960?210:16;}
-  spawnInitialCreatures(){for(let i=0;i<8;i++)this.spawnCreature(i);}
+  spawnInitialCreatures(){for(let i=0;i<this.difficulty.maxAlive;i++)this.spawnCreature(i);}
+  /** Geração evita posições sem caminho até o jogador. */
   spawnCreature(id){
-    const candidates=[[5,5],[28,5],[5,22],[28,22],[12,4],[22,23],[8,14],[26,13]];
-    const t=candidates[id%candidates.length];
-    const p=this.projection.toScreen(t[0],t[1]);
-    const spawn=this.navigation.isOpen(p.x,p.y)?p:this.navigation.nearestOpenPoint(p.x,p.y);
-    if(spawn)this.creatures.push(new Creature(this,spawn.x,spawn.y,id));
+    const next=chooseSpawnPoint({navigation:this.navigation,projection:this.projection,
+      player:this.player,sequence:this.spawnSequence++,minimumDistance:235});
+    if(next)this.creatures.push(new Creature(this,next.x,next.y,id,{
+      speedMultiplier:this.difficulty.speedMultiplier,aggression:this.difficulty.aggression
+    }));
+    return Boolean(next);
   }
+
   createAtmosphere(){
     this.ambientMotes=[];
     for(let i=0;i<24;i++){
@@ -1100,9 +1224,9 @@ class GameScene extends Phaser.Scene {
   }
   createHud(){
     const h=this.hud=this.add.container(0,0).setScrollFactor(0).setDepth(10000);
-    this.hudBack=this.add.rectangle(0,0,390,184,0x0d2420,.94).setOrigin(0).setStrokeStyle(1,0x719579,.68);
+    this.hudBack=this.add.rectangle(0,0,390,207,0x0d2420,.94).setOrigin(0).setStrokeStyle(1,0x719579,.68);
     h.add(this.hudBack);
-    h.add(this.add.rectangle(0,0,5,184,0xd7bd7f).setOrigin(0));
+    h.add(this.add.rectangle(0,0,5,207,0xd7bd7f).setOrigin(0));
     h.add(this.add.text(17,12,'ERA 01  |  CRETÁCEO',{fontFamily:'Georgia,serif',fontSize:'17px',fontStyle:'bold',color:'#f1deb0'}));
     h.add(this.add.text(17,38,'SOBREVIVA AO MUNDO PRIMORDIAL',{fontFamily:'Arial',fontSize:'10px',color:'#9ec5a9',letterSpacing:1}));
     h.add(this.add.text(17,60,'VIDA',{fontFamily:'Arial',fontSize:'11px',fontStyle:'bold',color:'#c3d9c2'}));
@@ -1115,8 +1239,10 @@ class GameScene extends Phaser.Scene {
     this.weaponText=this.add.text(17,125,'Nível 1  •  Artefato Verde Nv.1',{fontFamily:'Arial',fontSize:'11px',color:'#bdd5c0'});
     this.inventoryText=this.add.text(17,143,'Q/E troca arma  •  1–5 seleção rápida',{fontFamily:'Arial',fontSize:'10px',color:'#96b9ae'});
     h.add([this.stats,this.weaponText,this.inventoryText]);
-    this.eraTrack=this.add.rectangle(17,171,352,5,0x314739).setOrigin(0);
-    this.eraFill=this.add.rectangle(17,171,0,5,0xe2c17a).setOrigin(0);
+    this.threatText=this.add.text(17,163,'PRESSÃO 01  •  8 criaturas  •  6,7 s',{fontFamily:'Arial',fontSize:'10px',fontStyle:'bold',color:'#e5c17c'});
+    h.add(this.threatText);
+    this.eraTrack=this.add.rectangle(17,192,352,5,0x314739).setOrigin(0);
+    this.eraFill=this.add.rectangle(17,192,0,5,0xe2c17a).setOrigin(0);
     h.add([this.eraTrack,this.eraFill]);
     this.layoutHud();
   }
@@ -1124,7 +1250,7 @@ class GameScene extends Phaser.Scene {
     if(!this.hud)return;
     const width=Math.min(390,Math.max(275,this.scale.width-32));
     const track=width-34;
-    this.hudBack.setSize(width,184).setDisplaySize(width,184);
+    this.hudBack.setSize(width,207).setDisplaySize(width,207);
     this.healthTrack.setDisplaySize(track,8);
     this.eraTrack.setDisplaySize(track,4);
     this.hudWidth=width;
@@ -1141,11 +1267,13 @@ class GameScene extends Phaser.Scene {
     this.weaponText.setText(`Nível ${this.level}  •  ${this.weapons.current.label} Nv.${this.weapons.tier}  •  Poder ${this.power}`);
     this.weaponText.setColor('#'+this.weapons.current.color.toString(16).padStart(6,'0'));
     this.inventoryText.setText(`${this.weapons.unlocked.length} armas  •  Q/E alternar  •  1–5 equipar`);
+    this.threatText.setText(`PRESSÃO ${String(this.difficulty.stage+1).padStart(2,'0')}  •  ${this.difficulty.maxAlive} criaturas  •  ${(this.difficulty.spawnIntervalMs/1000).toFixed(1)} s`);
     this.eraFill.setDisplaySize(Math.max(.01,(this.hudWidth-34)*Math.min(1,this.kills/SETTINGS.eraKillGoal)),4);
     const compact=this.scale.width<470;
     this.stats.setFontSize(compact?10:12);
     this.weaponText.setFontSize(compact?9:11);
     this.inventoryText.setFontSize(compact?9:10);
+    this.threatText.setFontSize(compact?9:10);
   }
   showMessage(message){
     if(this.message?.active)this.message.destroy();
@@ -1181,8 +1309,10 @@ class GameScene extends Phaser.Scene {
     this.collectWeaponPickups();
     this.collectFragments();
     this.spawnTimer+=delta;
-    if(this.spawnTimer>7000&&this.creatures.filter(c=>c.alive).length<8){
-      this.spawnTimer=0;this.spawnCreature(this.kills+this.creatures.length);
+    if(this.spawnTimer>=this.difficulty.spawnIntervalMs){
+      this.spawnTimer=0;
+      if(this.creatures.filter(c=>c.alive).length<this.difficulty.maxAlive)
+        this.spawnCreature(this.kills+this.spawnSequence);
     }
     this.updateHud();
   }
@@ -1298,6 +1428,17 @@ class GameScene extends Phaser.Scene {
     this.addFloatingNumber(target.x,target.y-58,String(damage),'#'+color.toString(16).padStart(6,'0'));
     if(!target.alive){
       this.kills++;
+      const nextDifficulty=difficultyForKills(this.kills);
+      if(nextDifficulty.stage!==this.difficulty.stage){
+        this.difficulty=nextDifficulty;
+        // As criaturas já presentes também se adaptam à nova pressão.
+        for(const c of this.creatures){
+          if(!c.alive)continue;
+          c.speed=c.baseSpeed*nextDifficulty.speedMultiplier;
+          c.aggression=nextDifficulty.aggression;
+        }
+        this.makeImpact(this.player.x,this.player.y-14,0xe9b875,35);
+      }
       this.dropFragment(target.x,target.y);
       const reward=weaponRewardForKills(this.kills);
       if(reward)this.spawnWeaponPickup(reward);

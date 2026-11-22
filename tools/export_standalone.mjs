@@ -12,6 +12,7 @@ const modules=[
   'src/core/ScreenAnchor.js',
   'src/systems/WeaponSystem.js',
   'src/systems/UpgradeSystem.js',
+  'src/systems/DifficultySystem.js',
   'src/world/IsoProjection.js',
   'src/world/NavigationGrid.js',
   'src/world/WorldGenerator.js',
@@ -41,7 +42,7 @@ const html=`<!DOCTYPE html>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width,initial-scale=1" />
   <meta name="theme-color" content="#102820" />
-  <title>ERA: Evolution | Cretáceo — Ciclo 07</title>
+  <title>ERA: Evolution | Cretáceo — Ciclo 08</title>
   <style>${css}</style>
 </head>
 <body>
@@ -63,5 +64,5 @@ const html=`<!DOCTYPE html>
 const destination=resolve(root,'publicar','index.html');
 mkdirSync(resolve(root,'publicar'),{recursive:true});
 writeFileSync(destination,html,'utf8');
-copyFileSync(destination,resolve(root,'JOGAR-ERA-Evolution-Ciclo07.html'));
+copyFileSync(destination,resolve(root,'JOGAR-ERA-Evolution-Ciclo08.html'));
 console.log(`Exportado ${destination} (${html.length} caracteres)`);

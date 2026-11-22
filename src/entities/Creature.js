@@ -1,10 +1,20 @@
 import { creatureTexture, creaturesList } from '../art/CharacterArt.js';
+import { behaviorForCreature } from '../systems/DifficultySystem.js';
 export class Creature {
-  constructor(scene,x,y,id) {
+  constructor(scene,x,y,id,config={}) {
     this.scene=scene;this.id=id;this.species=creaturesList[id%creaturesList.length];
-    this.x=x;this.y=y;this.radius=15;this.hp=3;this.speed=55+(id%3)*10;this.alive=true;
+    this.x=x;this.y=y;this.radius=15;this.hp=3;
+    this.behavior=behaviorForCreature(id);
+    this.baseSpeed=55+(id%3)*10;
+    this.speed=this.baseSpeed*(config.speedMultiplier||1);
+    this.aggression=config.aggression||1;
+    this.alive=true;
+    this.dashUntil=0;this.nextDash=0;
     this.path=[];this.pathIndex=0;this.repathAt=0;
     this.lastGoal={x:NaN,y:NaN};this.stuckMs=0;
+    this.sampleX=x;this.sampleY=y;this.sampleAt=scene.time.now||0;
+    this.stallCount=0;this.detourSide=id%2===0?1:-1;
+    this.forcedWaypoint=null;this.forcedUntil=0;
     this.frame=0;this.animTime=0;this.toLeft=false;
     this.shadow=scene.add.ellipse(x,y+10,41,13,0x0a1711,.36).setDepth(y+180);
     this.sprite=scene.add.image(x,y,creatureTexture(this.species,false,0)).setOrigin(.5,.81).setScale(.79).setDepth(y+200);
@@ -19,9 +29,21 @@ export class Creature {
   update(delta,target,nav,creatures) {
     if(!this.alive)return;
     const dt=Math.min(delta,40)/1000;
+    // Check movement over a full second, not a single frame: wall sliding and
+    // oscillation used to be wrongly counted as forward progress.
+    if(this.scene.time.now-this.sampleAt>900){
+      const travelled=Math.hypot(this.x-this.sampleX,this.y-this.sampleY);
+      if(travelled<19){this.stallCount++;this.path=[];this.pathIndex=0;
+        this.detourSide*=-1;this.repathAt=0;
+        this.forcedWaypoint=nav.escapeWaypoint(this.x,this.y,target.x,target.y,this.detourSide);
+        this.forcedUntil=this.scene.time.now+680;
+      }else this.stallCount=0;
+      this.sampleX=this.x;this.sampleY=this.y;this.sampleAt=this.scene.time.now;
+    }
     const distance=Math.hypot(target.x-this.x,target.y-this.y);
     if(distance>29){
       let waypoint={x:target.x,y:target.y};
+      if(this.forcedWaypoint && this.scene.time.now>=this.forcedUntil) this.forcedWaypoint=null;
       if(!nav.lineClear(this.x,this.y,target.x,target.y)){
         const goalMoved=Math.hypot(target.x-this.lastGoal.x,target.y-this.lastGoal.y)>44;
         if(!this.path.length||this.pathIndex>=this.path.length||
@@ -36,7 +58,22 @@ export class Creature {
         if(this.pathIndex<this.path.length) waypoint=this.path[this.pathIndex];
         else waypoint={x:this.x,y:this.y};
       }else{this.path=[];this.pathIndex=0;this.stuckMs=0;}
-      this.moveToward(waypoint,dt,delta,nav,creatures);
+      if(this.forcedWaypoint)waypoint=this.forcedWaypoint;
+      // Flanqueadores tentam aproximar-se lateralmente sem atravessar obstáculos.
+      let flank=0;
+      if(this.behavior==='flanqueador'&&distance>75&&distance<240&& !this.forcedWaypoint){
+        flank=.32*this.detourSide;
+      }
+      // Os pequenos corredores fazem investidas curtas a intervalos crescentes.
+      let speedBoost=1;
+      if(this.behavior==='investida'&&distance<220&&distance>65){
+        if(this.scene.time.now>this.nextDash){
+          this.dashUntil=this.scene.time.now+Math.round(320*this.aggression);
+          this.nextDash=this.scene.time.now+Math.max(950,2500/this.aggression);
+        }
+        if(this.scene.time.now<this.dashUntil)speedBoost=1.38;
+      }
+      this.moveToward(waypoint,dt,delta,nav,creatures,flank,speedBoost);
     }
     this.animTime+=delta;
     if(this.animTime>145){this.animTime=0;this.frame=(this.frame+1)%4;}
@@ -45,7 +82,7 @@ export class Creature {
     this.shadow.setPosition(this.x,this.y+10).setDepth(this.y+180);
     this.lifeDots.forEach((dot,i)=>dot.setPosition(this.x-10+i*10,this.y-49).setDepth(this.y+310));
   }
-  moveToward(waypoint,dt,delta,nav,creatures) {
+  moveToward(waypoint,dt,delta,nav,creatures,flank=0,speedBoost=1) {
     let dx=waypoint.x-this.x,dy=waypoint.y-this.y;
     const distance=Math.hypot(dx,dy);if(distance<.01)return;
     dx/=distance;dy/=distance;this.toLeft=dx<-.04;
@@ -55,10 +92,22 @@ export class Creature {
       const ox=this.x-other.x,oy=this.y-other.y,d=Math.hypot(ox,oy);
       if(d>.1&&d<31){const intensity=(31-d)/31;sepX+=ox/d*intensity;sepY+=oy/d*intensity;}
     }
-    const steerX=dx+sepX*.22,steerY=dy+sepY*.22;
-    const length=Math.hypot(steerX,steerY)||1,step=Math.min(this.speed*dt,distance);
+    const steerX=dx+sepX*.22-dy*flank,steerY=dy+sepY*.22+dx*flank;
+    const length=Math.hypot(steerX,steerY)||1,step=Math.min(this.speed*speedBoost*dt,distance);
     let moved=this.tryMove(steerX/length*step,steerY/length*step,nav);
     if(!moved)moved=this.tryMove(dx*step,dy*step,nav);
+    if(!moved){
+      // Tentativa local à volta de uma quina antes do novo cálculo de rota.
+      const angle=Math.atan2(dy,dx);
+      for(const offset of [Math.PI/4,Math.PI/2,3*Math.PI/4,Math.PI]){
+        for(const side of [this.detourSide,-this.detourSide]){
+          if(this.tryMove(Math.cos(angle+offset*side)*step,Math.sin(angle+offset*side)*step,nav)){
+            moved=true;break;
+          }
+        }
+        if(moved)break;
+      }
+    }
     if(!moved)this.stuckMs+=delta;else this.stuckMs=0;
   }
   tryMove(dx,dy,nav){

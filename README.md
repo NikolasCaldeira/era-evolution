@@ -1,4 +1,4 @@
-# ERA: Evolution — Ciclo 07 — Arsenal e Evolução
+# ERA: Evolution — Ciclo 08 — Dificuldade Progressiva
 
 Protótipo roguelike isométrico em **Phaser 3.90**, desenvolvido com JavaScript e Vite. O código é publicado automaticamente no GitHub Pages.
 
@@ -34,6 +34,20 @@ npm run dev
 npm run build
 ```
 
-`npm run export:web` gera `publicar/index.html` e `JOGAR-ERA-Evolution-Ciclo07.html` para uso sem Vite (Phaser é carregado por CDN e exige internet).
+`npm run export:web` gera `publicar/index.html` e `JOGAR-ERA-Evolution-Ciclo08.html` para uso sem Vite (Phaser é carregado por CDN e exige internet).
 
 O workflow `.github/workflows/deploy.yml` executa testes e build a cada push em `main`, publicando `dist/` no GitHub Pages.
+
+## Ciclo 08 — Dificuldade progressiva
+
+A cada dez eliminações a **pressão** aumenta. O teto de criaturas vivas sobe gradualmente de 8 até 17, o intervalo entre nascimentos diminui de 6,7 s até aproximadamente 2,5 s, e a velocidade aumenta moderadamente. Cada criatura continua a exigir três acertos (sem aumento arbitrário de vida). A progressão termina no marco das 90 eliminações, em preparação para o chefe do próximo ciclo.
+
+- **Compsognato:** faz investidas curtas quando se aproxima.
+- **Anquilossauro juvenil:** perseguição direta e constante.
+- **Pterossauro:** aproximação com flanqueamento lateral.
+- **Rotas:** verificação de progresso real, replanejamento quando encurralado e desvio de emergência de obstáculos.
+- **Nascimento:** somente em zonas com rota válida para o protagonista, longe da posição atual.
+- **HUD:** indicador de pressão, limite de inimigos e intervalo aproximado entre nascimentos.
+- **Armas:** as cinco armas mantêm características e projéteis distintos do Ciclo 07.
+
+O período entre nascimentos é sujeito ao limite de criaturas simultâneas. O chefe das 100 eliminações ainda não está disponível.
