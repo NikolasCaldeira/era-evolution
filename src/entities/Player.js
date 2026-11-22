@@ -1,15 +1,18 @@
 import Phaser from 'phaser';
 import { playerTexture } from '../art/CharacterArt.js';
+import { pleistocenePlayerTexture } from '../art/PleistoceneArt.js';
 
 const FACING = ['right','down-right','down','down-left','left','up-left','up','up-right'];
 export class Player {
-  constructor(scene,x,y) {
+  constructor(scene,x,y,era='cretaceo') {
+    this.era=era;
     this.scene=scene;this.x=x;this.y=y;this.speed=250;this.radius=16;
     this.facing='down';this.isMoving=false;this.frame=0;this.elapsed=0;
     this.shadow=scene.add.ellipse(x,y+12,40,15,0x071b17,.38).setDepth(y+180);
-    this.sprite=scene.add.image(x,y,playerTexture('down',0)).setOrigin(.5,.83).setDepth(y+300);
+    this.sprite=scene.add.image(x,y,this.texture('down',0)).setOrigin(.5,.83).setDepth(y+300);
     this.sprite.setScale(.85);
   }
+  texture(facing,frame){return this.era==='pleistoceno'?pleistocenePlayerTexture(facing,frame):playerTexture(facing,frame);}
   update(delta,direction,obstacles,map) {
     const dt=Math.min(delta,40)/1000;
     let dx=direction.x,dy=direction.y;
@@ -25,7 +28,7 @@ export class Player {
       this.facing=FACING[Math.round(((angle+2*Math.PI)%(2*Math.PI))/(Math.PI/4))%8];
       this.elapsed+=delta;if(this.elapsed>125){this.elapsed=0;this.frame=(this.frame+1)%4;}
     }else{this.elapsed=0;this.frame=0;}
-    this.sprite.setTexture(playerTexture(this.facing,this.frame));
+    this.sprite.setTexture(this.texture(this.facing,this.frame));
     this.shadow.setPosition(this.x,this.y+12).setDepth(this.y+180);
     this.sprite.setPosition(this.x,this.y).setDepth(this.y+300);
   }

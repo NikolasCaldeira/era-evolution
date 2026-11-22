@@ -4,7 +4,7 @@
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width,initial-scale=1" />
   <meta name="theme-color" content="#102820" />
-  <title>ERA: Evolution | Cretáceo — Ciclo 09</title>
+  <title>ERA: Evolution | Duas Eras — Ciclo 10</title>
   <style>:root { color-scheme: dark; font-family: Inter, ui-sans-serif, system-ui, sans-serif; background:#0b1415; color:#edf2df; }
 * { box-sizing:border-box; }
 html,body { margin:0; width:100%; height:100%; overflow:hidden; background:#0b1415; }
@@ -18,7 +18,7 @@ canvas { display:block; width:100%; height:100%; object-fit:contain; touch-actio
 <body>
   <main id="game-shell">
     <div id="game"></div>
-    <div id="loading">ERA: EVOLUTION<span>Carregando a expedição do Cretáceo…</span></div>
+    <div id="loading">ERA: EVOLUTION<span>Carregando a viagem entre eras…</span></div>
   </main>
   <!-- Dependência externa: jogo exige acesso à internet, sem npm ou terminal. -->
   <script src="https://cdn.jsdelivr.net/npm/phaser@3.90.0/dist/phaser.min.js"></script>
@@ -100,6 +100,50 @@ function screenAnchor(width,height,zoom,screenX,screenY){
     y:height/2+(screenY-height/2)*inverse,
     scale:inverse
   };
+}
+
+
+// --- src/systems/EraSystem.js ---
+/** Capítulos jogáveis: Cretáceo fictício e Pleistoceno. Sem coexistência humana com dinossauros. */
+const ERAS = Object.freeze([
+  Object.freeze({id:'cretaceo',number:1,name:'CRETÁCEO',subtitle:'SOBREVIVA AO MUNDO PRIMORDIAL',theme:0x193b30,accent:0xd7bd7f,goal:100}),
+  Object.freeze({id:'pleistoceno',number:2,name:'PRÉ-HISTÓRIA',subtitle:'PLEISTOCENO · A ERA DO GELO',theme:0x1d3847,accent:0x9ccae0,goal:100})
+]);
+function eraAt(index=0){return ERAS[index]||ERAS[0];}
+/** Congela somente os dados de uma partida. A transição não reinicia a jornada. */
+function snapshotRun(game){
+  return {
+    totalKills:game.totalKills,
+    level:game.level,
+    power:game.power,
+    elapsedMs:game.elapsedMs,
+    health:game.survival.health,
+    weapons:{unlocked:[...game.weapons.unlocked],levels:{...game.weapons.levels},active:game.weapons.active,milestones:[...game.weapons.collectedMilestones]},
+    upgrades:{...game.upgrades.levels},
+    fragments:game.fragmentCount
+  };
+}
+function restoreRun(game,snapshot){
+  if(!snapshot)return false;
+  game.totalKills=Math.max(0,Math.floor(snapshot.totalKills||0));
+  game.level=Math.max(1,Math.floor(snapshot.level||1));
+  game.power=Math.max(1,Math.floor(snapshot.power||1));
+  game.elapsedMs=Math.max(0,snapshot.elapsedMs||0);
+  game.survival.health=Math.max(1,Math.min(game.survival.maxHealth,Math.floor(snapshot.health||1)));
+  game.weapons.unlocked=[...snapshot.weapons.unlocked];
+  game.weapons.levels={...snapshot.weapons.levels};
+  game.weapons.active=game.weapons.unlocked.includes(snapshot.weapons.active)?snapshot.weapons.active:game.weapons.unlocked[0];
+  game.weapons.collectedMilestones=new Set(snapshot.weapons.milestones);
+  game.upgrades.levels={...snapshot.upgrades};
+  game.fragmentCount=Math.max(0,Math.min(9,Math.floor(snapshot.fragments||0)));
+  return true;
+}
+/** Recompensas da Era 02 não reutilizam as chaves do Cretáceo. */
+function pleistoceneRewardForKills(kills){
+  if(!Number.isInteger(kills)||kills%10!==0||kills<10||kills>90)return null;
+  const ids=['artefato','duplo','lanca','leque','orbe'];
+  const index=kills/10-1;
+  return {milestone:`era02-${kills}`,id:ids[index%ids.length],tier:index<5?3:4,kind:'evolucao'};
 }
 
 
@@ -216,7 +260,7 @@ class UpgradeState {
 // --- src/systems/DifficultySystem.js ---
 /** Dificuldade progressiva do Cretáceo. Os inimigos mantêm 3 pontos de vida. */
 const CREATURE_BEHAVIORS = Object.freeze(['investida', 'resistente', 'flanqueador']);
-const MAX_STAGE = 9; // 100 eliminações reservadas ao chefe no próximo ciclo
+const MAX_STAGE = 9; // A partir de 100 eliminações, a arena passa para a luta do chefe.
 function difficultyForKills(kills) {
   const stage=Math.max(0,Math.min(MAX_STAGE,Math.floor(Math.max(0,kills)/10)));
   return Object.freeze({
@@ -707,6 +751,74 @@ class WorldGenerator {
 }
 
 
+// --- src/world/PleistoceneWorld.js ---
+/** Terreno gelado do Pleistoceno, com geometria e colisões próprias. */
+class PleistoceneWorld {
+  constructor(scene,projection){this.scene=scene;this.projection=projection;this.obstacles=[];}
+  create(columns,rows){
+    this.columns=columns;this.rows=rows;
+    const ground=this.scene.add.graphics();
+    const palette=[0x758b92,0x83999d,0x718b8d,0x8b9f9c,0x97a8a4,0x718892,0x81969d];
+    for(let y=0;y<rows;y++)for(let x=0;x<columns;x++){
+      const p=this.projection.toScreen(x,y),seed=(x*1277+y*1579+x*y*17)%101;
+      ground.fillStyle(palette[(x*17+y*31)%palette.length]);ground.lineStyle(.6,0x344e59,.28);
+      ground.beginPath();ground.moveTo(p.x,p.y-24);ground.lineTo(p.x+48,p.y);ground.lineTo(p.x,p.y+24);ground.lineTo(p.x-48,p.y);ground.closePath();ground.fillPath();ground.strokePath();
+      if(seed%7===0){ground.fillStyle(0xe1e5db,.44);ground.fillEllipse(p.x-10+seed%17,p.y-4,28+seed%17,9);}
+      if(seed%11===0){ground.fillStyle(0xd6eff4,.55);for(let i=0;i<4;i++)ground.fillCircle(p.x-19+i*10,p.y+(i%2)*6,1.7);}
+      if(seed%19===0){ground.lineStyle(1.6,0x455d60,.52);ground.lineBetween(p.x-9,p.y+4,p.x-2,p.y);ground.lineBetween(p.x-2,p.y,p.x+7,p.y+3);}
+      if((x*13+y*19)%43===0)this.addFrozenTuft(p.x,p.y);
+    }
+    ground.setDepth(-1000);
+    for(let y=0;y<rows;y++)for(let x=0;x<columns;x++){
+      if(x!==0&&y!==0&&x!==columns-1&&y!==rows-1)continue;
+      const p=this.projection.toScreen(x,y);const kind=(x*7+y*11)%6;
+      if(kind<=2)this.addRock(p.x,p.y,kind===0?'ice':'stone',true);
+      else if(kind===3)this.addPine(p.x,p.y,true);
+      else this.addDrift(p.x,p.y,true);
+    }
+    for(const [tx,ty,type] of [[6,7,'stone'],[11,10,'pine'],[22,7,'ice'],[24,15,'pine'],[9,20,'stone'],[27,21,'pine'],[17,9,'ice'],[19,18,'stone'],[13,21,'ice']]){
+      const p=this.projection.toScreen(tx,ty);
+      if(type==='pine')this.addPine(p.x,p.y,false);
+      else this.addRock(p.x,p.y,type,false);
+    }
+  }
+  addFrozenTuft(x,y){
+    const g=this.scene.add.graphics().setDepth(y+50);
+    g.lineStyle(2,0x576f68,.74);for(let i=-2;i<=2;i++)g.lineBetween(x+i*4,y+5,x+i*8,y-3-Math.abs(i%3)*3);
+    g.fillStyle(0xe3e2cc,.6);g.fillEllipse(x,y+5,20,4);
+  }
+  addRock(x,y,type='stone',perimeter=false){
+    const g=this.scene.add.graphics().setDepth(y+200);
+    const icy=type==='ice',base=icy?0x8cbdc5:0x647d82,light=icy?0xe5f8ed:0xb2c1b9,dark=icy?0x588b9e:0x455e66;
+    g.fillStyle(0x273f49,.27);g.fillEllipse(x+4,y+13,105,19);
+    g.fillStyle(base);g.fillPoints([{x:x-40,y:y+3},{x:x-32,y:y-19},{x:x-6,y:y-49},{x:x+30,y:y-31},{x:x+42,y:y+6},{x:x+10,y:y+14}],true);
+    g.fillStyle(light);g.fillTriangle(x-32,y-19,x-6,y-49,x+14,y-19);
+    g.fillStyle(dark);g.fillTriangle(x+14,y-19,x+30,y-31,x+42,y+6);
+    g.lineStyle(2,0xd9efed,.75);g.lineBetween(x-19,y-19,x+12,y-19);
+    this.obstacles.push({x,y,rx:49,ry:38,type:icy?'ice':'rock',perimeter});
+  }
+  addPine(x,y,perimeter=false){
+    const g=this.scene.add.graphics().setDepth(y+200);
+    g.fillStyle(0x29444a,.34);g.fillEllipse(x+7,y+17,92,18);
+    g.fillStyle(0x62584e);g.fillRoundedRect(x-7,y-45,14,69,3);
+    for(let level=0;level<3;level++){
+      const yTop=y-105+level*26,half=25+level*11;
+      g.fillStyle(level===1?0x375b59:0x284a4b);g.fillTriangle(x,yTop,x-half,yTop+52,x+half,yTop+52);
+      g.fillStyle(0xc8dddb,.86);g.fillTriangle(x,yTop,x-half*.6,yTop+27,x+half*.58,yTop+27);
+    }
+    this.obstacles.push({x,y,rx:43,ry:29,type:'pine',perimeter});
+  }
+  addDrift(x,y,perimeter=false){
+    const g=this.scene.add.graphics().setDepth(y+185);
+    g.fillStyle(0x2d4b53,.23);g.fillEllipse(x,y+11,82,15);
+    g.fillStyle(0xb9cfd1);g.fillEllipse(x-13,y-2,37,23);
+    g.fillStyle(0xdce7e1);g.fillEllipse(x+10,y-6,41,26);
+    g.fillStyle(0xf0f3e7,.77);g.fillEllipse(x+4,y-13,31,11);
+    this.obstacles.push({x,y,rx:40,ry:24,type:'snow',perimeter});
+  }
+}
+
+
 // --- src/art/CharacterArt.js ---
 /** Arte original em Canvas. Sem dependências de imagens externas ou sprites de terceiros.
  *  Gera quadros 2D com oito direções do protagonista e três espécies distintas.
@@ -866,6 +978,96 @@ function creatureTexture(species, toLeft, frame){return `era-${species}-${toLeft
 const creaturesList = CREATURE_SPECIES;
 
 
+// --- src/art/PleistoceneArt.js ---
+/** Personagens originais do Pleistoceno desenhados em Canvas, sem assets externos. */
+const PLEISTOCENE_SPECIES=Object.freeze(['smilodonte','rinoceronte-lanoso','mamute-jovem']);
+const FACINGS=['down','down-right','right','up-right','up','up-left','left','down-left'];
+function oval(c,x,y,rx,ry,color){c.beginPath();c.ellipse(x,y,rx,ry,0,0,Math.PI*2);c.fillStyle=color;c.fill();}
+function poly(c,points,color,stroke=null){c.beginPath();c.moveTo(...points[0]);for(const p of points.slice(1))c.lineTo(...p);c.closePath();c.fillStyle=color;c.fill();if(stroke){c.strokeStyle=stroke;c.lineWidth=2;c.stroke();}}
+function stroke(c,x,y,xx,yy,color,width){c.beginPath();c.moveTo(x,y);c.lineTo(xx,yy);c.strokeStyle=color;c.lineWidth=width;c.lineCap='round';c.stroke();}
+function make(scene,key,w,h,draw){if(scene.textures.exists(key))return;const t=scene.textures.createCanvas(key,w,h),c=t.getContext();c.clearRect(0,0,w,h);c.save();draw(c);c.restore();t.refresh();}
+function human(c,facing,frame){
+  const flip=facing.includes('left'),back=facing.startsWith('up'),side=facing.includes('left')||facing.includes('right'),stride=[0,4,0,-4][frame],bounce=[0,-2,0,-1][frame];
+  c.translate(48,78+bounce);c.scale(flip?-1:1,1);
+  // Botas de couro e leggings de pele
+  poly(c,[[-13,1],[-3,1],[-5,21+stride],[-18,23+stride]],'#604638','#3e3732');
+  poly(c,[[3,1],[13,1],[18,23-stride],[5,22-stride]],'#684c3b','#3e3732');
+  oval(c,-12,23+stride,10,4,'#332e2b');oval(c,12,23-stride,10,4,'#332e2b');
+  poly(c,[[-18,-34],[15,-35],[21,10],[-21,9]],'#9a7757','#503f39');
+  // Pelego aberto sobre lã escura
+  poly(c,[[-14,-29],[13,-30],[16,9],[-15,10]],'#5a686a','#344851');
+  poly(c,[[0,-28],[14,-28],[14,9],[0,9]],'#3c5b63');
+  if(back){poly(c,[[-11,-27],[11,-27],[13,-1],[-13,-1]],'#71503f','#483a32');stroke(c,-7,-25,5,-2,'#dbc49c',3);}
+  poly(c,[[-16,-3],[17,-3],[17,4],[-16,4]],'#4b3530');oval(c,0,0,4,3,'#d1b47d');
+  stroke(c,-18,-24,-22,-4-stride*.6,'#b98e73',8);stroke(c,18,-24,22,-5+stride*.6,'#b98e73',8);
+  oval(c,-22,-5-stride*.6,5,5,'#d1a282');oval(c,22,-5+stride*.6,5,5,'#d1a282');
+  // Artefato de energia gelada: estilo fantástico, distinto do Cretáceo
+  poly(c,[[17,-8],[25,-10],[29,-2],[20,1]],'#5f6662');oval(c,28,-7,6,8,'#90e8f0');oval(c,28,-8,3,4,'#f5ffff');
+  // Pele e cabelos longos, capuz de pêlo
+  oval(c,0,-38,16,19,'#c99e83');oval(c,0,-52,19,9,'#4b3d38');
+  oval(c,-15,-43,7,17,'#8b715d');oval(c,15,-43,7,17,'#8b715d');
+  if(back){oval(c,0,-42,13,12,'#675147');}else{
+    oval(c,-6+(side?6:0),-39,1.8,2.2,'#2d302b');if(!side)oval(c,6,-39,1.8,2.2,'#2d302b');
+    stroke(c,-4,-31,5,-31,'#93664c',2);
+  }
+  stroke(c,-14,-27,13,-27,'#dfcfb3',8);
+  for(let i=-1;i<=1;i++)oval(c,i*8,-26,4,4,'#f3e0bf');
+}
+function smilodon(c,frame,flip){
+  c.translate(55,80+[0,-2,0,-1][frame]);c.scale(flip?-1:1,1);const a=[0,4,0,-4][frame];
+  // cauda baixa, patas musculosas, juba felina
+  stroke(c,-22,-13,-48,-11,'#a9794d',8);oval(c,-46,-11,6,5,'#9b6848');
+  for(const [x,d] of [[-19,a],[-4,-a],[13,a],[24,-a]]){
+    stroke(c,x,-2,x-2,21+d,'#785f49',9);oval(c,x-3,21+d,8,4,'#4c5147');
+  }
+  oval(c,-2,-14,34,19,'#b48f61');oval(c,8,-21,22,15,'#cfae81');oval(c,13,-28,21,22,'#8a6e52');
+  oval(c,31,-29,18,15,'#c5a276');
+  poly(c,[[20,-38],[18,-55],[29,-46]],'#9d7857');poly(c,[[32,-41],[40,-55],[42,-36]],'#95704d');
+  oval(c,35,-29,3.5,3.2,'#f5dfb2');oval(c,36,-29,1.6,2.0,'#303c39');
+  poly(c,[[38,-19],[42,-1],[46,-20]],'#fff0d1');poly(c,[[29,-20],[30,-1],[37,-22]],'#f8e2c3');
+  oval(c,45,-18,8,4,'#594d43');
+}
+function rhino(c,frame,flip){
+  c.translate(52,80+[0,-1,0,-1][frame]);c.scale(flip?-1:1,1);const a=[0,2,0,-2][frame];
+  for(const [x,d] of [[-22,a],[-4,-a],[12,a],[26,-a]]){
+    poly(c,[[x-7,-6],[x+6,-6],[x+10,22+d],[x-8,22+d]],'#79634f');oval(c,x+1,22+d,10,4,'#504840');
+  }
+  oval(c,-8,-18,39,26,'#806b59');oval(c,-8,-26,33,20,'#ad9075');
+  for(let i=0;i<8;i++)stroke(c,-28+i*7,-27,-28+i*7,-37-(i%3)*4,'#b8a089',3);
+  oval(c,24,-14,24,21,'#977c65');oval(c,40,-10,17,12,'#b5a08a');
+  poly(c,[[38,-18],[42,-52],[51,-20]],'#f1e3c7','#ccc5b6');
+  oval(c,36,-18,3,3,'#f8e8c2');oval(c,36.5,-18,1.5,1.7,'#2d3433');
+  oval(c,48,-2,3.8,2.5,'#4b4741');
+}
+function mammoth(c,frame,flip){
+  c.translate(52,80+[0,-1,0,-2][frame]);c.scale(flip?-1:1,1);const a=[0,3,0,-3][frame];
+  for(const [x,d] of [[-23,a],[-6,-a],[12,a],[25,-a]]){
+    poly(c,[[x-7,-6],[x+7,-6],[x+9,22+d],[x-9,22+d]],'#705648');oval(c,x,22+d,9,4,'#463c37');
+  }
+  oval(c,-10,-20,42,30,'#8b6e52');
+  oval(c,-12,-27,36,25,'#9c7959');
+  for(let i=0;i<9;i++)stroke(c,-38+i*8,-30,-35+i*8,-37-(i%3)*5,'#6a5344',4);
+  oval(c,23,-23,26,26,'#9b795a');oval(c,31,-36,13,14,'#a98968');
+  oval(c,10,-26,14,18,'#715644');
+  // tromba e presas curvadas, estética não violenta
+  stroke(c,39,-13,43,7,'#9c795a',15);stroke(c,43,7,39,12,'#9c795a',11);
+  c.beginPath();c.moveTo(29,-9);c.quadraticCurveTo(49,16,62,-2);c.strokeStyle='#e9dcc2';c.lineWidth=6;c.stroke();
+  oval(c,33,-29,4,4,'#e9d7b7');oval(c,34,-29,1.6,2,'#2a302e');
+}
+function createPleistoceneArt(scene){
+  for(const facing of FACINGS)for(let frame=0;frame<4;frame++)make(scene,`era2-player-${facing}-${frame}`,96,116,c=>human(c,facing,frame));
+  for(const species of PLEISTOCENE_SPECIES)for(const flip of [false,true])for(let frame=0;frame<4;frame++){
+    make(scene,`era2-${species}-${flip?'left':'right'}-${frame}`,112,110,c=>{
+      if(species==='smilodonte')smilodon(c,frame,flip);
+      else if(species==='rinoceronte-lanoso')rhino(c,frame,flip);
+      else mammoth(c,frame,flip);
+    });
+  }
+}
+function pleistocenePlayerTexture(facing,frame){return `era2-player-${FACINGS.includes(facing)?facing:'down'}-${frame%4}`;}
+function pleistoceneCreatureTexture(species,flip,frame){return `era2-${species}-${flip?'left':'right'}-${frame%4}`;}
+
+
 // --- src/art/BossArt.js ---
 /** Arte própria do Tricerátops Ancestral em Canvas, sem imagens externas. */
 function createBossArt(scene){
@@ -908,15 +1110,18 @@ function bossTexture(left,frame){return `era-boss-${left?'left':'right'}-${frame
 // --- src/entities/Player.js ---
 
 
+
 const FACING = ['right','down-right','down','down-left','left','up-left','up','up-right'];
 class Player {
-  constructor(scene,x,y) {
+  constructor(scene,x,y,era='cretaceo') {
+    this.era=era;
     this.scene=scene;this.x=x;this.y=y;this.speed=250;this.radius=16;
     this.facing='down';this.isMoving=false;this.frame=0;this.elapsed=0;
     this.shadow=scene.add.ellipse(x,y+12,40,15,0x071b17,.38).setDepth(y+180);
-    this.sprite=scene.add.image(x,y,playerTexture('down',0)).setOrigin(.5,.83).setDepth(y+300);
+    this.sprite=scene.add.image(x,y,this.texture('down',0)).setOrigin(.5,.83).setDepth(y+300);
     this.sprite.setScale(.85);
   }
+  texture(facing,frame){return this.era==='pleistoceno'?pleistocenePlayerTexture(facing,frame):playerTexture(facing,frame);}
   update(delta,direction,obstacles,map) {
     const dt=Math.min(delta,40)/1000;
     let dx=direction.x,dy=direction.y;
@@ -932,7 +1137,7 @@ class Player {
       this.facing=FACING[Math.round(((angle+2*Math.PI)%(2*Math.PI))/(Math.PI/4))%8];
       this.elapsed+=delta;if(this.elapsed>125){this.elapsed=0;this.frame=(this.frame+1)%4;}
     }else{this.elapsed=0;this.frame=0;}
-    this.sprite.setTexture(playerTexture(this.facing,this.frame));
+    this.sprite.setTexture(this.texture(this.facing,this.frame));
     this.shadow.setPosition(this.x,this.y+12).setDepth(this.y+180);
     this.sprite.setPosition(this.x,this.y).setDepth(this.y+300);
   }
@@ -947,12 +1152,14 @@ class Player {
 // --- src/entities/Creature.js ---
 
 
+
 class Creature {
   constructor(scene,x,y,id,config={}) {
-    this.scene=scene;this.id=id;this.species=creaturesList[id%creaturesList.length];
+    this.scene=scene;this.id=id;this.era=config.era||'cretaceo';
+    this.species=this.era==='pleistoceno'?PLEISTOCENE_SPECIES[id%PLEISTOCENE_SPECIES.length]:creaturesList[id%creaturesList.length];
     this.x=x;this.y=y;this.radius=15;this.hp=3;
-    this.behavior=behaviorForCreature(id);
-    this.baseSpeed=55+(id%3)*10;
+    this.behavior=this.era==='pleistoceno'?['investida','resistente','resistente'][id%3]:behaviorForCreature(id);
+    this.baseSpeed=(this.era==='pleistoceno'?[80,55,45][id%3]:55+(id%3)*10);
     this.speed=this.baseSpeed*(config.speedMultiplier||1);
     this.aggression=config.aggression||1;
     this.alive=true;
@@ -964,7 +1171,7 @@ class Creature {
     this.forcedWaypoint=null;this.forcedUntil=0;
     this.frame=0;this.animTime=0;this.toLeft=false;
     this.shadow=scene.add.ellipse(x,y+10,41,13,0x0a1711,.36).setDepth(y+180);
-    this.sprite=scene.add.image(x,y,creatureTexture(this.species,false,0)).setOrigin(.5,.81).setScale(.79).setDepth(y+200);
+    this.sprite=scene.add.image(x,y,this.texture(false,0)).setOrigin(.5,.81).setScale(.79).setDepth(y+200);
     // A vida é indicada apenas depois de sofrer dano, mantendo a tela limpa.
     this.lifeDots=[];
     for(let i=0;i<3;i++){
@@ -973,6 +1180,7 @@ class Creature {
     }
   }
 
+  texture(flip,frame){return this.era==='pleistoceno'?pleistoceneCreatureTexture(this.species,flip,frame):creatureTexture(this.species,flip,frame);}
   update(delta,target,nav,creatures) {
     if(!this.alive)return;
     const dt=Math.min(delta,40)/1000;
@@ -1024,7 +1232,7 @@ class Creature {
     }
     this.animTime+=delta;
     if(this.animTime>145){this.animTime=0;this.frame=(this.frame+1)%4;}
-    this.sprite.setTexture(creatureTexture(this.species,this.toLeft,this.frame));
+    this.sprite.setTexture(this.texture(this.toLeft,this.frame));
     this.sprite.setPosition(this.x,this.y).setDepth(this.y+200);
     this.shadow.setPosition(this.x,this.y+10).setDepth(this.y+180);
     this.lifeDots.forEach((dot,i)=>dot.setPosition(this.x-10+i*10,this.y-49).setDepth(this.y+310));
@@ -1271,8 +1479,8 @@ class MenuScene extends Phaser.Scene {
     const titleSize=Math.min(98,Math.max(49,w*.095));
     this.add.text(w/2,h*.27,'ERA',{fontFamily:'Georgia,serif',fontSize:`${titleSize}px`,fontStyle:'bold',color:'#f3e3b5',stroke:'#0b241c',strokeThickness:5}).setOrigin(.5);
     this.add.text(w/2,h*.39,'E V O L U T I O N',{fontFamily:'Arial',fontSize:`${Math.min(23,Math.max(13,w*.023))}px`,fontStyle:'bold',color:'#c8dabc'}).setOrigin(.5);
-    this.add.text(w/2,h*.49,'CAPÍTULO I · O CRETÁCEO',{fontFamily:'Arial',fontSize:'15px',fontStyle:'bold',color:'#e9c17f',letterSpacing:3}).setOrigin(.5);
-    this.add.text(w/2,h*.57,'Sobreviva a 100 criaturas e enfrente o Tricerátops Ancestral.',{fontFamily:'Arial',fontSize:'13px',color:'#b6c9b2',align:'center',wordWrap:{width:Math.min(520,w*.75)}}).setOrigin(.5);
+    this.add.text(w/2,h*.49,'CAPÍTULOS I–II · CRETÁCEO / PLEISTOCENO',{fontFamily:'Arial',fontSize:'15px',fontStyle:'bold',color:'#e9c17f',letterSpacing:3}).setOrigin(.5);
+    this.add.text(w/2,h*.57,'Derrote o chefe do Cretáceo e avance para a Era do Gelo, mantendo as melhorias.',{fontFamily:'Arial',fontSize:'13px',color:'#b6c9b2',align:'center',wordWrap:{width:Math.min(520,w*.75)}}).setOrigin(.5);
     const start=this.add.text(w/2,h*.72,'COMEÇAR EXPEDIÇÃO',{fontFamily:'Arial',fontSize:'18px',fontStyle:'bold',color:'#193329',backgroundColor:'#e6ce93',padding:{x:27,y:16}}).setOrigin(.5).setInteractive({useHandCursor:true});
     start.on('pointerover',()=>start.setStyle({backgroundColor:'#ffe1a4'}));
     start.on('pointerout',()=>start.setStyle({backgroundColor:'#e6ce93'}));
@@ -1373,18 +1581,31 @@ class UpgradeScene extends Phaser.Scene {
 
 
 
+
+
+
 class GameScene extends Phaser.Scene {
   constructor() { super('GameScene'); }
 
+  init(data={}){
+    const debugEra=typeof window!=='undefined'&&new URLSearchParams(window.location.search).get('testeEra')==='2';
+    this.eraIndex=data.eraIndex===1||(!data.eraIndex&&debugEra)?1:0;
+    this.era=eraAt(this.eraIndex);
+    this.carryProgress=data.progress||null;
+  }
+
+  getDifficulty(){return difficultyForKills(this.kills+(this.eraIndex===1?10:0));}
+
   create() {
-    this.cameras.main.setBackgroundColor('#122a24');
+    this.cameras.main.setBackgroundColor(this.eraIndex===1?'#213b46':'#122a24');
     createCharacterArt(this);
+    if(this.eraIndex===1)createPleistoceneArt(this);
     createBossArt(this);
     this.projection = new IsoProjection(
       SETTINGS.tileWidth, SETTINGS.tileHeight,
       SETTINGS.mapRows * SETTINGS.tileWidth / 2, SETTINGS.tileHeight / 2
     );
-    this.world = new WorldGenerator(this,this.projection);
+    this.world = this.eraIndex===1?new PleistoceneWorld(this,this.projection):new WorldGenerator(this,this.projection);
     this.world.create(SETTINGS.mapColumns, SETTINGS.mapRows);
     this.createAtmosphere();
     this.navigation = new NavigationGrid({
@@ -1392,7 +1613,7 @@ class GameScene extends Phaser.Scene {
       rows:SETTINGS.mapRows, obstacles:this.world.obstacles
     });
     const start=this.projection.toScreen(17,14);
-    this.player=new Player(this,start.x,start.y);
+    this.player=new Player(this,start.x,start.y,this.era.id);
     this.survival=new SurvivalState({
       maxHealth:SETTINGS.maxHealth,
       invulnerabilityMs:SETTINGS.damageInvulnerabilityMs
@@ -1440,7 +1661,8 @@ class GameScene extends Phaser.Scene {
     this.upgrades=new UpgradeState();
     this.weaponAura=this.add.circle(this.player.x+20,this.player.y-20,5,WEAPONS.artefato.color,.95).setDepth(this.player.y+340);
     this.kills=0;
-    this.difficulty=difficultyForKills(0);
+    this.totalKills=0;
+    this.difficulty=this.getDifficulty();
     this.spawnSequence=0;
     this.fragmentCount=0;
     this.level=1;
@@ -1451,9 +1673,15 @@ class GameScene extends Phaser.Scene {
     this.upgrading=false;
     this.ended=false;
     this.eraGoalAnnounced=false;
+    if(this.carryProgress){
+      restoreRun(this,this.carryProgress);
+      this.player.speed+=26*this.upgrades.levels.velocidade;
+      this.survival.invulnerableUntil=this.time.now+1600;
+    }
     this.createHud();
     this.createBossHud();
-    this.showMessage('CRETÁCEO · Explore, sobreviva e recolha fragmentos');
+    this.showMessage(this.eraIndex===1?'PRÉ-HISTÓRIA · O PLEISTOCENO COMEÇA!':'CRETÁCEO · Explore, sobreviva e recolha fragmentos');
+    if(this.eraIndex===1)this.cameras.main.fadeIn(900,17,39,50);
     this.onResize=size=>{
       this.cameras.main.setZoom(this.getZoom(size.width));
       this.layoutHud();
@@ -1469,7 +1697,7 @@ class GameScene extends Phaser.Scene {
     });
     // Teste direto do encontro: ?testeChefe=1. Não altera o fluxo normal.
     const bossTest=typeof window!=='undefined' && new URLSearchParams(window.location.search).get('testeChefe')==='1';
-    if(bossTest){
+    if(bossTest&&this.eraIndex===0){
       this.kills=SETTINGS.eraKillGoal;
       this.eraGoalAnnounced=true;
       for(let milestone=10;milestone<=90;milestone+=10)this.weapons.collect(weaponRewardForKills(milestone));
@@ -1488,7 +1716,7 @@ class GameScene extends Phaser.Scene {
     const next=chooseSpawnPoint({navigation:this.navigation,projection:this.projection,
       player:this.player,sequence:this.spawnSequence++,minimumDistance:235});
     if(next)this.creatures.push(new Creature(this,next.x,next.y,id,{
-      speedMultiplier:this.difficulty.speedMultiplier,aggression:this.difficulty.aggression
+      era:this.era.id,speedMultiplier:this.difficulty.speedMultiplier,aggression:this.difficulty.aggression
     }));
     return Boolean(next);
   }
@@ -1498,7 +1726,7 @@ class GameScene extends Phaser.Scene {
     for(let i=0;i<24;i++){
       const tileX=2+(i*17%29),tileY=2+(i*11%23);
       const p=this.projection.toScreen(tileX,tileY);
-      const mote=this.add.circle(p.x+(i*13)%38,p.y-24,1.4+i%2,0xd4dca0,.17+i%3*.06).setDepth(p.y+40);
+      const mote=this.add.circle(p.x+(i*13)%38,p.y-24,1.4+i%2,this.eraIndex===1?0xeaf8fc:0xd4dca0,.17+i%3*.06).setDepth(p.y+40);
       this.tweens.add({targets:mote,y:p.y-44-(i%4)*6,alpha:.08,yoyo:true,repeat:-1,duration:1400+(i*97)%1700});
       this.ambientMotes.push(mote);
     }
@@ -1511,11 +1739,12 @@ class GameScene extends Phaser.Scene {
   }
   createHud(){
     const h=this.hud=this.add.container(0,0).setScrollFactor(0).setDepth(10000);
-    this.hudBack=this.add.rectangle(0,0,390,207,0x0d2420,.94).setOrigin(0).setStrokeStyle(1,0x719579,.68);
+    this.hudBack=this.add.rectangle(0,0,390,207,this.eraIndex===1?0x1b3340:0x0d2420,.94).setOrigin(0).setStrokeStyle(1,0x719579,.68);
     h.add(this.hudBack);
-    h.add(this.add.rectangle(0,0,5,207,0xd7bd7f).setOrigin(0));
-    h.add(this.add.text(17,12,'ERA 01  |  CRETÁCEO',{fontFamily:'Georgia,serif',fontSize:'17px',fontStyle:'bold',color:'#f1deb0'}));
-    h.add(this.add.text(17,38,'SOBREVIVA AO MUNDO PRIMORDIAL',{fontFamily:'Arial',fontSize:'10px',color:'#9ec5a9',letterSpacing:1}));
+    h.add(this.add.rectangle(0,0,5,207,this.era.accent).setOrigin(0));
+    this.eraTitle=this.add.text(17,12,`ERA ${String(this.era.number).padStart(2,'0')}  |  ${this.era.name}`,{fontFamily:'Georgia,serif',fontSize:'17px',fontStyle:'bold',color:this.eraIndex===1?'#dbecf4':'#f1deb0'});
+    this.eraSubtitle=this.add.text(17,38,this.era.subtitle,{fontFamily:'Arial',fontSize:'10px',color:'#9ec5a9',letterSpacing:1});
+    h.add([this.eraTitle,this.eraSubtitle]);
     h.add(this.add.text(17,60,'VIDA',{fontFamily:'Arial',fontSize:'11px',fontStyle:'bold',color:'#c3d9c2'}));
     this.healthText=this.add.text(53,57,'♥ ♥ ♥ ♥ ♥',{fontFamily:'Arial',fontSize:'21px',color:'#eb9a7b'});
     h.add(this.healthText);
@@ -1573,7 +1802,7 @@ class GameScene extends Phaser.Scene {
     this.healthText.setText('♥ '.repeat(health)+'♡ '.repeat(this.survival.maxHealth-health));
     this.healthFill.setDisplaySize(Math.max(.01,(this.hudWidth-34)*health/this.survival.maxHealth),8);
     this.healthFill.setFillStyle(health<=2?0xe66f6e:0xef9d7d);
-    this.stats.setText(`Eliminações: ${Math.min(this.kills,SETTINGS.eraKillGoal)}/${SETTINGS.eraKillGoal}   •   Fragmentos: ${this.fragmentCount}/${SETTINGS.fragmentGoal}`);
+    this.stats.setText(`Era: ${Math.min(this.kills,SETTINGS.eraKillGoal)}/${SETTINGS.eraKillGoal}   •   Total: ${this.totalKills}   •   Fragmentos: ${this.fragmentCount}/${SETTINGS.fragmentGoal}`);
     this.weaponText.setText(`Nível ${this.level}  •  ${this.weapons.current.label} Nv.${this.weapons.tier}  •  Poder ${this.power}`);
     this.weaponText.setColor('#'+this.weapons.current.color.toString(16).padStart(6,'0'));
     this.inventoryText.setText(`${this.weapons.unlocked.length} armas  •  Q/E alternar  •  Ímã ${magnetRadius(this.upgrades.pickupRadius)} px`);
@@ -1659,7 +1888,7 @@ class GameScene extends Phaser.Scene {
     this.player.sprite.setAlpha(1);
     this.scene.pause();
     this.scene.launch('GameOverScene',{
-      kills:this.kills,level:this.level,seconds:Math.floor(this.elapsedMs/1000)
+      kills:this.kills,totalKills:this.totalKills,era:this.era.name,level:this.level,seconds:Math.floor(this.elapsedMs/1000)
     });
   }
   addFloatingNumber(x,y,text,color){
@@ -1747,8 +1976,8 @@ class GameScene extends Phaser.Scene {
     }
     this.addFloatingNumber(target.x,target.y-58,String(damage),'#'+color.toString(16).padStart(6,'0'));
     if(!target.alive){
-      this.kills++;
-      const nextDifficulty=difficultyForKills(this.kills);
+      this.kills++;this.totalKills++;
+      const nextDifficulty=this.getDifficulty();
       if(nextDifficulty.stage!==this.difficulty.stage){
         this.difficulty=nextDifficulty;
         // As criaturas já presentes também se adaptam à nova pressão.
@@ -1760,16 +1989,17 @@ class GameScene extends Phaser.Scene {
         this.makeImpact(this.player.x,this.player.y-14,0xe9b875,35);
       }
       this.dropFragment(target.x,target.y);
-      const reward=weaponRewardForKills(this.kills);
+      const reward=this.eraIndex===1?pleistoceneRewardForKills(this.kills):weaponRewardForKills(this.kills);
       if(reward)this.spawnWeaponPickup(reward);
       if(this.kills>=SETTINGS.eraKillGoal&&!this.eraGoalAnnounced){
         this.eraGoalAnnounced=true;
-        this.beginBossEncounter();
+        if(this.eraIndex===0)this.beginBossEncounter();
+        else this.showMessage('100 ELIMINAÇÕES! O CHEFE DO PLEISTOCENO VIRÁ NO PRÓXIMO CICLO.');
       }
     }
   }
   beginBossEncounter(){
-    if(this.bossActive||this.ended)return;
+    if(this.bossActive||this.ended||this.eraIndex!==0)return;
     this.bossActive=true;
     this.spawnTimer=0;
     // Encontro isolado: os monstros comuns deixam a arena sem pontuar abates.
@@ -1798,18 +2028,20 @@ class GameScene extends Phaser.Scene {
     this.bossHud.setVisible(false);
     this.scene.pause();
     this.scene.launch('EraCompleteScene',{
-      kills:this.kills,level:this.level,seconds:Math.floor(this.elapsedMs/1000)
+      kills:this.kills,totalKills:this.totalKills,level:this.level,seconds:Math.floor(this.elapsedMs/1000),progress:snapshotRun(this)
     });
   }
   spawnWeaponPickup(reward){
     // Aparecer numa área navegável e com caminho direto até o protagonista.
     const candidates=[];
     for(const radius of [110,145,90,55])for(let step=0;step<16;step++){
-      const angle=step*Math.PI/8+(reward.milestone%30)/30;
+      const num=Number(String(reward.milestone).replace(/\D/g,''));
+      const angle=step*Math.PI/8+(num%30)/30;
       const x=this.player.x+Math.cos(angle)*radius,y=this.player.y+Math.sin(angle)*radius;
       if(this.navigation.isOpen(x,y)&&this.navigation.lineClear(this.player.x,this.player.y,x,y))candidates.push({x,y});
     }
-    const p=candidates[reward.milestone%candidates.length]||{x:this.player.x,y:this.player.y};
+    const numericMilestone=Number(String(reward.milestone).replace(/\D/g,''));
+    const p=candidates[numericMilestone%candidates.length]||{x:this.player.x,y:this.player.y};
     const color=WEAPONS[reward.id].color;
     const halo=this.add.circle(p.x,p.y-10,22,color,.1).setStrokeStyle(2,color,.85).setDepth(p.y+420);
     const icon=this.add.star(p.x,p.y-26,6,9,18,color).setStrokeStyle(2,0xffffff,.8).setDepth(p.y+440);
@@ -1895,6 +2127,8 @@ class GameOverScene extends Phaser.Scene {
   constructor(){super('GameOverScene');}
   init(data){
     this.kills=data.kills||0;
+    this.totalKills=data.totalKills||this.kills;
+    this.era=data.era||'CRETÁCEO';
     this.level=data.level||1;
     this.seconds=data.seconds||0;
   }
@@ -1907,12 +2141,12 @@ class GameOverScene extends Phaser.Scene {
     this.add.text(w/2,h*.40,'FIM DA EXPEDIÇÃO',{
       fontFamily:'Georgia,serif',fontSize:`${Math.min(35,Math.max(21,w*.037))}px`,fontStyle:'bold',color:'#f2d9a8',align:'center'
     }).setOrigin(.5);
-    this.add.text(w/2,h*.48,'O Cretáceo permanece à espera de outro sobrevivente.',{
+    this.add.text(w/2,h*.48,`A expedição terminou na era: ${this.era}.`,{
       fontFamily:'Arial',fontSize:'14px',color:'#bdd4be',align:'center',wordWrap:{width:Math.min(560,w*.85)}
     }).setOrigin(.5);
     const minutes=Math.floor(this.seconds/60);
     const seconds=String(this.seconds%60).padStart(2,'0');
-    this.add.text(w/2,h*.57,`CRIATURAS: ${this.kills}    •    NÍVEL: ${this.level}    •    TEMPO: ${minutes}:${seconds}`,{
+    this.add.text(w/2,h*.57,`TOTAL: ${this.totalKills}    •    NÍVEL: ${this.level}    •    TEMPO: ${minutes}:${seconds}`,{
       fontFamily:'Arial',fontSize:`${Math.min(15,Math.max(11,w*.023))}px`,color:'#e3ddb9',align:'center'
     }).setOrigin(.5);
 
@@ -1948,36 +2182,74 @@ class GameOverScene extends Phaser.Scene {
 
 // --- src/scenes/EraCompleteScene.js ---
 
-/** Vitória do primeiro capítulo, sem fingir que a segunda era já foi implementada. */
+/** Portal de eras: troca do Cretáceo para o Pleistoceno preservando a jornada. */
 class EraCompleteScene extends Phaser.Scene {
   constructor(){super('EraCompleteScene');}
-  init(data){this.kills=data.kills||100;this.level=data.level||1;this.seconds=data.seconds||0;}
+  init(data={}){
+    this.kills=data.kills||100;
+    this.level=data.level||1;
+    this.seconds=data.seconds||0;
+    this.progress=data.progress||null;
+    this.changing=false;
+  }
   create(){
     const {width:w,height:h}=this.scale;
-    this.cameras.main.setBackgroundColor('#122b25');
-    this.add.rectangle(w/2,h/2,w,h,0x0a1f18,.96);
-    this.add.circle(w/2,h*.29,90,0xf0d39b,.12).setStrokeStyle(3,0xdcc289,.66);
-    this.add.text(w/2,h*.29,'✦',{fontFamily:'Georgia',fontSize:'68px',color:'#e4c78f'}).setOrigin(.5);
-    this.add.text(w/2,h*.44,'CRETÁCEO SUPERADO!',{
-      fontFamily:'Georgia,serif',fontSize:`${Math.min(42,Math.max(24,w*.043))}px`,fontStyle:'bold',color:'#f2deb2'
-    }).setOrigin(.5);
-    this.add.text(w/2,h*.53,'O Tricerátops Ancestral foi derrotado.\nA Pré-História será o próximo capítulo.',{
-      fontFamily:'Arial',fontSize:'15px',color:'#bfdbcb',align:'center',wordWrap:{width:Math.min(540,w*.9)}
+    this.cameras.main.setBackgroundColor('#0e2530');
+    const bg=this.add.graphics();
+    bg.fillStyle(0x0b2823);bg.fillRect(0,0,w/2,h);
+    bg.fillStyle(0x254653);bg.fillRect(w/2,0,w/2,h);
+    bg.fillStyle(0x466c4a,.75);bg.fillEllipse(w*.21,h*.78,w*.66,h*.48);
+    bg.fillStyle(0xa0bcc2,.65);bg.fillEllipse(w*.8,h*.8,w*.73,h*.5);
+    for(let i=0;i<7;i++){
+      const x=w*(i/6),y=h*.77+Math.sin(i*2.1)*30;
+      bg.fillStyle(i<3?0x183e36:0x576f7a,.75);
+      bg.fillTriangle(x-90,y+45,x,y-110,x+90,y+45);
+      if(i>2){bg.fillStyle(0xe2e7e3,.78);bg.fillTriangle(x-36,y-50,x,y-110,x+35,y-51);}
+    }
+    const divider=this.add.rectangle(w/2,h/2,3,h,0xe9d5a5,.6);
+    this.tweens.add({targets:divider,alpha:.12,scaleX:2,yoyo:true,repeat:-1,duration:1600});
+    this.add.rectangle(w/2,h*.43,Math.min(w*.93,850),Math.min(h*.78,510),0x0b1e20,.87).setStrokeStyle(2,0xa5b7ac,.6);
+    const small=Math.max(12,Math.min(16,w*.018));
+    const title=this.add.text(w/2,h*.225,'ERA 01 CONCLUÍDA',{fontFamily:'Arial',fontSize:`${small}px`,fontStyle:'bold',color:'#d4c18c',letterSpacing:3}).setOrigin(.5);
+    const headline=this.add.text(w/2,h*.35,'A HISTÓRIA AVANÇA',{fontFamily:'Georgia,serif',fontSize:`${Math.min(46,Math.max(25,w*.047))}px`,fontStyle:'bold',color:'#f5e0b2'}).setOrigin(.5);
+    this.add.text(w/2,h*.465,'O Tricerátops Ancestral foi derrotado.\nMuito tempo depois, um novo desafio começa:\na Pré-História — o Pleistoceno, a era do gelo.',{
+      fontFamily:'Arial',fontSize:`${Math.min(16,Math.max(12,w*.02))}px`,color:'#d0e2df',align:'center',lineSpacing:5,wordWrap:{width:Math.min(w*.83,650)}
     }).setOrigin(.5);
     const time=`${Math.floor(this.seconds/60)}:${String(this.seconds%60).padStart(2,'0')}`;
-    this.add.text(w/2,h*.64,`${this.kills} ELIMINAÇÕES  •  NÍVEL ${this.level}  •  ${time}`,{
-      fontFamily:'Arial',fontSize:'13px',color:'#e6d9a5',align:'center'
+    this.add.text(w/2,h*.6,`${this.kills} ELIMINAÇÕES  •  NÍVEL ${this.level}  •  ${time}`,{
+      fontFamily:'Arial',fontSize:`${Math.min(14,Math.max(10,w*.017))}px`,color:'#efdbb4'
     }).setOrigin(.5);
-    const replay=this.add.text(w/2,h*.75,'JOGAR NOVAMENTE',{fontFamily:'Arial',fontSize:'16px',fontStyle:'bold',color:'#162b21',backgroundColor:'#efd49b',padding:{x:24,y:13}})
-      .setOrigin(.5).setInteractive({useHandCursor:true});
-    replay.on('pointerdown',()=>this.restart());
-    this.add.text(w/2,h*.87,'VOLTAR AO MENU',{fontFamily:'Arial',fontSize:'13px',color:'#b9d3be'})
-      .setOrigin(.5).setInteractive({useHandCursor:true}).on('pointerdown',()=>this.menu());
-    this.onRestart=()=>this.restart();this.input.keyboard.on('keydown-R',this.onRestart);
-    this.events.once(Phaser.Scenes.Events.SHUTDOWN,()=>this.input.keyboard.off('keydown-R',this.onRestart));
+    const next=this.add.text(w/2,h*.705,'AVANÇAR PARA A ERA DO GELO  ▶',{
+      fontFamily:'Arial',fontSize:`${Math.min(17,Math.max(12,w*.019))}px`,fontStyle:'bold',color:'#173340',backgroundColor:'#b6dbe5',padding:{x:24,y:14}
+    }).setOrigin(.5).setInteractive({useHandCursor:true});
+    next.on('pointerover',()=>next.setStyle({backgroundColor:'#dceef6'}));
+    next.on('pointerout',()=>next.setStyle({backgroundColor:'#b6dbe5'}));
+    next.on('pointerdown',()=>this.advance());
+    this.add.text(w/2,h*.825,'ENTER: CONTINUAR    •    R: REINICIAR    •    ESC: MENU',{fontFamily:'Arial',fontSize:`${Math.min(12,Math.max(9,w*.015))}px`,color:'#aac5c5'}).setOrigin(.5);
+    title.setAlpha(0);headline.setAlpha(0);next.setAlpha(0);
+    this.tweens.add({targets:[title,headline],alpha:1,duration:950});
+    this.tweens.add({targets:next,alpha:1,delay:600,duration:900});
+    this.onContinue=()=>this.advance();this.onRestart=()=>this.restart();this.onMenu=()=>this.menu();
+    this.input.keyboard.on('keydown-ENTER',this.onContinue);
+    this.input.keyboard.on('keydown-R',this.onRestart);
+    this.input.keyboard.on('keydown-ESC',this.onMenu);
+    this.events.once(Phaser.Scenes.Events.SHUTDOWN,()=>{
+      this.input.keyboard.off('keydown-ENTER',this.onContinue);
+      this.input.keyboard.off('keydown-R',this.onRestart);
+      this.input.keyboard.off('keydown-ESC',this.onMenu);
+    });
   }
-  restart(){this.scene.stop('GameScene');this.scene.start('GameScene');}
-  menu(){this.scene.stop('GameScene');this.scene.start('MenuScene');}
+  advance(){
+    if(this.changing)return;
+    this.changing=true;
+    this.cameras.main.fadeOut(450,16,33,44);
+    this.cameras.main.once(Phaser.Cameras.Scene2D.Events.FADE_OUT_COMPLETE,()=>{
+      this.scene.stop('GameScene');
+      this.scene.start('GameScene',{eraIndex:1,progress:this.progress});
+    });
+  }
+  restart(){if(this.changing)return;this.changing=true;this.scene.stop('GameScene');this.scene.start('GameScene',{eraIndex:0});}
+  menu(){if(this.changing)return;this.changing=true;this.scene.stop('GameScene');this.scene.start('MenuScene');}
 }
 
 

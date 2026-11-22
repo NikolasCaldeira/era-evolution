@@ -5,6 +5,8 @@ export class GameOverScene extends Phaser.Scene {
   constructor(){super('GameOverScene');}
   init(data){
     this.kills=data.kills||0;
+    this.totalKills=data.totalKills||this.kills;
+    this.era=data.era||'CRETÁCEO';
     this.level=data.level||1;
     this.seconds=data.seconds||0;
   }
@@ -17,12 +19,12 @@ export class GameOverScene extends Phaser.Scene {
     this.add.text(w/2,h*.40,'FIM DA EXPEDIÇÃO',{
       fontFamily:'Georgia,serif',fontSize:`${Math.min(35,Math.max(21,w*.037))}px`,fontStyle:'bold',color:'#f2d9a8',align:'center'
     }).setOrigin(.5);
-    this.add.text(w/2,h*.48,'O Cretáceo permanece à espera de outro sobrevivente.',{
+    this.add.text(w/2,h*.48,`A expedição terminou na era: ${this.era}.`,{
       fontFamily:'Arial',fontSize:'14px',color:'#bdd4be',align:'center',wordWrap:{width:Math.min(560,w*.85)}
     }).setOrigin(.5);
     const minutes=Math.floor(this.seconds/60);
     const seconds=String(this.seconds%60).padStart(2,'0');
-    this.add.text(w/2,h*.57,`CRIATURAS: ${this.kills}    •    NÍVEL: ${this.level}    •    TEMPO: ${minutes}:${seconds}`,{
+    this.add.text(w/2,h*.57,`TOTAL: ${this.totalKills}    •    NÍVEL: ${this.level}    •    TEMPO: ${minutes}:${seconds}`,{
       fontFamily:'Arial',fontSize:`${Math.min(15,Math.max(11,w*.023))}px`,color:'#e3ddb9',align:'center'
     }).setOrigin(.5);
 

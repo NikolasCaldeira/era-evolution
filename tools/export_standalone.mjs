@@ -10,6 +10,7 @@ const modules=[
   'src/core/Settings.js',
   'src/core/SurvivalState.js',
   'src/core/ScreenAnchor.js',
+  'src/systems/EraSystem.js',
   'src/systems/WeaponSystem.js',
   'src/systems/UpgradeSystem.js',
   'src/systems/DifficultySystem.js',
@@ -18,7 +19,9 @@ const modules=[
   'src/world/IsoProjection.js',
   'src/world/NavigationGrid.js',
   'src/world/WorldGenerator.js',
+  'src/world/PleistoceneWorld.js',
   'src/art/CharacterArt.js',
+  'src/art/PleistoceneArt.js',
   'src/art/BossArt.js',
   'src/entities/Player.js',
   'src/entities/Creature.js',
@@ -47,13 +50,13 @@ const html=`<!DOCTYPE html>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width,initial-scale=1" />
   <meta name="theme-color" content="#102820" />
-  <title>ERA: Evolution | Cretáceo — Ciclo 09</title>
+  <title>ERA: Evolution | Duas Eras — Ciclo 10</title>
   <style>${css}</style>
 </head>
 <body>
   <main id="game-shell">
     <div id="game"></div>
-    <div id="loading">ERA: EVOLUTION<span>Carregando a expedição do Cretáceo…</span></div>
+    <div id="loading">ERA: EVOLUTION<span>Carregando a viagem entre eras…</span></div>
   </main>
   <!-- Dependência externa: jogo exige acesso à internet, sem npm ou terminal. -->
   <script src="https://cdn.jsdelivr.net/npm/phaser@3.90.0/dist/phaser.min.js"></script>
@@ -69,5 +72,5 @@ const html=`<!DOCTYPE html>
 const destination=resolve(root,'publicar','index.html');
 mkdirSync(resolve(root,'publicar'),{recursive:true});
 writeFileSync(destination,html,'utf8');
-copyFileSync(destination,resolve(root,'JOGAR-ERA-Evolution-Ciclo09.html'));
+copyFileSync(destination,resolve(root,'JOGAR-ERA-Evolution-Ciclo10.html'));
 console.log(`Exportado ${destination} (${html.length} caracteres)`);

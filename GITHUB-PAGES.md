@@ -1,8 +1,10 @@
-# Publicação GitHub Pages — ERA: Evolution
+# Publicação do ERA Evolution
 
-A branch `main` tem workflow em `.github/workflows/deploy.yml`, que executa `npm install`, `npm test` e `npm run build` antes de publicar `dist/`.
+Repositório: https://github.com/NikolasCaldeira/era-evolution
+Site: https://nikolascaldeira.github.io/era-evolution/
 
-- Jogo: https://nikolascaldeira.github.io/era-evolution/
-- Teste direto do chefe: https://nikolascaldeira.github.io/era-evolution/?testeChefe=1
+O workflow `.github/workflows/deploy.yml` usa Node 22, instala dependências, executa `npm test`, compila com Vite e publica `dist/` via GitHub Pages.
 
-Em **Settings → Pages → Build and deployment**, usa GitHub Actions. O projeto Vite usa caminho relativo `base:'./'` para funcionar sob `/era-evolution/`.
+Ciclo 10: após o chefe do Cretáceo, use **Avançar para a Era do Gelo**. Para testes rápidos: `?testeChefe=1` ou `?testeEra=2`.
+
+Depois de uma publicação, caso o jogo mostre arquivos antigos, execute `Ctrl+F5` para atualizar o cache.

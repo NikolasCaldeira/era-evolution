@@ -1,11 +1,13 @@
 import { creatureTexture, creaturesList } from '../art/CharacterArt.js';
 import { behaviorForCreature } from '../systems/DifficultySystem.js';
+import { PLEISTOCENE_SPECIES,pleistoceneCreatureTexture } from '../art/PleistoceneArt.js';
 export class Creature {
   constructor(scene,x,y,id,config={}) {
-    this.scene=scene;this.id=id;this.species=creaturesList[id%creaturesList.length];
+    this.scene=scene;this.id=id;this.era=config.era||'cretaceo';
+    this.species=this.era==='pleistoceno'?PLEISTOCENE_SPECIES[id%PLEISTOCENE_SPECIES.length]:creaturesList[id%creaturesList.length];
     this.x=x;this.y=y;this.radius=15;this.hp=3;
-    this.behavior=behaviorForCreature(id);
-    this.baseSpeed=55+(id%3)*10;
+    this.behavior=this.era==='pleistoceno'?['investida','resistente','resistente'][id%3]:behaviorForCreature(id);
+    this.baseSpeed=(this.era==='pleistoceno'?[80,55,45][id%3]:55+(id%3)*10);
     this.speed=this.baseSpeed*(config.speedMultiplier||1);
     this.aggression=config.aggression||1;
     this.alive=true;
@@ -17,7 +19,7 @@ export class Creature {
     this.forcedWaypoint=null;this.forcedUntil=0;
     this.frame=0;this.animTime=0;this.toLeft=false;
     this.shadow=scene.add.ellipse(x,y+10,41,13,0x0a1711,.36).setDepth(y+180);
-    this.sprite=scene.add.image(x,y,creatureTexture(this.species,false,0)).setOrigin(.5,.81).setScale(.79).setDepth(y+200);
+    this.sprite=scene.add.image(x,y,this.texture(false,0)).setOrigin(.5,.81).setScale(.79).setDepth(y+200);
     // A vida é indicada apenas depois de sofrer dano, mantendo a tela limpa.
     this.lifeDots=[];
     for(let i=0;i<3;i++){
@@ -26,6 +28,7 @@ export class Creature {
     }
   }
 
+  texture(flip,frame){return this.era==='pleistoceno'?pleistoceneCreatureTexture(this.species,flip,frame):creatureTexture(this.species,flip,frame);}
   update(delta,target,nav,creatures) {
     if(!this.alive)return;
     const dt=Math.min(delta,40)/1000;
@@ -77,7 +80,7 @@ export class Creature {
     }
     this.animTime+=delta;
     if(this.animTime>145){this.animTime=0;this.frame=(this.frame+1)%4;}
-    this.sprite.setTexture(creatureTexture(this.species,this.toLeft,this.frame));
+    this.sprite.setTexture(this.texture(this.toLeft,this.frame));
     this.sprite.setPosition(this.x,this.y).setDepth(this.y+200);
     this.shadow.setPosition(this.x,this.y+10).setDepth(this.y+180);
     this.lifeDots.forEach((dot,i)=>dot.setPosition(this.x-10+i*10,this.y-49).setDepth(this.y+310));
