@@ -4,7 +4,7 @@ export const UPGRADES=Object.freeze({
   cadencia:{title:'Ritmo Ancestral',description:'Projéteis disparados mais frequentemente.'},
   velocidade:{title:'Passos Ligeiros',description:'+26 de velocidade de movimento.'},
   potencia:{title:'Energia Concentrada',description:'Fortalece os ataques (a cada 3 cargas, +1 dano).'},
-  ima:{title:'Chamar Fragmentos',description:'Amplia o raio de coleta de fragmentos.'},
+  ima:{title:'Chamar Fragmentos',description:'Aumenta o alcance magnético: fragmentos voam até você de mais longe.'},
   cura:{title:'Recuperação',description:'Restaura até 2 de vida e afasta criaturas.'}
 });
 export const UPGRADE_CAPS=Object.freeze({alcance:Infinity,cadencia:4,velocidade:Infinity,potencia:Infinity,ima:Infinity,cura:Infinity});

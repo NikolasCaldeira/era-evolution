@@ -13,18 +13,23 @@ const modules=[
   'src/systems/WeaponSystem.js',
   'src/systems/UpgradeSystem.js',
   'src/systems/DifficultySystem.js',
+  'src/systems/MagnetSystem.js',
+  'src/systems/BossSystem.js',
   'src/world/IsoProjection.js',
   'src/world/NavigationGrid.js',
   'src/world/WorldGenerator.js',
   'src/art/CharacterArt.js',
+  'src/art/BossArt.js',
   'src/entities/Player.js',
   'src/entities/Creature.js',
+  'src/entities/CretaceousBoss.js',
   'src/scenes/BootScene.js',
   'src/scenes/MenuScene.js',
   'src/scenes/PauseScene.js',
   'src/scenes/UpgradeScene.js',
   'src/scenes/GameScene.js',
   'src/scenes/GameOverScene.js',
+  'src/scenes/EraCompleteScene.js',
   'src/main.js'
 ];
 const combined=modules.map(filename=>{
@@ -42,7 +47,7 @@ const html=`<!DOCTYPE html>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width,initial-scale=1" />
   <meta name="theme-color" content="#102820" />
-  <title>ERA: Evolution | Cretáceo — Ciclo 08</title>
+  <title>ERA: Evolution | Cretáceo — Ciclo 09</title>
   <style>${css}</style>
 </head>
 <body>
@@ -64,5 +69,5 @@ const html=`<!DOCTYPE html>
 const destination=resolve(root,'publicar','index.html');
 mkdirSync(resolve(root,'publicar'),{recursive:true});
 writeFileSync(destination,html,'utf8');
-copyFileSync(destination,resolve(root,'JOGAR-ERA-Evolution-Ciclo08.html'));
+copyFileSync(destination,resolve(root,'JOGAR-ERA-Evolution-Ciclo09.html'));
 console.log(`Exportado ${destination} (${html.length} caracteres)`);

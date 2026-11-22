@@ -4,7 +4,7 @@
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width,initial-scale=1" />
   <meta name="theme-color" content="#102820" />
-  <title>ERA: Evolution | Cretáceo — Ciclo 08</title>
+  <title>ERA: Evolution | Cretáceo — Ciclo 09</title>
   <style>:root { color-scheme: dark; font-family: Inter, ui-sans-serif, system-ui, sans-serif; background:#0b1415; color:#edf2df; }
 * { box-sizing:border-box; }
 html,body { margin:0; width:100%; height:100%; overflow:hidden; background:#0b1415; }
@@ -180,7 +180,7 @@ const UPGRADES=Object.freeze({
   cadencia:{title:'Ritmo Ancestral',description:'Projéteis disparados mais frequentemente.'},
   velocidade:{title:'Passos Ligeiros',description:'+26 de velocidade de movimento.'},
   potencia:{title:'Energia Concentrada',description:'Fortalece os ataques (a cada 3 cargas, +1 dano).'},
-  ima:{title:'Chamar Fragmentos',description:'Amplia o raio de coleta de fragmentos.'},
+  ima:{title:'Chamar Fragmentos',description:'Aumenta o alcance magnético: fragmentos voam até você de mais longe.'},
   cura:{title:'Recuperação',description:'Restaura até 2 de vida e afasta criaturas.'}
 });
 const UPGRADE_CAPS=Object.freeze({alcance:Infinity,cadencia:4,velocidade:Infinity,potencia:Infinity,ima:Infinity,cura:Infinity});
@@ -252,6 +252,78 @@ function chooseSpawnPoint({navigation,projection,player,sequence=0,minimumDistan
   }
   // Sem uma posição atingível, não gerar inimigo invisível ou bloqueado.
   return null;
+}
+
+
+// --- src/systems/MagnetSystem.js ---
+/**
+ * Atração de fragmentos em espaço 2D (sem Phaser).
+ * A melhoria Ímã aumenta a zona onde os fragmentos começam a deslocar-se.
+ * Os fragmentos precisam efetivamente chegar perto do sobrevivente para serem coletados.
+ */
+const FRAGMENT_COLLECT_DISTANCE = 20;
+function magnetRadius(pickupRadius) {
+  return Math.max(40, Math.round(pickupRadius * 2.2));
+}
+function advanceFragment(fragment, player, deltaMs, attractionRadius) {
+  const x = fragment.x, y = fragment.y;
+  const dx = player.x - x, dy = player.y - y;
+  const dist = Math.hypot(dx, dy);
+  if (dist <= FRAGMENT_COLLECT_DISTANCE) return { x, y, attracted: true, collected: true };
+  if (dist >= attractionRadius || attractionRadius <= FRAGMENT_COLLECT_DISTANCE) {
+    return { x, y, attracted: false, collected: false };
+  }
+  const dt = Math.min(Math.max(deltaMs, 0), 50) / 1000;
+  // Aceleração gradual conforme o fragmento se aproxima, sem teletransporte.
+  const pull = 120 + 370 * (1 - dist / attractionRadius);
+  const step = Math.min(Math.max(0, dist - FRAGMENT_COLLECT_DISTANCE / 2), pull * dt);
+  const nx = x + dx / dist * step, ny = y + dy / dist * step;
+  return { x: nx, y: ny, attracted: true, collected: Math.hypot(player.x - nx, player.y - ny) <= FRAGMENT_COLLECT_DISTANCE };
+}
+
+
+// --- src/systems/BossSystem.js ---
+/** Modelo determinístico do primeiro chefe; permite testes sem renderizador. */
+const BOSS_CONFIG = Object.freeze({
+  name: 'TRICERÁTOPS ANCESTRAL',
+  maxHealth: 78,
+  baseSpeed: 100,
+  contactRadius: 55,
+  chargeWindupMs: 1050,
+  stompWindupMs: 1100,
+  volleyWindupMs: 830,
+  chargeDurationMs: 560,
+  stompRadius: 125
+});
+const BOSS_ATTACKS = Object.freeze(['charge', 'stomp', 'volley']);
+class BossState {
+  constructor(maxHealth = BOSS_CONFIG.maxHealth) {
+    if (!Number.isFinite(maxHealth) || maxHealth <= 0) throw new Error('Vida do chefe inválida');
+    this.maxHealth = Math.floor(maxHealth);
+    this.health = this.maxHealth;
+    this.attackIndex = 0;
+  }
+  get alive(){ return this.health > 0; }
+  get phase(){return this.health > this.maxHealth*.66 ? 1 : this.health > this.maxHealth*.33 ? 2 : 3;}
+  get healthRatio(){return this.health / this.maxHealth;}
+  takeDamage(amount = 1) {
+    if (!this.alive || !Number.isFinite(amount) || amount <= 0) return { applied: false, defeated: !this.alive, phase: this.phase };
+    const beforePhase = this.phase;
+    this.health = Math.max(0, this.health - Math.max(1,Math.floor(amount)));
+    return { applied: true, defeated: !this.alive, phase: this.phase, phaseChanged: this.alive && beforePhase !== this.phase };
+  }
+  nextAttack(distance=200){
+    // Perto do chefe, a pisada defensiva tem prioridade; longe, a investida.
+    const index=this.attackIndex++;
+    if (distance < 110 && index % 2 === 0) return 'stomp';
+    if (distance > 280 && index % 2 === 0) return 'charge';
+    return BOSS_ATTACKS[index % BOSS_ATTACKS.length];
+  }
+  windupFor(attack) {
+    const key = `${attack}WindupMs`;
+    return Math.max(550, BOSS_CONFIG[key] - (this.phase - 1) * 90);
+  }
+  cooldownMs(){return 3500-(this.phase-1)*420;}
 }
 
 
@@ -794,6 +866,45 @@ function creatureTexture(species, toLeft, frame){return `era-${species}-${toLeft
 const creaturesList = CREATURE_SPECIES;
 
 
+// --- src/art/BossArt.js ---
+/** Arte própria do Tricerátops Ancestral em Canvas, sem imagens externas. */
+function createBossArt(scene){
+  for(const flip of [false,true])for(let frame=0;frame<4;frame++){
+    const key=`era-boss-${flip?'left':'right'}-${frame}`;
+    if(scene.textures.exists(key))continue;
+    const tex=scene.textures.createCanvas(key,240,190);
+    const c=tex.getContext();
+    c.clearRect(0,0,240,190);c.save();
+    c.translate(118,111+[0,-3,0,-1][frame]);c.scale(flip?-1:1,1);
+    const bounce=[0,4,0,-4][frame];
+    const oval=(x,y,rx,ry,col)=>{c.beginPath();c.ellipse(x,y,rx,ry,0,0,Math.PI*2);c.fillStyle=col;c.fill();};
+    const poly=(pts,col,stroke)=>{c.beginPath();c.moveTo(...pts[0]);for(const p of pts.slice(1))c.lineTo(...p);c.closePath();c.fillStyle=col;c.fill();if(stroke){c.strokeStyle=stroke;c.lineWidth=3;c.stroke();}};
+    // Cauda larga e patas distinguíveis, sem violência gráfica.
+    poly([[-70,-16],[-105,-35],[-111,-26],[-85,2],[-56,5]],'#617f50','#33533d');
+    for(const [x,n] of [[-47,1],[-7,-1],[33,1]]){
+      poly([[x-12,5],[x+10,4],[x+15,47+n*bounce],[x-13,47+n*bounce]],'#4a6a43','#30473b');
+      oval(x+1,49+n*bounce,19,8,'#354e39');
+      for(let j=0;j<3;j++)oval(x-9+j*9,53+n*bounce,3,3,'#a6a47d');
+    }
+    oval(-21,-29,76,46,'#516f4b');
+    oval(-25,-44,69,33,'#82a36a');
+    for(let i=0;i<12;i++)oval(-79+i*11,-40+(i%3)*7,4,4,i%2?'#9ab779':'#b5b580');
+    // Escudo ósseo e três chifres de tricerátops.
+    poly([[17,-73],[58,-97],[93,-82],[98,-49],[65,-14],[27,-22]],'#b7a878','#65744e');
+    for(let i=0;i<6;i++)poly([[27+i*11,-75-(i%2)*11],[31+i*11,-99-(i%2)*9],[36+i*11,-73]],'#ddc68e','#8f885c');
+    oval(62,-42,43,34,'#75945c');
+    oval(79,-24,30,21,'#98ae72');
+    poly([[57,-57],[62,-102],[77,-65],[73,-53]],'#f3dfae','#a8a178');
+    poly([[80,-53],[105,-97],[101,-46],[91,-39]],'#ead6a3','#9e9674');
+    poly([[95,-22],[122,-32],[112,-8],[94,-6]],'#d5b887','#7b8259');
+    oval(82,-42,7.5,7.5,'#f6e3b6');oval(84,-42,3,4,'#354639');
+    c.strokeStyle='#3c573e';c.lineWidth=3;c.beginPath();c.moveTo(84,-17);c.lineTo(105,-15);c.stroke();
+    c.restore();tex.refresh();
+  }
+}
+function bossTexture(left,frame){return `era-boss-${left?'left':'right'}-${frame%4}`;}
+
+
 // --- src/entities/Player.js ---
 
 
@@ -970,6 +1081,164 @@ class Creature {
 }
 
 
+// --- src/entities/CretaceousBoss.js ---
+
+
+/** Encontro com o chefe do Cretáceo. Telegrafa os ataques para permitir reação. */
+class CretaceousBoss {
+  constructor(scene,x,y){
+    this.scene=scene;this.id=99999;this.isBoss=true;
+    this.x=x;this.y=y;this.contactRadius=BOSS_CONFIG.contactRadius;
+    this.state=new BossState();this.alive=true;
+    this.path=[];this.pathIndex=0;this.repathAt=0;
+    this.speed=BOSS_CONFIG.baseSpeed;
+    this.attackCount=0;
+    this.nextAttack=scene.time.now+2200;
+    this.attack=null;this.projectiles=[];
+    this.timeAnimated=0;this.frame=0;this.toLeft=false;
+    this.telegraph=scene.add.graphics().setDepth(9800);
+    this.shadow=scene.add.ellipse(x,y+13,124,34,0x0a1711,.5).setDepth(y+175);
+    this.sprite=scene.add.image(x,y,bossTexture(false,0)).setOrigin(.5,.82).setScale(1.03).setDepth(y+220);
+    this.nameplate=scene.add.text(x,y-150,'TRICERÁTOPS ANCESTRAL',{
+      fontFamily:'Arial',fontSize:'12px',fontStyle:'bold',color:'#f5daa2',stroke:'#193429',strokeThickness:4
+    }).setOrigin(.5).setDepth(y+340);
+  }
+  get hp(){return this.state.health;}
+  get maxHp(){return this.state.maxHealth;}
+  get phase(){return this.state.phase;}
+  damage(amount){
+    const result=this.state.takeDamage(amount);
+    if(!result.applied)return false;
+    if(this.sprite.active){
+      this.sprite.setTintFill(0xffecb8);
+      this.scene.time.delayedCall(115,()=>this.sprite?.active&&this.sprite.clearTint());
+    }
+    if(result.phaseChanged){
+      this.scene.makeImpact(this.x,this.y-46,0xf7bf78,66);
+      this.scene.showMessage(`O Tricerátops entrou na fase ${this.phase}!`);
+    }
+    if(result.defeated)this.destroy();
+    return true;
+  }
+  startAttack(now,target){
+    const distance=Math.hypot(target.x-this.x,target.y-this.y);
+    const type=this.state.nextAttack(distance);
+    this.attack={type,start:now,fireAt:now+this.state.windupFor(type),
+      targetX:target.x,targetY:target.y,originX:this.x,originY:this.y,executed:false};
+    this.nextAttack=now+this.state.windupFor(type)+this.state.cooldownMs();
+    const label={charge:'INVESTIDA!',stomp:'ONDA DE CHOQUE!',volley:'RAJADA ANCESTRAL!'}[type];
+    this.scene.showMessage(`${BOSS_CONFIG.name}: ${label}`);
+  }
+  executeAttack(now){
+    const a=this.attack;if(!a||a.executed)return;
+    a.executed=true;
+    if(a.type==='charge'){
+      a.chargeUntil=now+BOSS_CONFIG.chargeDurationMs;
+      const dx=a.targetX-a.originX,dy=a.targetY-a.originY;
+      const d=Math.hypot(dx,dy)||1;
+      a.direction={x:dx/d,y:dy/d};
+      this.scene.makeImpact(this.x,this.y-25,0xf2bd6d,35);
+    }else if(a.type==='stomp'){
+      this.scene.makeImpact(this.x,this.y-15,0xf0bd76,BOSS_CONFIG.stompRadius*.65);
+      if(Math.hypot(this.scene.player.x-this.x,this.scene.player.y-this.y)<BOSS_CONFIG.stompRadius){
+        this.scene.damagePlayer(this,1);
+      }
+    }else if(a.type==='volley'){
+      const dx=a.targetX-this.x,dy=a.targetY-this.y;
+      const angle=Math.atan2(a.targetY-(this.y-31),a.targetX-this.x),count=this.phase===3?7:5;
+      for(let i=0;i<count;i++){
+        const theta=angle+(i-(count-1)/2)*.19;
+        const x=this.x+Math.cos(theta)*54,y=this.y-31+Math.sin(theta)*34;
+        const sprite=this.scene.add.circle(x,y,8,0xd7a05e,.95)
+          .setStrokeStyle(2,0xf9e5b5).setDepth(y+560);
+        this.projectiles.push({x,y,vx:Math.cos(theta)*(245+this.phase*18),vy:Math.sin(theta)*(245+this.phase*18),life:2600,sprite});
+      }
+    }
+  }
+  move(dx,dy,nav){
+    if(nav.isOpen(this.x+dx,this.y+dy)&&nav.isOpen(this.x+dx+12,this.y+dy)&&nav.isOpen(this.x+dx-12,this.y+dy)){
+      this.x+=dx;this.y+=dy;return true;
+    }
+    if(nav.isOpen(this.x+dx,this.y)){this.x+=dx;return true;}
+    if(nav.isOpen(this.x,this.y+dy)){this.y+=dy;return true;}
+    return false;
+  }
+  navigate(delta,target,nav){
+    const d=Math.hypot(target.x-this.x,target.y-this.y);
+    if(d<108)return;
+    const now=this.scene.time.now;
+    if(now>=this.repathAt||!this.path.length||this.pathIndex>=this.path.length){
+      this.path=nav.findPath(this.x,this.y,target.x,target.y);
+      this.pathIndex=0;this.repathAt=now+720;
+    }
+    while(this.pathIndex<this.path.length&&Math.hypot(this.path[this.pathIndex].x-this.x,this.path[this.pathIndex].y-this.y)<26)this.pathIndex++;
+    const p=this.path[this.pathIndex]||target;
+    const dx=p.x-this.x,dy=p.y-this.y;
+    const length=Math.hypot(dx,dy)||1;
+    const speed=this.speed+(this.phase-1)*15,step=Math.min(Math.min(delta,40)/1000*speed,length);
+    this.toLeft=dx<0;
+    if(!this.move(dx/length*step,dy/length*step,nav))this.repathAt=0;
+  }
+  update(delta,target,nav){
+    if(!this.alive)return;
+    const now=this.scene.time.now;
+    if(!this.attack&&now>=this.nextAttack)this.startAttack(now,target);
+    const a=this.attack;
+    if(a){
+      this.telegraph.clear();
+      if(!a.executed){
+        const fraction=Math.max(0,Math.min(1,(now-a.start)/(a.fireAt-a.start)));
+        this.telegraph.lineStyle(3+fraction*2,0xffcc78,.48+fraction*.52);
+        if(a.type==='charge'){
+          this.telegraph.lineBetween(this.x,this.y-21,a.targetX,a.targetY);
+          this.telegraph.fillStyle(0xffbb72,.65);this.telegraph.fillCircle(a.targetX,a.targetY,9+fraction*5);
+        }else if(a.type==='stomp'){
+          this.telegraph.strokeCircle(this.x,this.y,BOSS_CONFIG.stompRadius);
+          this.telegraph.strokeCircle(this.x,this.y,BOSS_CONFIG.stompRadius*(1-fraction));
+        }else{
+          this.telegraph.strokeCircle(this.x,this.y,48+fraction*24);
+          for(let i=-2;i<=2;i++){
+            const angle=Math.atan2(a.targetY-this.y,a.targetX-this.x)+i*.19;
+            this.telegraph.lineBetween(this.x,this.y-31,this.x+Math.cos(angle)*130,this.y-31+Math.sin(angle)*130);
+          }
+        }
+        if(now>=a.fireAt)this.executeAttack(now);
+      }else if(a.type==='charge'&&now<a.chargeUntil){
+        const step=(430+this.phase*40)*Math.min(delta,40)/1000;
+        if(!this.move(a.direction.x*step,a.direction.y*step,nav))a.chargeUntil=now;
+        if(Math.hypot(this.x-target.x,this.y-target.y)<this.contactRadius+5)this.scene.damagePlayer(this,1);
+      }
+      if(a.executed&&(a.type!=='charge'||now>=a.chargeUntil)){
+        this.attack=null;this.telegraph.clear();
+      }
+    }else this.navigate(delta,target,nav);
+    const dt=Math.min(delta,40)/1000;
+    this.projectiles=this.projectiles.filter(p=>{
+      p.x+=p.vx*dt;p.y+=p.vy*dt;p.life-=delta;
+      p.sprite.setPosition(p.x,p.y).setDepth(p.y+560);
+      if(Math.hypot(p.x-target.x,p.y-target.y)<27){
+        this.scene.damagePlayer(this,1);p.sprite.destroy();return false;
+      }
+      if(p.life<=0||!nav.isOpen(p.x,p.y)){p.sprite.destroy();return false;}
+      return true;
+    });
+    this.timeAnimated+=delta;
+    if(this.timeAnimated>170){this.timeAnimated=0;this.frame=(this.frame+1)%4;}
+    this.sprite.setTexture(bossTexture(this.toLeft,this.frame)).setPosition(this.x,this.y).setDepth(this.y+220);
+    this.shadow.setPosition(this.x,this.y+13).setDepth(this.y+175);
+    this.nameplate.setPosition(this.x,this.y-155).setDepth(this.y+340);
+  }
+  destroy(){
+    if(!this.alive)return;
+    this.alive=false;
+    this.telegraph.clear();this.telegraph.destroy();
+    for(const p of this.projectiles)p.sprite.destroy();
+    this.projectiles=[];this.nameplate.destroy();this.shadow.destroy();
+    this.scene.tweens.add({targets:this.sprite,scale:0,alpha:0,duration:320,onComplete:()=>this.sprite.destroy()});
+  }
+}
+
+
 // --- src/scenes/BootScene.js ---
 
 class BootScene extends Phaser.Scene {
@@ -1003,7 +1272,7 @@ class MenuScene extends Phaser.Scene {
     this.add.text(w/2,h*.27,'ERA',{fontFamily:'Georgia,serif',fontSize:`${titleSize}px`,fontStyle:'bold',color:'#f3e3b5',stroke:'#0b241c',strokeThickness:5}).setOrigin(.5);
     this.add.text(w/2,h*.39,'E V O L U T I O N',{fontFamily:'Arial',fontSize:`${Math.min(23,Math.max(13,w*.023))}px`,fontStyle:'bold',color:'#c8dabc'}).setOrigin(.5);
     this.add.text(w/2,h*.49,'CAPÍTULO I · O CRETÁCEO',{fontFamily:'Arial',fontSize:'15px',fontStyle:'bold',color:'#e9c17f',letterSpacing:3}).setOrigin(.5);
-    this.add.text(w/2,h*.57,'Um sobrevivente perdido em um mundo que ainda não conhece a humanidade.',{fontFamily:'Arial',fontSize:'13px',color:'#b6c9b2',align:'center',wordWrap:{width:Math.min(520,w*.75)}}).setOrigin(.5);
+    this.add.text(w/2,h*.57,'Sobreviva a 100 criaturas e enfrente o Tricerátops Ancestral.',{fontFamily:'Arial',fontSize:'13px',color:'#b6c9b2',align:'center',wordWrap:{width:Math.min(520,w*.75)}}).setOrigin(.5);
     const start=this.add.text(w/2,h*.72,'COMEÇAR EXPEDIÇÃO',{fontFamily:'Arial',fontSize:'18px',fontStyle:'bold',color:'#193329',backgroundColor:'#e6ce93',padding:{x:27,y:16}}).setOrigin(.5).setInteractive({useHandCursor:true});
     start.on('pointerover',()=>start.setStyle({backgroundColor:'#ffe1a4'}));
     start.on('pointerout',()=>start.setStyle({backgroundColor:'#e6ce93'}));
@@ -1100,12 +1369,17 @@ class UpgradeScene extends Phaser.Scene {
 
 
 
+
+
+
+
 class GameScene extends Phaser.Scene {
   constructor() { super('GameScene'); }
 
   create() {
     this.cameras.main.setBackgroundColor('#122a24');
     createCharacterArt(this);
+    createBossArt(this);
     this.projection = new IsoProjection(
       SETTINGS.tileWidth, SETTINGS.tileHeight,
       SETTINGS.mapRows * SETTINGS.tileWidth / 2, SETTINGS.tileHeight / 2
@@ -1157,6 +1431,8 @@ class GameScene extends Phaser.Scene {
     this.input.keyboard.on('keydown-ESC',this.onPauseKey);
 
     this.creatures=[];
+    this.boss=null;
+    this.bossActive=false;
     this.fragments=[];
     this.projectiles=[];
     this.weaponPickups=[];
@@ -1176,10 +1452,12 @@ class GameScene extends Phaser.Scene {
     this.ended=false;
     this.eraGoalAnnounced=false;
     this.createHud();
+    this.createBossHud();
     this.showMessage('CRETÁCEO · Explore, sobreviva e recolha fragmentos');
     this.onResize=size=>{
       this.cameras.main.setZoom(this.getZoom(size.width));
       this.layoutHud();
+      this.layoutBossHud();
       if(this.message?.active) this.fixToScreen(this.message,size.width/2,this.messageScreenY());
     };
     this.scale.on('resize',this.onResize);
@@ -1189,7 +1467,16 @@ class GameScene extends Phaser.Scene {
       this.input.keyboard.off('keydown-ESC',this.onPauseKey);
       this.scale.off('resize',this.onResize);
     });
-    this.spawnInitialCreatures();
+    // Teste direto do encontro: ?testeChefe=1. Não altera o fluxo normal.
+    const bossTest=typeof window!=='undefined' && new URLSearchParams(window.location.search).get('testeChefe')==='1';
+    if(bossTest){
+      this.kills=SETTINGS.eraKillGoal;
+      this.eraGoalAnnounced=true;
+      for(let milestone=10;milestone<=90;milestone+=10)this.weapons.collect(weaponRewardForKills(milestone));
+      this.weapons.select('orbe');
+      this.power=4;
+      this.beginBossEncounter();
+    }else this.spawnInitialCreatures();
     this.updateHud();
   }
 
@@ -1257,6 +1544,29 @@ class GameScene extends Phaser.Scene {
     this.fixToScreen(this.hud,16,16);
     this.updateHud();
   }
+  createBossHud(){
+    const h=this.bossHud=this.add.container(0,0).setScrollFactor(0).setDepth(11500).setVisible(false);
+    h.add(this.add.rectangle(0,0,510,66,0x13261f,.93).setOrigin(.5,0).setStrokeStyle(2,0xd2ab75,.8));
+    this.bossTitle=this.add.text(0,8,'CHEFE  •  TRICERÁTOPS ANCESTRAL',{fontFamily:'Arial',fontSize:'14px',fontStyle:'bold',color:'#f2d59b'}).setOrigin(.5,0);
+    this.bossHPTrack=this.add.rectangle(-230,42,460,13,0x384a3e,.96).setOrigin(0);
+    this.bossHPFill=this.add.rectangle(-230,42,460,13,0xe6a66f,1).setOrigin(0);
+    h.add([this.bossTitle,this.bossHPTrack,this.bossHPFill]);
+    this.layoutBossHud();
+  }
+  layoutBossHud(){
+    if(!this.bossHud)return;
+    const w=this.scale.width;
+    const scale=Math.min(1,w/560);
+    this.fixToScreen(this.bossHud,w/2,this.scale.height-88*scale);
+    this.bossHud.setScale(this.bossHud.scaleX*scale);
+  }
+  updateBossHud(){
+    if(!this.boss?.alive){this.bossHud?.setVisible(false);return;}
+    this.bossHud.setVisible(true);
+    this.bossHPFill.setDisplaySize(Math.max(.01,460*this.boss.state.healthRatio),13);
+    this.bossHPFill.setFillStyle(this.boss.phase===3?0xf07963:0xe6a66f);
+    this.bossTitle.setText(`CHEFE  •  ${BOSS_CONFIG.name}  •  FASE ${this.boss.phase}`);
+  }
   updateHud(){
     if(!this.survival||!this.stats)return;
     const health=this.survival.health;
@@ -1266,7 +1576,7 @@ class GameScene extends Phaser.Scene {
     this.stats.setText(`Eliminações: ${Math.min(this.kills,SETTINGS.eraKillGoal)}/${SETTINGS.eraKillGoal}   •   Fragmentos: ${this.fragmentCount}/${SETTINGS.fragmentGoal}`);
     this.weaponText.setText(`Nível ${this.level}  •  ${this.weapons.current.label} Nv.${this.weapons.tier}  •  Poder ${this.power}`);
     this.weaponText.setColor('#'+this.weapons.current.color.toString(16).padStart(6,'0'));
-    this.inventoryText.setText(`${this.weapons.unlocked.length} armas  •  Q/E alternar  •  1–5 equipar`);
+    this.inventoryText.setText(`${this.weapons.unlocked.length} armas  •  Q/E alternar  •  Ímã ${magnetRadius(this.upgrades.pickupRadius)} px`);
     this.threatText.setText(`PRESSÃO ${String(this.difficulty.stage+1).padStart(2,'0')}  •  ${this.difficulty.maxAlive} criaturas  •  ${(this.difficulty.spawnIntervalMs/1000).toFixed(1)} s`);
     this.eraFill.setDisplaySize(Math.max(.01,(this.hudWidth-34)*Math.min(1,this.kills/SETTINGS.eraKillGoal)),4);
     const compact=this.scale.width<470;
@@ -1307,27 +1617,30 @@ class GameScene extends Phaser.Scene {
     this.autoShoot();
     this.updateProjectiles(delta);
     this.collectWeaponPickups();
-    this.collectFragments();
+    this.collectFragments(delta);
     this.spawnTimer+=delta;
-    if(this.spawnTimer>=this.difficulty.spawnIntervalMs){
+    if(!this.bossActive && this.spawnTimer>=this.difficulty.spawnIntervalMs){
       this.spawnTimer=0;
       if(this.creatures.filter(c=>c.alive).length<this.difficulty.maxAlive)
         this.spawnCreature(this.kills+this.spawnSequence);
     }
     this.updateHud();
+    this.updateBossHud();
   }
   checkPlayerContact(){
     if(this.survival.isInvulnerable(this.time.now))return;
-    const attacker=this.creatures.find(c=>c.alive&&Math.hypot(c.x-this.player.x,c.y-this.player.y)<SETTINGS.contactRadius);
-    if(!attacker)return;
-    const result=this.survival.takeHit(this.time.now,1);
-    if(!result.applied)return;
-    this.addFloatingNumber(this.player.x,this.player.y-68,'−1','#ff9d8d');
+    const attacker=this.creatures.find(c=>c.alive&&Math.hypot(c.x-this.player.x,c.y-this.player.y)<(c.contactRadius||SETTINGS.contactRadius));
+    if(attacker)this.damagePlayer(attacker,1);
+  }
+  damagePlayer(attacker,damage=1){
+    if(this.ended||this.survival.isInvulnerable(this.time.now))return false;
+    const result=this.survival.takeHit(this.time.now,damage);
+    if(!result.applied)return false;
+    this.addFloatingNumber(this.player.x,this.player.y-68,`−${damage}`,'#ff9d8d');
     this.makeImpact(this.player.x,this.player.y-20,0xffab95,24);
     this.cameras.main.shake(120,.002);
     this.player.sprite.setTintFill(0xffb1a1);
     this.time.delayedCall(110,()=>{if(this.player?.sprite?.active)this.player.sprite.clearTint();});
-    // Pequeno recuo, sem atravessar rochas nem sair da arena.
     const dx=this.player.x-attacker.x,dy=this.player.y-attacker.y;
     const distance=Math.hypot(dx,dy)||1;
     const nx=this.player.x+dx/distance*23,ny=this.player.y+dy/distance*23;
@@ -1338,6 +1651,7 @@ class GameScene extends Phaser.Scene {
     }
     this.updateHud();
     if(result.defeated)this.endRun();
+    return true;
   }
   endRun(){
     if(this.ended)return;
@@ -1378,7 +1692,7 @@ class GameScene extends Phaser.Scene {
     if(now-this.lastAttack<attackCooldown(this.weapons.active,this.weapons.tier,this.upgrades.levels.cadencia))return;
     const w=this.weapons.current;
     const range=w.range*this.upgrades.rangeMultiplier*(1+.12*(this.weapons.tier-1));
-    const target=this.creatures.filter(c=>c.alive&&Math.hypot(c.x-this.player.x,c.y-this.player.y)<range)
+    const target=this.creatures.filter(c=>c.alive&&Math.hypot(c.x-this.player.x,c.y-this.player.y)<range+(c.isBoss?34:0))
       .sort((a,b)=>Math.hypot(a.x-this.player.x,a.y-this.player.y)-Math.hypot(b.x-this.player.x,b.y-this.player.y))[0];
     if(!target)return;
     this.lastAttack=now;
@@ -1403,12 +1717,12 @@ class GameScene extends Phaser.Scene {
       p.bolt.setPosition(p.x,p.y).setDepth(p.y+350);
       if(p.type!=='lanca')p.bolt.rotation+=dt*7;
       p.glow.setPosition(p.x,p.y).setDepth(p.y+349);
-      const target=this.creatures.find(c=>c.alive&&!p.hitCreatures.has(c)&&Math.hypot(c.x-p.x,c.y-8-p.y)<p.hitRadius+7);
+      const target=this.creatures.find(c=>c.alive&&!p.hitCreatures.has(c)&&Math.hypot(c.x-p.x,c.y-8-p.y)<p.hitRadius+(c.isBoss?42:7));
       if(target){
         if(p.splashRadius){
           this.makeImpact(p.x,p.y,p.color,p.splashRadius*.55);
           for(const creature of this.creatures){
-            if(creature.alive&&Math.hypot(creature.x-p.x,creature.y-p.y)<p.splashRadius){
+            if(creature.alive&&Math.hypot(creature.x-p.x,creature.y-p.y)<p.splashRadius+(creature.isBoss?27:0)){
               this.damageCreature(creature,p.damage,p.color);p.hitCreatures.add(creature);
             }
           }
@@ -1425,6 +1739,12 @@ class GameScene extends Phaser.Scene {
   damageCreature(target,damage,color){
     if(!target.alive)return;
     target.damage(damage);
+    if(target.isBoss){
+      this.addFloatingNumber(target.x,target.y-115,String(damage),'#'+color.toString(16).padStart(6,'0'));
+      this.updateBossHud();
+      if(!target.alive)this.completeEra();
+      return;
+    }
     this.addFloatingNumber(target.x,target.y-58,String(damage),'#'+color.toString(16).padStart(6,'0'));
     if(!target.alive){
       this.kills++;
@@ -1444,9 +1764,42 @@ class GameScene extends Phaser.Scene {
       if(reward)this.spawnWeaponPickup(reward);
       if(this.kills>=SETTINGS.eraKillGoal&&!this.eraGoalAnnounced){
         this.eraGoalAnnounced=true;
-        this.showMessage('100 eliminações! O chefe chegará num próximo ciclo.');
+        this.beginBossEncounter();
       }
     }
+  }
+  beginBossEncounter(){
+    if(this.bossActive||this.ended)return;
+    this.bossActive=true;
+    this.spawnTimer=0;
+    // Encontro isolado: os monstros comuns deixam a arena sem pontuar abates.
+    for(const c of this.creatures)if(c.alive)c.destroy();
+    this.creatures=[];
+    for(const p of this.projectiles){p.bolt.destroy();p.glow.destroy();}
+    this.projectiles=[];
+    const p=chooseSpawnPoint({navigation:this.navigation,projection:this.projection,
+      player:this.player,sequence:this.spawnSequence+31,minimumDistance:255});
+    const point=p||this.navigation.nearestOpenPoint(this.player.x+270,this.player.y-130);
+    if(!point){
+      // Evita encontro impossível se o mapa não tiver posição acessível.
+      this.bossActive=false;this.showMessage('Não foi possível posicionar o chefe.');return;
+    }
+    this.boss=new CretaceousBoss(this,point.x,point.y);
+    this.creatures.push(this.boss);
+    this.showMessage('100 ELIMINAÇÕES! O TRICERÁTOPS ANCESTRAL DESPERTOU!');
+    this.makeImpact(point.x,point.y-35,0xe9b879,100);
+    this.cameras.main.shake(240,.003);
+    this.updateBossHud();
+  }
+  completeEra(){
+    if(this.ended)return;
+    this.ended=true;
+    this.bossActive=false;
+    this.bossHud.setVisible(false);
+    this.scene.pause();
+    this.scene.launch('EraCompleteScene',{
+      kills:this.kills,level:this.level,seconds:Math.floor(this.elapsedMs/1000)
+    });
   }
   spawnWeaponPickup(reward){
     // Aparecer numa área navegável e com caminho direto até o protagonista.
@@ -1500,16 +1853,25 @@ class GameScene extends Phaser.Scene {
     return true;
   }
   dropFragment(x,y){
-    const shard=this.add.star(x,y,4,5,11,0xf1d58f).setDepth(y+250);
-    this.tweens.add({targets:shard,y:y-12,yoyo:true,repeat:2,duration:280});
-    this.fragments.push(shard);
+    const sprite=this.add.star(x,y-8,4,5,11,0xf1d58f).setStrokeStyle(1,0xffedb2).setDepth(y+250);
+    const glow=this.add.circle(x,y-8,15,0xf4d894,.15).setDepth(y+249);
+    this.fragments.push({x,y,sprite,glow,age:0});
   }
-  collectFragments(){
+  collectFragments(delta=16){
     if(this.upgrading)return;
+    const radius=magnetRadius(this.upgrades.pickupRadius);
     this.fragments=this.fragments.filter(f=>{
-      if(!f.active)return false;
-      if(Phaser.Math.Distance.Between(f.x,f.y,this.player.x,this.player.y)<this.upgrades.pickupRadius){
-        f.destroy();this.fragmentCount++;
+      if(this.upgrading)return true;
+      if(!f.sprite.active)return false;
+      f.age+=Math.min(delta,40);
+      const pull=advanceFragment(f,this.player,delta,radius);
+      f.x=pull.x;f.y=pull.y;
+      const bob=Math.sin(f.age/165)*4;
+      f.sprite.setPosition(f.x,f.y-8+bob).setDepth(f.y+250).setRotation(f.age/1100);
+      f.glow.setPosition(f.x,f.y-8+bob).setDepth(f.y+249);
+      f.glow.setAlpha(pull.attracted?.28:.14);
+      if(pull.collected){
+        f.sprite.destroy();f.glow.destroy();this.fragmentCount++;
         if(this.fragmentCount>=SETTINGS.fragmentGoal)this.openUpgrade();
         return false;
       }
@@ -1584,7 +1946,43 @@ class GameOverScene extends Phaser.Scene {
 }
 
 
+// --- src/scenes/EraCompleteScene.js ---
+
+/** Vitória do primeiro capítulo, sem fingir que a segunda era já foi implementada. */
+class EraCompleteScene extends Phaser.Scene {
+  constructor(){super('EraCompleteScene');}
+  init(data){this.kills=data.kills||100;this.level=data.level||1;this.seconds=data.seconds||0;}
+  create(){
+    const {width:w,height:h}=this.scale;
+    this.cameras.main.setBackgroundColor('#122b25');
+    this.add.rectangle(w/2,h/2,w,h,0x0a1f18,.96);
+    this.add.circle(w/2,h*.29,90,0xf0d39b,.12).setStrokeStyle(3,0xdcc289,.66);
+    this.add.text(w/2,h*.29,'✦',{fontFamily:'Georgia',fontSize:'68px',color:'#e4c78f'}).setOrigin(.5);
+    this.add.text(w/2,h*.44,'CRETÁCEO SUPERADO!',{
+      fontFamily:'Georgia,serif',fontSize:`${Math.min(42,Math.max(24,w*.043))}px`,fontStyle:'bold',color:'#f2deb2'
+    }).setOrigin(.5);
+    this.add.text(w/2,h*.53,'O Tricerátops Ancestral foi derrotado.\nA Pré-História será o próximo capítulo.',{
+      fontFamily:'Arial',fontSize:'15px',color:'#bfdbcb',align:'center',wordWrap:{width:Math.min(540,w*.9)}
+    }).setOrigin(.5);
+    const time=`${Math.floor(this.seconds/60)}:${String(this.seconds%60).padStart(2,'0')}`;
+    this.add.text(w/2,h*.64,`${this.kills} ELIMINAÇÕES  •  NÍVEL ${this.level}  •  ${time}`,{
+      fontFamily:'Arial',fontSize:'13px',color:'#e6d9a5',align:'center'
+    }).setOrigin(.5);
+    const replay=this.add.text(w/2,h*.75,'JOGAR NOVAMENTE',{fontFamily:'Arial',fontSize:'16px',fontStyle:'bold',color:'#162b21',backgroundColor:'#efd49b',padding:{x:24,y:13}})
+      .setOrigin(.5).setInteractive({useHandCursor:true});
+    replay.on('pointerdown',()=>this.restart());
+    this.add.text(w/2,h*.87,'VOLTAR AO MENU',{fontFamily:'Arial',fontSize:'13px',color:'#b9d3be'})
+      .setOrigin(.5).setInteractive({useHandCursor:true}).on('pointerdown',()=>this.menu());
+    this.onRestart=()=>this.restart();this.input.keyboard.on('keydown-R',this.onRestart);
+    this.events.once(Phaser.Scenes.Events.SHUTDOWN,()=>this.input.keyboard.off('keydown-R',this.onRestart));
+  }
+  restart(){this.scene.stop('GameScene');this.scene.start('GameScene');}
+  menu(){this.scene.stop('GameScene');this.scene.start('MenuScene');}
+}
+
+
 // --- src/main.js ---
+
 
 
 
@@ -1598,7 +1996,7 @@ const config = {
   backgroundColor: '#172522',
   scale: { mode: Phaser.Scale.RESIZE, autoCenter: Phaser.Scale.CENTER_BOTH, width: 1280, height: 720 },
   render: { antialias: true, pixelArt: false },
-  scene: [BootScene, MenuScene, GameScene, PauseScene, UpgradeScene, GameOverScene]
+  scene: [BootScene, MenuScene, GameScene, PauseScene, UpgradeScene, GameOverScene, EraCompleteScene]
 };
 
 window.addEventListener('load', () => {

@@ -11,6 +11,10 @@ import { createCharacterArt } from '../art/CharacterArt.js';
 import { WeaponState, WEAPONS, weaponRewardForKills, createSalvo, attackCooldown } from '../systems/WeaponSystem.js';
 import { UpgradeState } from '../systems/UpgradeSystem.js';
 import { difficultyForKills, chooseSpawnPoint } from '../systems/DifficultySystem.js';
+import { magnetRadius, advanceFragment } from '../systems/MagnetSystem.js';
+import { BOSS_CONFIG } from '../systems/BossSystem.js';
+import { createBossArt } from '../art/BossArt.js';
+import { CretaceousBoss } from '../entities/CretaceousBoss.js';
 
 export class GameScene extends Phaser.Scene {
   constructor() { super('GameScene'); }
@@ -18,6 +22,7 @@ export class GameScene extends Phaser.Scene {
   create() {
     this.cameras.main.setBackgroundColor('#122a24');
     createCharacterArt(this);
+    createBossArt(this);
     this.projection = new IsoProjection(
       SETTINGS.tileWidth, SETTINGS.tileHeight,
       SETTINGS.mapRows * SETTINGS.tileWidth / 2, SETTINGS.tileHeight / 2
@@ -69,6 +74,8 @@ export class GameScene extends Phaser.Scene {
     this.input.keyboard.on('keydown-ESC',this.onPauseKey);
 
     this.creatures=[];
+    this.boss=null;
+    this.bossActive=false;
     this.fragments=[];
     this.projectiles=[];
     this.weaponPickups=[];
@@ -88,10 +95,12 @@ export class GameScene extends Phaser.Scene {
     this.ended=false;
     this.eraGoalAnnounced=false;
     this.createHud();
+    this.createBossHud();
     this.showMessage('CRETÁCEO · Explore, sobreviva e recolha fragmentos');
     this.onResize=size=>{
       this.cameras.main.setZoom(this.getZoom(size.width));
       this.layoutHud();
+      this.layoutBossHud();
       if(this.message?.active) this.fixToScreen(this.message,size.width/2,this.messageScreenY());
     };
     this.scale.on('resize',this.onResize);
@@ -101,7 +110,16 @@ export class GameScene extends Phaser.Scene {
       this.input.keyboard.off('keydown-ESC',this.onPauseKey);
       this.scale.off('resize',this.onResize);
     });
-    this.spawnInitialCreatures();
+    // Teste direto do encontro: ?testeChefe=1. Não altera o fluxo normal.
+    const bossTest=typeof window!=='undefined' && new URLSearchParams(window.location.search).get('testeChefe')==='1';
+    if(bossTest){
+      this.kills=SETTINGS.eraKillGoal;
+      this.eraGoalAnnounced=true;
+      for(let milestone=10;milestone<=90;milestone+=10)this.weapons.collect(weaponRewardForKills(milestone));
+      this.weapons.select('orbe');
+      this.power=4;
+      this.beginBossEncounter();
+    }else this.spawnInitialCreatures();
     this.updateHud();
   }
 
@@ -169,6 +187,29 @@ export class GameScene extends Phaser.Scene {
     this.fixToScreen(this.hud,16,16);
     this.updateHud();
   }
+  createBossHud(){
+    const h=this.bossHud=this.add.container(0,0).setScrollFactor(0).setDepth(11500).setVisible(false);
+    h.add(this.add.rectangle(0,0,510,66,0x13261f,.93).setOrigin(.5,0).setStrokeStyle(2,0xd2ab75,.8));
+    this.bossTitle=this.add.text(0,8,'CHEFE  •  TRICERÁTOPS ANCESTRAL',{fontFamily:'Arial',fontSize:'14px',fontStyle:'bold',color:'#f2d59b'}).setOrigin(.5,0);
+    this.bossHPTrack=this.add.rectangle(-230,42,460,13,0x384a3e,.96).setOrigin(0);
+    this.bossHPFill=this.add.rectangle(-230,42,460,13,0xe6a66f,1).setOrigin(0);
+    h.add([this.bossTitle,this.bossHPTrack,this.bossHPFill]);
+    this.layoutBossHud();
+  }
+  layoutBossHud(){
+    if(!this.bossHud)return;
+    const w=this.scale.width;
+    const scale=Math.min(1,w/560);
+    this.fixToScreen(this.bossHud,w/2,this.scale.height-88*scale);
+    this.bossHud.setScale(this.bossHud.scaleX*scale);
+  }
+  updateBossHud(){
+    if(!this.boss?.alive){this.bossHud?.setVisible(false);return;}
+    this.bossHud.setVisible(true);
+    this.bossHPFill.setDisplaySize(Math.max(.01,460*this.boss.state.healthRatio),13);
+    this.bossHPFill.setFillStyle(this.boss.phase===3?0xf07963:0xe6a66f);
+    this.bossTitle.setText(`CHEFE  •  ${BOSS_CONFIG.name}  •  FASE ${this.boss.phase}`);
+  }
   updateHud(){
     if(!this.survival||!this.stats)return;
     const health=this.survival.health;
@@ -178,7 +219,7 @@ export class GameScene extends Phaser.Scene {
     this.stats.setText(`Eliminações: ${Math.min(this.kills,SETTINGS.eraKillGoal)}/${SETTINGS.eraKillGoal}   •   Fragmentos: ${this.fragmentCount}/${SETTINGS.fragmentGoal}`);
     this.weaponText.setText(`Nível ${this.level}  •  ${this.weapons.current.label} Nv.${this.weapons.tier}  •  Poder ${this.power}`);
     this.weaponText.setColor('#'+this.weapons.current.color.toString(16).padStart(6,'0'));
-    this.inventoryText.setText(`${this.weapons.unlocked.length} armas  •  Q/E alternar  •  1–5 equipar`);
+    this.inventoryText.setText(`${this.weapons.unlocked.length} armas  •  Q/E alternar  •  Ímã ${magnetRadius(this.upgrades.pickupRadius)} px`);
     this.threatText.setText(`PRESSÃO ${String(this.difficulty.stage+1).padStart(2,'0')}  •  ${this.difficulty.maxAlive} criaturas  •  ${(this.difficulty.spawnIntervalMs/1000).toFixed(1)} s`);
     this.eraFill.setDisplaySize(Math.max(.01,(this.hudWidth-34)*Math.min(1,this.kills/SETTINGS.eraKillGoal)),4);
     const compact=this.scale.width<470;
@@ -219,27 +260,30 @@ export class GameScene extends Phaser.Scene {
     this.autoShoot();
     this.updateProjectiles(delta);
     this.collectWeaponPickups();
-    this.collectFragments();
+    this.collectFragments(delta);
     this.spawnTimer+=delta;
-    if(this.spawnTimer>=this.difficulty.spawnIntervalMs){
+    if(!this.bossActive && this.spawnTimer>=this.difficulty.spawnIntervalMs){
       this.spawnTimer=0;
       if(this.creatures.filter(c=>c.alive).length<this.difficulty.maxAlive)
         this.spawnCreature(this.kills+this.spawnSequence);
     }
     this.updateHud();
+    this.updateBossHud();
   }
   checkPlayerContact(){
     if(this.survival.isInvulnerable(this.time.now))return;
-    const attacker=this.creatures.find(c=>c.alive&&Math.hypot(c.x-this.player.x,c.y-this.player.y)<SETTINGS.contactRadius);
-    if(!attacker)return;
-    const result=this.survival.takeHit(this.time.now,1);
-    if(!result.applied)return;
-    this.addFloatingNumber(this.player.x,this.player.y-68,'−1','#ff9d8d');
+    const attacker=this.creatures.find(c=>c.alive&&Math.hypot(c.x-this.player.x,c.y-this.player.y)<(c.contactRadius||SETTINGS.contactRadius));
+    if(attacker)this.damagePlayer(attacker,1);
+  }
+  damagePlayer(attacker,damage=1){
+    if(this.ended||this.survival.isInvulnerable(this.time.now))return false;
+    const result=this.survival.takeHit(this.time.now,damage);
+    if(!result.applied)return false;
+    this.addFloatingNumber(this.player.x,this.player.y-68,`−${damage}`,'#ff9d8d');
     this.makeImpact(this.player.x,this.player.y-20,0xffab95,24);
     this.cameras.main.shake(120,.002);
     this.player.sprite.setTintFill(0xffb1a1);
     this.time.delayedCall(110,()=>{if(this.player?.sprite?.active)this.player.sprite.clearTint();});
-    // Pequeno recuo, sem atravessar rochas nem sair da arena.
     const dx=this.player.x-attacker.x,dy=this.player.y-attacker.y;
     const distance=Math.hypot(dx,dy)||1;
     const nx=this.player.x+dx/distance*23,ny=this.player.y+dy/distance*23;
@@ -250,6 +294,7 @@ export class GameScene extends Phaser.Scene {
     }
     this.updateHud();
     if(result.defeated)this.endRun();
+    return true;
   }
   endRun(){
     if(this.ended)return;
@@ -290,7 +335,7 @@ export class GameScene extends Phaser.Scene {
     if(now-this.lastAttack<attackCooldown(this.weapons.active,this.weapons.tier,this.upgrades.levels.cadencia))return;
     const w=this.weapons.current;
     const range=w.range*this.upgrades.rangeMultiplier*(1+.12*(this.weapons.tier-1));
-    const target=this.creatures.filter(c=>c.alive&&Math.hypot(c.x-this.player.x,c.y-this.player.y)<range)
+    const target=this.creatures.filter(c=>c.alive&&Math.hypot(c.x-this.player.x,c.y-this.player.y)<range+(c.isBoss?34:0))
       .sort((a,b)=>Math.hypot(a.x-this.player.x,a.y-this.player.y)-Math.hypot(b.x-this.player.x,b.y-this.player.y))[0];
     if(!target)return;
     this.lastAttack=now;
@@ -315,12 +360,12 @@ export class GameScene extends Phaser.Scene {
       p.bolt.setPosition(p.x,p.y).setDepth(p.y+350);
       if(p.type!=='lanca')p.bolt.rotation+=dt*7;
       p.glow.setPosition(p.x,p.y).setDepth(p.y+349);
-      const target=this.creatures.find(c=>c.alive&&!p.hitCreatures.has(c)&&Math.hypot(c.x-p.x,c.y-8-p.y)<p.hitRadius+7);
+      const target=this.creatures.find(c=>c.alive&&!p.hitCreatures.has(c)&&Math.hypot(c.x-p.x,c.y-8-p.y)<p.hitRadius+(c.isBoss?42:7));
       if(target){
         if(p.splashRadius){
           this.makeImpact(p.x,p.y,p.color,p.splashRadius*.55);
           for(const creature of this.creatures){
-            if(creature.alive&&Math.hypot(creature.x-p.x,creature.y-p.y)<p.splashRadius){
+            if(creature.alive&&Math.hypot(creature.x-p.x,creature.y-p.y)<p.splashRadius+(creature.isBoss?27:0)){
               this.damageCreature(creature,p.damage,p.color);p.hitCreatures.add(creature);
             }
           }
@@ -337,6 +382,12 @@ export class GameScene extends Phaser.Scene {
   damageCreature(target,damage,color){
     if(!target.alive)return;
     target.damage(damage);
+    if(target.isBoss){
+      this.addFloatingNumber(target.x,target.y-115,String(damage),'#'+color.toString(16).padStart(6,'0'));
+      this.updateBossHud();
+      if(!target.alive)this.completeEra();
+      return;
+    }
     this.addFloatingNumber(target.x,target.y-58,String(damage),'#'+color.toString(16).padStart(6,'0'));
     if(!target.alive){
       this.kills++;
@@ -356,9 +407,42 @@ export class GameScene extends Phaser.Scene {
       if(reward)this.spawnWeaponPickup(reward);
       if(this.kills>=SETTINGS.eraKillGoal&&!this.eraGoalAnnounced){
         this.eraGoalAnnounced=true;
-        this.showMessage('100 eliminações! O chefe chegará num próximo ciclo.');
+        this.beginBossEncounter();
       }
     }
+  }
+  beginBossEncounter(){
+    if(this.bossActive||this.ended)return;
+    this.bossActive=true;
+    this.spawnTimer=0;
+    // Encontro isolado: os monstros comuns deixam a arena sem pontuar abates.
+    for(const c of this.creatures)if(c.alive)c.destroy();
+    this.creatures=[];
+    for(const p of this.projectiles){p.bolt.destroy();p.glow.destroy();}
+    this.projectiles=[];
+    const p=chooseSpawnPoint({navigation:this.navigation,projection:this.projection,
+      player:this.player,sequence:this.spawnSequence+31,minimumDistance:255});
+    const point=p||this.navigation.nearestOpenPoint(this.player.x+270,this.player.y-130);
+    if(!point){
+      // Evita encontro impossível se o mapa não tiver posição acessível.
+      this.bossActive=false;this.showMessage('Não foi possível posicionar o chefe.');return;
+    }
+    this.boss=new CretaceousBoss(this,point.x,point.y);
+    this.creatures.push(this.boss);
+    this.showMessage('100 ELIMINAÇÕES! O TRICERÁTOPS ANCESTRAL DESPERTOU!');
+    this.makeImpact(point.x,point.y-35,0xe9b879,100);
+    this.cameras.main.shake(240,.003);
+    this.updateBossHud();
+  }
+  completeEra(){
+    if(this.ended)return;
+    this.ended=true;
+    this.bossActive=false;
+    this.bossHud.setVisible(false);
+    this.scene.pause();
+    this.scene.launch('EraCompleteScene',{
+      kills:this.kills,level:this.level,seconds:Math.floor(this.elapsedMs/1000)
+    });
   }
   spawnWeaponPickup(reward){
     // Aparecer numa área navegável e com caminho direto até o protagonista.
@@ -412,16 +496,25 @@ export class GameScene extends Phaser.Scene {
     return true;
   }
   dropFragment(x,y){
-    const shard=this.add.star(x,y,4,5,11,0xf1d58f).setDepth(y+250);
-    this.tweens.add({targets:shard,y:y-12,yoyo:true,repeat:2,duration:280});
-    this.fragments.push(shard);
+    const sprite=this.add.star(x,y-8,4,5,11,0xf1d58f).setStrokeStyle(1,0xffedb2).setDepth(y+250);
+    const glow=this.add.circle(x,y-8,15,0xf4d894,.15).setDepth(y+249);
+    this.fragments.push({x,y,sprite,glow,age:0});
   }
-  collectFragments(){
+  collectFragments(delta=16){
     if(this.upgrading)return;
+    const radius=magnetRadius(this.upgrades.pickupRadius);
     this.fragments=this.fragments.filter(f=>{
-      if(!f.active)return false;
-      if(Phaser.Math.Distance.Between(f.x,f.y,this.player.x,this.player.y)<this.upgrades.pickupRadius){
-        f.destroy();this.fragmentCount++;
+      if(this.upgrading)return true;
+      if(!f.sprite.active)return false;
+      f.age+=Math.min(delta,40);
+      const pull=advanceFragment(f,this.player,delta,radius);
+      f.x=pull.x;f.y=pull.y;
+      const bob=Math.sin(f.age/165)*4;
+      f.sprite.setPosition(f.x,f.y-8+bob).setDepth(f.y+250).setRotation(f.age/1100);
+      f.glow.setPosition(f.x,f.y-8+bob).setDepth(f.y+249);
+      f.glow.setAlpha(pull.attracted?.28:.14);
+      if(pull.collected){
+        f.sprite.destroy();f.glow.destroy();this.fragmentCount++;
         if(this.fragmentCount>=SETTINGS.fragmentGoal)this.openUpgrade();
         return false;
       }
