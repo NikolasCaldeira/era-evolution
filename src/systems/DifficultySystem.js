@@ -1,6 +1,6 @@
 /** Dificuldade progressiva do Cretáceo. Os inimigos mantêm 3 pontos de vida. */
 export const CREATURE_BEHAVIORS = Object.freeze(['investida', 'resistente', 'flanqueador']);
-export const MAX_STAGE = 9; // 100 eliminações reservadas ao chefe no próximo ciclo
+export const MAX_STAGE = 9; // A partir de 100 eliminações, a arena passa para a luta do chefe.
 export function difficultyForKills(kills) {
   const stage=Math.max(0,Math.min(MAX_STAGE,Math.floor(Math.max(0,kills)/10)));
   return Object.freeze({
