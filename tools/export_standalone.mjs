@@ -16,6 +16,8 @@ const modules=[
   'src/systems/DifficultySystem.js',
   'src/systems/MagnetSystem.js',
   'src/systems/BossSystem.js',
+  'src/systems/IceAgeBossSystem.js',
+  'src/systems/RelicVisual.js',
   'src/world/IsoProjection.js',
   'src/world/NavigationGrid.js',
   'src/world/WorldGenerator.js',
@@ -23,9 +25,11 @@ const modules=[
   'src/art/CharacterArt.js',
   'src/art/PleistoceneArt.js',
   'src/art/BossArt.js',
+  'src/art/IceAgeBossArt.js',
   'src/entities/Player.js',
   'src/entities/Creature.js',
   'src/entities/CretaceousBoss.js',
+  'src/entities/PleistoceneBoss.js',
   'src/scenes/BootScene.js',
   'src/scenes/MenuScene.js',
   'src/scenes/PauseScene.js',
@@ -50,7 +54,7 @@ const html=`<!DOCTYPE html>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width,initial-scale=1" />
   <meta name="theme-color" content="#102820" />
-  <title>ERA: Evolution | Duas Eras — Ciclo 10</title>
+  <title>ERA: Evolution | O Mamute Ancestral — Ciclo 11</title>
   <style>${css}</style>
 </head>
 <body>
@@ -72,5 +76,5 @@ const html=`<!DOCTYPE html>
 const destination=resolve(root,'publicar','index.html');
 mkdirSync(resolve(root,'publicar'),{recursive:true});
 writeFileSync(destination,html,'utf8');
-copyFileSync(destination,resolve(root,'JOGAR-ERA-Evolution-Ciclo10.html'));
+copyFileSync(destination,resolve(root,'JOGAR-ERA-Evolution-Ciclo11.html'));
 console.log(`Exportado ${destination} (${html.length} caracteres)`);

@@ -1,34 +1,37 @@
-# ERA: Evolution — Ciclo 10 · Transição para a Pré-História
+# ERA: Evolution — Ciclo 11 · O Mamute Ancestral
 
-Jogo roguelike de sobrevivência isométrico desenvolvido em **Phaser 3.90**, JavaScript e Vite. O GitHub Actions executa os testes, compila e publica o site no GitHub Pages.
+Roguelike isométrico em **Phaser 3.90**, JavaScript e Vite. Os testes e o build são executados pelo GitHub Actions; a versão compilada é publicada no GitHub Pages.
 
 ## Capítulos jogáveis
 
-1. **Era 01 — Cretáceo fictício:** vegetação tropical, compsognato, anquilossauro e pterossauro. Após 100 eliminações aparece o **Tricerátops Ancestral**, com três fases e ataques próprios.
-2. **Era 02 — Pré-História (Pleistoceno):** cenário gelado com pedras de gelo, neve, pinheiros, terreno pálido; novas criaturas **smilodonte, rinoceronte-lanoso e mamute juvenil**, com sprites próprios. O personagem usa roupas de pele próprias do período e mantém seus artefatos fantásticos.
+1. **Cretáceo (Era 01, fictícia):** 100 eliminações desbloqueiam o Tricerátops Ancestral. Ao vencê-lo, o jogador atravessa a transição para o Pleistoceno, preservando a progressão.
+2. **Pré-História / Pleistoceno (Era 02):** terreno gelado, smilodontes, rinocerontes-lanosos e mamutes juvenis. Após **100 eliminações nesta era**, aparece o **Mamute Ancestral**.
 
-**Importante:** dinossauros não coexistiram com humanos. A primeira era é fictícia, e a segunda decorre muito tempo depois.
+A primeira era é ficcional; dinossauros e humanos não coexistiram.
 
-## Transição e continuidade
+## Novidades do Ciclo 11
 
-Ao derrotar o Tricerátops, surge uma sequência visual **A História Avança**. Clique em **AVANÇAR PARA A ERA DO GELO** ou pressione **Enter** para iniciar o Pleistoceno. O jogo preserva o inventário de artefatos, evoluções, saúde restante, tempo, experiência e fragmentos acumulados; as eliminações por era recomeçam do zero, enquanto o total da expedição permanece.
-
-Na segunda era, as relíquias concedem novos níveis de aprimoramento aos artefatos existentes nos marcos de 10 em 10 eliminações. A dificuldade continua progressiva. Após 100 eliminações no Pleistoceno, aparece um aviso; o **segundo chefe** será desenvolvido num ciclo futuro. Não há transição para a terceira era nesta versão.
-
-Quando a vida chega a zero, a expedição termina e reiniciar limpa o progresso, retornando ao Cretáceo.
+- **Relíquias centralizadas:** estrela, brilho e anel compartilham um mesmo centro; o pulso anima somente os círculos. O mesmo componente é usado nas duas eras.
+- **Mamute Ancestral:** arte original, barra de vida e três fases (70% e 35% da vida delimitam as mudanças).
+- **Investida Glacial:** direção marcada antes da corrida; cria rastros de gelo temporários.
+- **Pisada Sísmica:** aviso circular antes do impacto.
+- **Rajada Congelante:** aviso em cone a partir da fase 2; ao acertar, reduz temporariamente a velocidade do jogador.
+- **Matilha:** na fase 3, invoca até dois smilodontes de apoio por convocação, com limite de três aliados vivos e duas convocações. Esses aliados não geram eliminações ou fragmentos.
+- **Vitória da Era 02:** tela de conclusão apresenta o próximo capítulo, **Civilizações Antigas (Era 03)**, como *em desenvolvimento*. Os dados de continuidade são preparados com até +2 pontos de vida, sem ativar uma era incompleta.
 
 ## Controles
 
-- **WASD / setas:** movimentação em oito direções.
-- **Ataque automático** contra criaturas próximas.
-- **Q/E:** alternar entre artefatos desbloqueados; **1–5:** selecionar.
-- **ESC:** pausar; **F3:** mostrar caminhos calculados pela IA.
-- **A cada 10 fragmentos:** escolher entre três melhorias.
+- **WASD/setas:** movimentar. O ataque é automático em todas as direções.
+- **Q/E:** alternar artefatos. **1–5:** selecionar um artefato disponível.
+- **ESC:** pausar. **F3:** visualizar rotas. **R:** reiniciar após a derrota.
+- A cada **10 eliminações**, surge uma relíquia. A cada **10 fragmentos**, o jogo pausa para escolha de melhoria.
+- Dano e morte reiniciam todo o progresso da expedição, sem melhorias permanentes.
 
-### Acessos de teste
+## Acessos de teste
 
-- `?testeChefe=1` — início direto no chefe da primeira era, para testar a transição sem repetir 100 eliminações.
-- `?testeEra=2` — entrada direta na segunda era com progresso inicial, para avaliar cenário, criaturas e movimentação. É um atalho de teste, não a progressão normal.
+- `?testeChefe=1` — Tricerátops Ancestral, para testar o primeiro portal.
+- `?testeEra=2` — entrar diretamente no Pleistoceno sem progresso anterior.
+- `?testeChefe=2` — entrar diretamente no encontro do **Mamute Ancestral**, com alguns artefatos evoluídos. Atalho de desenvolvimento que não interfere na partida normal.
 
 ## Desenvolvimento
 
@@ -40,4 +43,6 @@ npm run build
 npm run export:web
 ```
 
-O arquivo `publicar/index.html` é um HTML único, e depende de acesso à internet para carregar o Phaser 3.90 do CDN. O site oficial é compilado via Vite e publicado automaticamente a cada atualização da branch `main`.
+`publicar/index.html` e `JOGAR-ERA-Evolution-Ciclo11.html` são HTMLs de página única que usam Phaser via CDN e requerem internet. Para publicar no GitHub Pages, o workflow `.github/workflows/deploy.yml` executa os testes e o build Vite a cada push em `main`.
+
+**Ainda não implementado:** cenário e personagens da Era 03. A tela de vitória apresenta somente uma prévia do capítulo futuro.

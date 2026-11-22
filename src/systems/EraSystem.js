@@ -39,3 +39,11 @@ export function pleistoceneRewardForKills(kills){
   const index=kills/10-1;
   return {milestone:`era02-${kills}`,id:ids[index%ids.length],tier:index<5?3:4,kind:'evolucao'};
 }
+
+/** Metadados de planejamento; a Era 03 ainda não é jogável. */
+export const NEXT_ERA_PREVIEW=Object.freeze({number:3,name:'CIVILIZAÇÕES ANTIGAS',status:'em desenvolvimento'});
+/** Bônus da vitória da Era 02, sem alterar o snapshot original. */
+export function prepareNextEraProgress(progress,maxHealth=5){
+  if(!progress)return null;
+  return {...progress,health:Math.min(maxHealth,(progress.health||1)+2),nextEra:NEXT_ERA_PREVIEW.number};
+}
