@@ -8,6 +8,8 @@ const root=resolve(import.meta.dirname,'..');
 const source=filename=>readFileSync(resolve(root,filename),'utf8');
 const modules=[
   'src/core/Settings.js',
+  'src/core/SurvivalState.js',
+  'src/core/ScreenAnchor.js',
   'src/world/IsoProjection.js',
   'src/world/NavigationGrid.js',
   'src/world/WorldGenerator.js',
@@ -19,6 +21,7 @@ const modules=[
   'src/scenes/PauseScene.js',
   'src/scenes/UpgradeScene.js',
   'src/scenes/GameScene.js',
+  'src/scenes/GameOverScene.js',
   'src/main.js'
 ];
 const combined=modules.map(filename=>{
@@ -36,7 +39,7 @@ const html=`<!DOCTYPE html>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width,initial-scale=1" />
   <meta name="theme-color" content="#102820" />
-  <title>ERA: Evolution | Cretáceo — Ciclo 05</title>
+  <title>ERA: Evolution | Cretáceo — Ciclo 06</title>
   <style>${css}</style>
 </head>
 <body>
@@ -58,5 +61,5 @@ const html=`<!DOCTYPE html>
 const destination=resolve(root,'publicar','index.html');
 mkdirSync(resolve(root,'publicar'),{recursive:true});
 writeFileSync(destination,html,'utf8');
-copyFileSync(destination,resolve(root,'JOGAR-ERA-Evolution-Ciclo05.html'));
+copyFileSync(destination,resolve(root,'JOGAR-ERA-Evolution-Ciclo06.html'));
 console.log(`Exportado ${destination} (${html.length} caracteres)`);

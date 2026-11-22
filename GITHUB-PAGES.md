@@ -17,9 +17,13 @@ Se o projeto for vinculado ao ChatGPT GitHub, novas versões poderão ser enviad
 - O workflow usa `npm install`, `npm test` e `npm run build` para criar o site (`dist`).
 - `vite.config.js` define `base: './'` para funcionar sob caminhos como `/era-evolution/`.
 - Phaser vem incluído no bundle do build Vite, assim **o site publicado pelo workflow não depende de CDN**.
-- O arquivo `JOGAR-ERA-Evolution-Ciclo05.html` continua sendo alternativa para jogar localmente; só esta alternativa depende do CDN do Phaser.
+- O arquivo `JOGAR-ERA-Evolution-Ciclo06.html` continua sendo alternativa para jogar localmente; só esta alternativa depende do CDN do Phaser.
 - A publicação é automática depois que o GitHub Pages estiver configurado e o workflow concluir com sucesso.
 
 ## Observação
 
 A publicação exige que o repositório exista e que a conta tenha permissão para GitHub Actions e GitHub Pages. Conectar o GitHub ao ChatGPT não ativa o Pages por si só.
+
+## Ciclo 06
+
+O ciclo 06 atualiza vida, dano por contato, invulnerabilidade, fim de partida e HUD. O build do Vite usa `src/` e publica o conteúdo de `dist/`.

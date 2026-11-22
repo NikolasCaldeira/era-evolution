@@ -27,7 +27,7 @@ export class MenuScene extends Phaser.Scene {
     start.on('pointerover',()=>start.setStyle({backgroundColor:'#ffe1a4'}));
     start.on('pointerout',()=>start.setStyle({backgroundColor:'#e6ce93'}));
     start.on('pointerdown',()=>this.scene.start('GameScene'));
-    this.add.text(w/2,h*.88,'WASD / SETAS  •  F3 ROTAS  •  ESC PAUSAR',{fontFamily:'Arial',fontSize:'12px',color:'#94b4a1'}).setOrigin(.5);
+    this.add.text(w/2,h*.88,'WASD / SETAS  •  F3 ROTAS  •  ESC PAUSAR  •  R REINICIAR AO MORRER',{fontFamily:'Arial',fontSize:'12px',color:'#94b4a1'}).setOrigin(.5);
     this.scale.on('resize',()=>this.scene.restart());
   }
 }

@@ -1,61 +1,55 @@
-# ERA: Evolution — Rebuild · Ciclo 05
+# ERA: Evolution — Ciclo 06: Combate e Sobrevivência
 
-Protótipo 2.5D isométrico em **Phaser 3.90.0**. Este ciclo aprimora o visual do Cretáceo e fornece duas formas de jogar sem terminal: HTML independente e publicação de site estático.
+Projeto 2.5D isométrico em Phaser 3.90, com Vite e JavaScript ES Modules.
 
-## Qual arquivo usar?
+## Jogar
 
-### Mais simples: abrir o HTML no navegador
+A versão publicada no GitHub Pages está disponível em:
+https://nikolascaldeira.github.io/era-evolution/
 
-1. Abra `JOGAR-ERA-Evolution-Ciclo05.html` no Chrome, Edge ou Firefox (duplo clique).
-2. É necessário **estar conectado à internet**: o Phaser é carregado pelo CDN do jsDelivr.
-3. O jogo não precisa de `npm`, terminal, Vite ou servidor local nesta modalidade.
+O workflow `.github/workflows/deploy.yml` executa testes e build a cada atualização da branch `main`.
 
-### Jogar por um endereço público (link)
+## Ciclo 06
 
-1. Acesse **https://app.netlify.com/drop**.
-2. Arraste `ERA-Evolution-Ciclo05-SITE.zip` ou o conteúdo de `publicar/` para a área de publicação.
-3. Abra o link `https://...netlify.app` disponibilizado pelo serviço.
-4. Nas próximas versões, pode publicar uma nova versão no mesmo projeto hospedado.
+- Vida inicial de 5 pontos e dano de contato de 1 ponto por criatura.
+- Invulnerabilidade de 1,25 s após receber dano; personagem pisca e pode continuar a mover-se e atacar.
+- Pequeno recuo após contato, respeitando os limites e obstáculos.
+- Efeito visual, números de dano e reações das criaturas aos projéteis.
+- HUD reposicionado para compensar o zoom da câmera e apresentar vida, eliminações, fragmentos, nível, arma e progresso da era.
+- Ao chegar a 0 de vida, fim da partida com resultados, reinício (clique, Enter ou R) e retorno ao menu.
+- A melhoria Recuperação agora devolve até 2 pontos de vida, além de afastar criaturas.
+- Mantidos o mapa, a navegação A*, os disparos 360° e a tela de melhorias.
+- **Meta de 100 eliminações:** exibe progresso e aviso. O chefe ainda não está implementado.
 
-**Observação:** a publicação externa é feita pelo proprietário da conta/URL; este pacote não é automaticamente hospedado na internet. Quem tiver o link público poderá acessar o jogo. Também requer conexão à internet para carregar Phaser do CDN.
+## Desenvolver
 
-### Projeto modular — desenvolvimento com Vite
+```bash
+npm install
+npm run dev
+```
 
-1. Extraia a pasta completa.
-2. Execute `npm install` e `npm run dev`.
-3. Abra o endereço apresentado pelo Vite.
-4. `npm test`: testes automatizados; `npm run build`: build estático em `dist/`.
-5. `npm run export:web`: atualiza o HTML independente e o `publicar/index.html`.
+## Testar e compilar
+
+```bash
+npm test
+npm run build
+npm run export:web
+```
+
+`npm run export:web` atualiza `publicar/index.html` e gera `JOGAR-ERA-Evolution-Ciclo06.html`, que usa o Phaser via CDN e requer internet. O GitHub Pages utiliza o build do Vite (`dist/`), não o HTML de CDN.
 
 ## Controles
 
-- **WASD / setas:** movimento em oito direções.
-- **ESC:** pausa / retomar.
-- **F3:** mostrar / ocultar rotas A\* das criaturas (ferramenta de depuração).
-- **Mouse:** selecionar melhorias.
-- **Ataque:** disparos automáticos com alvo em qualquer direção (360°).
-- **Joystick:** removido a pedido, não está incluído.
+- **WASD / setas:** movimentação em oito direções.
+- **F3:** mostrar/ocultar rotas de navegação das criaturas.
+- **ESC:** pausar/retomar durante uma partida.
+- **R / Enter na tela de fim:** recomeçar do zero.
+- **Mouse/clique:** iniciar, escolher melhorias e controlar os menus.
 
-## Novidades do Ciclo 05
+## Próximos ciclos
 
-- Personagem redesenhado como sobrevivente de ficção científica perdido no Cretáceo, com **oito direções visuais** e quatro quadros de movimento para cada uma.
-- Três criaturas visualmente distintas: **compsognato**, **anquilossauro juvenil** e **pterossauro terrestre**, todas estilizadas e não realistas, cada uma com movimento animado e aparência própria.
-- Cenário em camadas: **samambaias, cicadáceas, fungos, rochas facetadas, árvores tropicais, musgo e esporos ambientais**.
-- Menu principal e HUD redesenhados e projéteis de energia com novo efeito luminoso.
-- Texturas geradas por Canvas 2D na inicialização: não há download extra de sprites.
-- Navegação A\*, colisões do mapa, coleta de fragmentos e seleção de melhorias preservadas.
-- Exportação HTML de página única: sem servidor local ou Node na máquina do jogador (mas Phaser depende de CDN).
+- Armas desbloqueadas por eliminações e tipos diferentes de projéteis.
+- Inimigos com habilidades únicas e dificuldade progressiva.
+- Chefe do Cretáceo e transição para a próxima era.
 
-## O que ainda é protótipo
-
-- Os gráficos são **arte vetorial procedimental**, não sprites pintados à mão nem arte final.
-- Não há chefes, dez eras completas, sistema de desbloqueio de armas ou progressão de personagem entre eras.
-- Não há link público hospedado automaticamente neste pacote: é necessário publicar por um serviço de hospedagem.
-- O projeto e o HTML foram validados por verificação sintática, dez testes automatizados e teste de desenho dos sprites em Chromium. A execução completa do jogo com Phaser no navegador e o carregamento do CDN ainda dependem de teste externo.
-
-## Histórico de testes
-
-- `npm test`: **10 testes passando**, incluindo os 7 de navegação do Ciclo 04.
-- `node --check`: sintaxe de todos os arquivos JavaScript da aplicação.
-- Exportador gera script inline sem imports ES Modules.
-- As texturas de Canvas foram desenhadas com sucesso em um navegador Chromium, sem erros JavaScript.
+_Arte e criaturas estilizadas, sem representação gráfica de ferimentos._

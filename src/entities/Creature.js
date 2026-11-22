@@ -2,7 +2,7 @@ import { creatureTexture, creaturesList } from '../art/CharacterArt.js';
 export class Creature {
   constructor(scene,x,y,id) {
     this.scene=scene;this.id=id;this.species=creaturesList[id%creaturesList.length];
-    this.x=x;this.y=y;this.hp=3;this.speed=55+(id%3)*10;this.alive=true;
+    this.x=x;this.y=y;this.radius=15;this.hp=3;this.speed=55+(id%3)*10;this.alive=true;
     this.path=[];this.pathIndex=0;this.repathAt=0;
     this.lastGoal={x:NaN,y:NaN};this.stuckMs=0;
     this.frame=0;this.animTime=0;this.toLeft=false;
@@ -68,11 +68,13 @@ export class Creature {
     return Math.hypot(this.x-beforeX,this.y-beforeY)>.15;
   }
   damage(){
-    if(!this.alive)return;
-    this.hp--;this.sprite.setTintFill(0xffffff);
-    this.scene.time.delayedCall(85,()=>{if(this.sprite.active)this.sprite.clearTint();});
-    this.lifeDots.forEach((dot,i)=>dot.setVisible(i<this.hp));
+    if(!this.alive)return false;
+    this.hp=Math.max(0,this.hp-1);
+    this.sprite.setTintFill(0xffe4bd);
+    this.scene.time.delayedCall(120,()=>{if(this.sprite.active)this.sprite.clearTint();});
+    this.lifeDots.forEach((dot,i)=>dot.setVisible(this.alive && i<this.hp));
     if(this.hp<=0)this.destroy();
+    return true;
   }
   destroy(){
     if(!this.alive)return;

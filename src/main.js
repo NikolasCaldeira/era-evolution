@@ -4,6 +4,7 @@ import { MenuScene } from './scenes/MenuScene.js';
 import { GameScene } from './scenes/GameScene.js';
 import { PauseScene } from './scenes/PauseScene.js';
 import { UpgradeScene } from './scenes/UpgradeScene.js';
+import { GameOverScene } from './scenes/GameOverScene.js';
 
 const config = {
   type: Phaser.AUTO,
@@ -11,7 +12,7 @@ const config = {
   backgroundColor: '#172522',
   scale: { mode: Phaser.Scale.RESIZE, autoCenter: Phaser.Scale.CENTER_BOTH, width: 1280, height: 720 },
   render: { antialias: true, pixelArt: false },
-  scene: [BootScene, MenuScene, GameScene, PauseScene, UpgradeScene]
+  scene: [BootScene, MenuScene, GameScene, PauseScene, UpgradeScene, GameOverScene]
 };
 
 window.addEventListener('load', () => {

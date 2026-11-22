@@ -9,5 +9,9 @@ export const SETTINGS = Object.freeze({
   enemyRadius: 15,
   attackRange: 150,
   attackCooldown: 650,
-  fragmentGoal: 10
+  fragmentGoal: 10,
+  maxHealth: 5,
+  contactRadius: 36,
+  damageInvulnerabilityMs: 1250,
+  eraKillGoal: 100
 });
