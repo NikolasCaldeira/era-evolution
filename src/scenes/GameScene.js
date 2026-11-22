@@ -8,6 +8,8 @@ import { Player } from '../entities/Player.js';
 import { Creature } from '../entities/Creature.js';
 import { NavigationGrid } from '../world/NavigationGrid.js';
 import { createCharacterArt } from '../art/CharacterArt.js';
+import { WeaponState, WEAPONS, weaponRewardForKills, createSalvo, attackCooldown } from '../systems/WeaponSystem.js';
+import { UpgradeState } from '../systems/UpgradeSystem.js';
 
 export class GameScene extends Phaser.Scene {
   constructor() { super('GameScene'); }
@@ -40,6 +42,17 @@ export class GameScene extends Phaser.Scene {
     this.cameras.main.setZoom(this.getZoom(this.scale.width));
 
     this.keys=this.input.keyboard.addKeys('W,A,S,D,UP,DOWN,LEFT,RIGHT,ESC,F3');
+    this.onWeaponKey=(event)=>{
+      if(event.repeat||this.ended||this.upgrading||!this.scene.isActive())return;
+      const previous=this.weapons.active;
+      if(event.code==='KeyQ')this.weapons.cycle(-1);
+      else if(event.code==='KeyE')this.weapons.cycle(1);
+      else if(/^Digit[1-5]$/.test(event.code))this.weapons.select(this.weapons.unlocked[Number(event.code.slice(-1))-1]);
+      if(previous!==this.weapons.active){
+        this.lastAttack=-Infinity;this.updateHud();this.showMessage(`Arma equipada: ${this.weapons.current.label}`);
+      }
+    };
+    this.input.keyboard.on('keydown',this.onWeaponKey);
     this.debugRoutes=false;
     this.routeGraphics=this.add.graphics().setDepth(9990);
     this.onRouteKey=()=>{
@@ -57,6 +70,10 @@ export class GameScene extends Phaser.Scene {
     this.creatures=[];
     this.fragments=[];
     this.projectiles=[];
+    this.weaponPickups=[];
+    this.weapons=new WeaponState();
+    this.upgrades=new UpgradeState();
+    this.weaponAura=this.add.circle(this.player.x+20,this.player.y-20,5,WEAPONS.artefato.color,.95).setDepth(this.player.y+340);
     this.kills=0;
     this.fragmentCount=0;
     this.level=1;
@@ -76,6 +93,7 @@ export class GameScene extends Phaser.Scene {
     };
     this.scale.on('resize',this.onResize);
     this.events.once(Phaser.Scenes.Events.SHUTDOWN,()=>{
+      this.input.keyboard.off('keydown',this.onWeaponKey);
       this.input.keyboard.off('keydown-F3',this.onRouteKey);
       this.input.keyboard.off('keydown-ESC',this.onPauseKey);
       this.scale.off('resize',this.onResize);
@@ -85,7 +103,7 @@ export class GameScene extends Phaser.Scene {
   }
 
   getZoom(width){return Math.min(1.1,Math.max(.72,width/1200));}
-  messageScreenY(){return this.scale.width<960?180:16;}
+  messageScreenY(){return this.scale.width<960?210:16;}
   spawnInitialCreatures(){for(let i=0;i<8;i++)this.spawnCreature(i);}
   spawnCreature(id){
     const candidates=[[5,5],[28,5],[5,22],[28,22],[12,4],[22,23],[8,14],[26,13]];
@@ -112,9 +130,9 @@ export class GameScene extends Phaser.Scene {
   }
   createHud(){
     const h=this.hud=this.add.container(0,0).setScrollFactor(0).setDepth(10000);
-    this.hudBack=this.add.rectangle(0,0,390,154,0x0d2420,.94).setOrigin(0).setStrokeStyle(1,0x719579,.68);
+    this.hudBack=this.add.rectangle(0,0,390,184,0x0d2420,.94).setOrigin(0).setStrokeStyle(1,0x719579,.68);
     h.add(this.hudBack);
-    h.add(this.add.rectangle(0,0,5,154,0xd7bd7f).setOrigin(0));
+    h.add(this.add.rectangle(0,0,5,184,0xd7bd7f).setOrigin(0));
     h.add(this.add.text(17,12,'ERA 01  |  CRETÁCEO',{fontFamily:'Georgia,serif',fontSize:'17px',fontStyle:'bold',color:'#f1deb0'}));
     h.add(this.add.text(17,38,'SOBREVIVA AO MUNDO PRIMORDIAL',{fontFamily:'Arial',fontSize:'10px',color:'#9ec5a9',letterSpacing:1}));
     h.add(this.add.text(17,60,'VIDA',{fontFamily:'Arial',fontSize:'11px',fontStyle:'bold',color:'#c3d9c2'}));
@@ -124,10 +142,11 @@ export class GameScene extends Phaser.Scene {
     this.healthFill=this.add.rectangle(17,89,352,8,0xef9d7d,1).setOrigin(0);
     h.add([this.healthTrack,this.healthFill]);
     this.stats=this.add.text(17,106,'Eliminações: 0/100   •   Fragmentos: 0/10',{fontFamily:'Arial',fontSize:'12px',color:'#f2ead1'});
-    this.weaponText=this.add.text(17,125,'Nível 1   •   Arma: Artefato   •   Potência 1',{fontFamily:'Arial',fontSize:'11px',color:'#bdd5c0'});
-    h.add([this.stats,this.weaponText]);
-    this.eraTrack=this.add.rectangle(17,145,352,4,0x314739).setOrigin(0);
-    this.eraFill=this.add.rectangle(17,145,0,4,0xe2c17a).setOrigin(0);
+    this.weaponText=this.add.text(17,125,'Nível 1  •  Artefato Verde Nv.1',{fontFamily:'Arial',fontSize:'11px',color:'#bdd5c0'});
+    this.inventoryText=this.add.text(17,143,'Q/E troca arma  •  1–5 seleção rápida',{fontFamily:'Arial',fontSize:'10px',color:'#96b9ae'});
+    h.add([this.stats,this.weaponText,this.inventoryText]);
+    this.eraTrack=this.add.rectangle(17,171,352,5,0x314739).setOrigin(0);
+    this.eraFill=this.add.rectangle(17,171,0,5,0xe2c17a).setOrigin(0);
     h.add([this.eraTrack,this.eraFill]);
     this.layoutHud();
   }
@@ -135,7 +154,7 @@ export class GameScene extends Phaser.Scene {
     if(!this.hud)return;
     const width=Math.min(390,Math.max(275,this.scale.width-32));
     const track=width-34;
-    this.hudBack.setSize(width,154).setDisplaySize(width,154);
+    this.hudBack.setSize(width,184).setDisplaySize(width,184);
     this.healthTrack.setDisplaySize(track,8);
     this.eraTrack.setDisplaySize(track,4);
     this.hudWidth=width;
@@ -149,11 +168,14 @@ export class GameScene extends Phaser.Scene {
     this.healthFill.setDisplaySize(Math.max(.01,(this.hudWidth-34)*health/this.survival.maxHealth),8);
     this.healthFill.setFillStyle(health<=2?0xe66f6e:0xef9d7d);
     this.stats.setText(`Eliminações: ${Math.min(this.kills,SETTINGS.eraKillGoal)}/${SETTINGS.eraKillGoal}   •   Fragmentos: ${this.fragmentCount}/${SETTINGS.fragmentGoal}`);
-    this.weaponText.setText(`Nível ${this.level}  •  Arma: Artefato  •  Potência ${this.power}`);
+    this.weaponText.setText(`Nível ${this.level}  •  ${this.weapons.current.label} Nv.${this.weapons.tier}  •  Poder ${this.power}`);
+    this.weaponText.setColor('#'+this.weapons.current.color.toString(16).padStart(6,'0'));
+    this.inventoryText.setText(`${this.weapons.unlocked.length} armas  •  Q/E alternar  •  1–5 equipar`);
     this.eraFill.setDisplaySize(Math.max(.01,(this.hudWidth-34)*Math.min(1,this.kills/SETTINGS.eraKillGoal)),4);
     const compact=this.scale.width<470;
     this.stats.setFontSize(compact?10:12);
-    this.weaponText.setFontSize(compact?10:11);
+    this.weaponText.setFontSize(compact?9:11);
+    this.inventoryText.setFontSize(compact?9:10);
   }
   showMessage(message){
     if(this.message?.active)this.message.destroy();
@@ -177,6 +199,7 @@ export class GameScene extends Phaser.Scene {
       y:Number(this.keys.S.isDown||this.keys.DOWN.isDown)-Number(this.keys.W.isDown||this.keys.UP.isDown)
     };
     this.player.update(delta,dir,this.world.obstacles,this.map);
+    this.weaponAura.setPosition(this.player.x+20,this.player.y-20).setDepth(this.player.y+340).setFillStyle(this.weapons.current.color,.95);
     this.creatures.forEach(c=>c.update(delta,this.player,this.navigation,this.creatures));
     this.checkPlayerContact();
     if(this.ended)return;
@@ -185,6 +208,7 @@ export class GameScene extends Phaser.Scene {
     this.renderRouteDebug();
     this.autoShoot();
     this.updateProjectiles(delta);
+    this.collectWeaponPickups();
     this.collectFragments();
     this.spawnTimer+=delta;
     if(this.spawnTimer>7000&&this.creatures.filter(c=>c.alive).length<8){
@@ -251,43 +275,118 @@ export class GameScene extends Phaser.Scene {
   }
   autoShoot(){
     const now=this.time.now;
-    if(now-this.lastAttack<SETTINGS.attackCooldown)return;
-    const range=SETTINGS.attackRange*(1+(this.power-1)*.2);
-    const target=this.creatures.filter(c=>c.alive&&Phaser.Math.Distance.Between(c.x,c.y,this.player.x,this.player.y)<range)
-      .sort((a,b)=>Phaser.Math.Distance.Between(a.x,a.y,this.player.x,this.player.y)-Phaser.Math.Distance.Between(b.x,b.y,this.player.x,this.player.y))[0];
+    if(now-this.lastAttack<attackCooldown(this.weapons.active,this.weapons.tier,this.upgrades.levels.cadencia))return;
+    const w=this.weapons.current;
+    const range=w.range*this.upgrades.rangeMultiplier*(1+.12*(this.weapons.tier-1));
+    const target=this.creatures.filter(c=>c.alive&&Math.hypot(c.x-this.player.x,c.y-this.player.y)<range)
+      .sort((a,b)=>Math.hypot(a.x-this.player.x,a.y-this.player.y)-Math.hypot(b.x-this.player.x,b.y-this.player.y))[0];
     if(!target)return;
     this.lastAttack=now;
-    const dx=target.x-this.player.x,dy=target.y-this.player.y,dist=Math.hypot(dx,dy)||1;
-    const x=this.player.x+dx/dist*20,y=this.player.y-15+dy/dist*20;
-    const bolt=this.add.star(x,y,4,3,10,0x64f5d2,1).setStrokeStyle(1.5,0xeaffd5).setDepth(y+350);
-    const glow=this.add.circle(x,y,16,0x54efc6,.2).setDepth(y+349);
-    this.projectiles.push({x,y,vx:dx/dist*460,vy:dy/dist*460,life:range/460*1000+180,bolt,glow});
+    const shots=createSalvo({weaponId:this.weapons.active,tier:this.weapons.tier,power:this.power,
+      from:{x:this.player.x,y:this.player.y-18},target:{x:target.x,y:target.y-8}});
+    for(const spec of shots){
+      spec.life+=spec.range*(this.upgrades.rangeMultiplier-1)/Math.hypot(spec.vx,spec.vy)*1000;
+      let bolt;
+      if(spec.type==='lanca')bolt=this.add.rectangle(spec.x,spec.y,29,8,spec.color).setStrokeStyle(2,0xfff7c2).setRotation(spec.angle);
+      else if(spec.type==='orbe')bolt=this.add.circle(spec.x,spec.y,11,spec.color).setStrokeStyle(2,0xffedbd);
+      else if(spec.type==='duplo')bolt=this.add.circle(spec.x,spec.y,6,spec.color).setStrokeStyle(2,0xd9f8ff);
+      else bolt=this.add.star(spec.x,spec.y,4,3,spec.type==='leque'?10:9,spec.color).setStrokeStyle(1.5,0xf8f1ff);
+      bolt.setDepth(spec.y+350);
+      const glow=this.add.circle(spec.x,spec.y,spec.type==='orbe'?21:16,spec.color,.23).setDepth(spec.y+349);
+      this.projectiles.push({...spec,bolt,glow,hitsRemaining:spec.maxHits,hitCreatures:new Set()});
+    }
   }
   updateProjectiles(delta){
     const dt=Math.min(delta,40)/1000;
     this.projectiles=this.projectiles.filter(p=>{
       p.x+=p.vx*dt;p.y+=p.vy*dt;p.life-=delta;
       p.bolt.setPosition(p.x,p.y).setDepth(p.y+350);
-      p.bolt.rotation+=dt*7;
+      if(p.type!=='lanca')p.bolt.rotation+=dt*7;
       p.glow.setPosition(p.x,p.y).setDepth(p.y+349);
-      const target=this.creatures.find(c=>c.alive&&Phaser.Math.Distance.Between(c.x,c.y-7,p.x,p.y)<19);
+      const target=this.creatures.find(c=>c.alive&&!p.hitCreatures.has(c)&&Math.hypot(c.x-p.x,c.y-8-p.y)<p.hitRadius+7);
       if(target){
-        target.damage();
-        this.addFloatingNumber(target.x,target.y-58,'1','#f9e3a6');
-        this.makeImpact(p.x,p.y,0x8cf7cf,11);
-        if(!target.alive){
-          this.kills++;
-          this.dropFragment(target.x,target.y);
-          if(this.kills%10===0)this.showMessage('A atividade aumentou: novas criaturas estão chegando!');
-          if(this.kills>=SETTINGS.eraKillGoal&&!this.eraGoalAnnounced){
-            this.eraGoalAnnounced=true;
-            this.showMessage('Meta de eliminações atingida! Chefe previsto para o próximo ciclo.');
+        if(p.splashRadius){
+          this.makeImpact(p.x,p.y,p.color,p.splashRadius*.55);
+          for(const creature of this.creatures){
+            if(creature.alive&&Math.hypot(creature.x-p.x,creature.y-p.y)<p.splashRadius){
+              this.damageCreature(creature,p.damage,p.color);p.hitCreatures.add(creature);
+            }
           }
+        }else{
+          this.damageCreature(target,p.damage,p.color);p.hitCreatures.add(target);
+          this.makeImpact(p.x,p.y,p.color,p.type==='lanca'?18:11);
         }
+        p.hitsRemaining--;
       }
-      if(target||p.life<=0){p.bolt.destroy();p.glow.destroy();return false;}
+      if((target&&p.hitsRemaining<=0)||p.life<=0){p.bolt.destroy();p.glow.destroy();return false;}
       return true;
     });
+  }
+  damageCreature(target,damage,color){
+    if(!target.alive)return;
+    target.damage(damage);
+    this.addFloatingNumber(target.x,target.y-58,String(damage),'#'+color.toString(16).padStart(6,'0'));
+    if(!target.alive){
+      this.kills++;
+      this.dropFragment(target.x,target.y);
+      const reward=weaponRewardForKills(this.kills);
+      if(reward)this.spawnWeaponPickup(reward);
+      if(this.kills>=SETTINGS.eraKillGoal&&!this.eraGoalAnnounced){
+        this.eraGoalAnnounced=true;
+        this.showMessage('100 eliminações! O chefe chegará num próximo ciclo.');
+      }
+    }
+  }
+  spawnWeaponPickup(reward){
+    // Aparecer numa área navegável e com caminho direto até o protagonista.
+    const candidates=[];
+    for(const radius of [110,145,90,55])for(let step=0;step<16;step++){
+      const angle=step*Math.PI/8+(reward.milestone%30)/30;
+      const x=this.player.x+Math.cos(angle)*radius,y=this.player.y+Math.sin(angle)*radius;
+      if(this.navigation.isOpen(x,y)&&this.navigation.lineClear(this.player.x,this.player.y,x,y))candidates.push({x,y});
+    }
+    const p=candidates[reward.milestone%candidates.length]||{x:this.player.x,y:this.player.y};
+    const color=WEAPONS[reward.id].color;
+    const halo=this.add.circle(p.x,p.y-10,22,color,.1).setStrokeStyle(2,color,.85).setDepth(p.y+420);
+    const icon=this.add.star(p.x,p.y-26,6,9,18,color).setStrokeStyle(2,0xffffff,.8).setDepth(p.y+440);
+    const label=this.add.text(p.x,p.y-62,`${reward.kind==='nova'?'NOVA ARMA':'EVOLUÇÃO'}\n${WEAPONS[reward.id].label} Nv.${reward.tier}`,
+      {fontFamily:'Arial',fontSize:'12px',fontStyle:'bold',align:'center',color:'#fff5d8',stroke:'#153029',strokeThickness:4}).setOrigin(.5).setDepth(p.y+500);
+    this.tweens.add({targets:icon,y:p.y-38,yoyo:true,repeat:-1,duration:850});
+    this.tweens.add({targets:halo,scale:1.25,alpha:.28,yoyo:true,repeat:-1,duration:1050});
+    this.weaponPickups.push({x:p.x,y:p.y,reward,halo,icon,label});
+    this.showMessage(`Relíquia encontrada! Apanhe ${WEAPONS[reward.id].label}.`);
+  }
+  collectWeaponPickups(){
+    this.weaponPickups=this.weaponPickups.filter(item=>{
+      if(Math.hypot(item.x-this.player.x,item.y-this.player.y)>42)return true;
+      if(this.weapons.collect(item.reward)){
+        this.lastAttack=-Infinity;
+        this.makeImpact(item.x,item.y,WEAPONS[item.reward.id].color,31);
+        this.showMessage(`${WEAPONS[item.reward.id].label} Nv.${this.weapons.tier} equipada! Q/E troca a arma.`);
+      }
+      item.halo.destroy();item.icon.destroy();item.label.destroy();
+      return false;
+    });
+  }
+  applyUpgrade(id){
+    if(!this.upgrades.apply(id))return false;
+    if(id==='velocidade')this.player.speed+=26;
+    if(id==='cura'){
+      const healed=this.survival.heal(2);
+      if(healed)this.addFloatingNumber(this.player.x,this.player.y-76,`+${healed}`,'#92f2b2');
+      this.creatures.forEach(c=>{
+        if(!c.alive)return;
+        const dx=c.x-this.player.x,dy=c.y-this.player.y,d=Math.hypot(dx,dy)||1;
+        const nx=c.x+dx/d*65,ny=c.y+dy/d*65;
+        if(this.navigation.isOpen(nx,ny)&&this.navigation.lineClear(c.x,c.y,nx,ny)){
+          c.x=nx;c.y=ny;c.sprite.setPosition(nx,ny);c.shadow.setPosition(nx,ny+10);
+        }
+      });
+    }
+    this.power=this.upgrades.damagePower;
+    this.level++;
+    this.updateHud();
+    return true;
   }
   dropFragment(x,y){
     const shard=this.add.star(x,y,4,5,11,0xf1d58f).setDepth(y+250);
@@ -298,7 +397,7 @@ export class GameScene extends Phaser.Scene {
     if(this.upgrading)return;
     this.fragments=this.fragments.filter(f=>{
       if(!f.active)return false;
-      if(Phaser.Math.Distance.Between(f.x,f.y,this.player.x,this.player.y)<35){
+      if(Phaser.Math.Distance.Between(f.x,f.y,this.player.x,this.player.y)<this.upgrades.pickupRadius){
         f.destroy();this.fragmentCount++;
         if(this.fragmentCount>=SETTINGS.fragmentGoal)this.openUpgrade();
         return false;
@@ -311,6 +410,6 @@ export class GameScene extends Phaser.Scene {
     this.upgrading=true;
     this.fragmentCount=0;
     this.scene.pause();
-    this.scene.launch('UpgradeScene',{level:this.level,power:this.power});
+    this.scene.launch('UpgradeScene',{level:this.level,choices:this.upgrades.choices({health:this.survival.health,maxHealth:this.survival.maxHealth})});
   }
 }

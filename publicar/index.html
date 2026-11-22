@@ -4,7 +4,7 @@
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width,initial-scale=1" />
   <meta name="theme-color" content="#102820" />
-  <title>ERA: Evolution | Cretáceo — Ciclo 06</title>
+  <title>ERA: Evolution | Cretáceo — Ciclo 07</title>
   <style>:root { color-scheme: dark; font-family: Inter, ui-sans-serif, system-ui, sans-serif; background:#0b1415; color:#edf2df; }
 * { box-sizing:border-box; }
 html,body { margin:0; width:100%; height:100%; overflow:hidden; background:#0b1415; }
@@ -100,6 +100,116 @@ function screenAnchor(width,height,zoom,screenX,screenY){
     y:height/2+(screenY-height/2)*inverse,
     scale:inverse
   };
+}
+
+
+// --- src/systems/WeaponSystem.js ---
+/** Arsenal do Cretáceo. Regras puras, sem dependências de renderização. */
+const WEAPONS = Object.freeze({
+  artefato:{label:'Artefato Verde',desc:'Um disparo preciso de energia.',color:0x64f5d2,cooldown:650,speed:480,range:165,style:'pulse'},
+  duplo:{label:'Gêmeos de Quartzo',desc:'Dois cristais disparados em paralelo.',color:0x70d9ff,cooldown:760,speed:495,range:175,style:'twin'},
+  lanca:{label:'Lança Solar',desc:'Projétil que atravessa até três criaturas.',color:0xffd17b,cooldown:950,speed:560,range:225,style:'pierce'},
+  leque:{label:'Leque Prismático',desc:'Três fragmentos em ângulos diferentes.',color:0xc69fff,cooldown:850,speed:465,range:185,style:'fan'},
+  orbe:{label:'Orbe de Âmbar',desc:'Impacto circular que alcança criaturas próximas.',color:0xffae70,cooldown:1050,speed:360,range:190,style:'splash'}
+});
+const WEAPON_ORDER=Object.freeze(Object.keys(WEAPONS));
+const MILESTONE_ORDER=Object.freeze(['duplo','lanca','leque','orbe','artefato','duplo','lanca','leque','orbe']);
+
+/** Nos primeiros quatro marcos aparecem novas armas; depois, versões evoluídas. */
+function weaponRewardForKills(kills){
+  if(!Number.isInteger(kills)||kills<10||kills>90||kills%10!==0)return null;
+  const index=kills/10-1;
+  return {milestone:kills,id:MILESTONE_ORDER[index],tier:index<4?1:2,kind:index<4?'nova':'evolucao'};
+}
+
+class WeaponState {
+  constructor(){this.reset();}
+  reset(){this.unlocked=['artefato'];this.levels={artefato:1};this.active='artefato';this.collectedMilestones=new Set();}
+  get current(){return WEAPONS[this.active];}
+  get tier(){return this.levels[this.active]||1;}
+  collect(reward){
+    if(!reward||!WEAPONS[reward.id]||this.collectedMilestones.has(reward.milestone))return false;
+    this.collectedMilestones.add(reward.milestone);
+    if(!this.unlocked.includes(reward.id))this.unlocked.push(reward.id);
+    this.levels[reward.id]=Math.max(this.levels[reward.id]||0,reward.tier);
+    this.active=reward.id;
+    return true;
+  }
+  select(id){if(!this.unlocked.includes(id))return false;this.active=id;return true;}
+  cycle(direction=1){
+    const index=this.unlocked.indexOf(this.active);
+    this.active=this.unlocked[(index+direction+this.unlocked.length)%this.unlocked.length];
+    return this.active;
+  }
+}
+
+/** Construção da salva, reutilizada no jogo e validada por testes unitários. */
+function createSalvo({weaponId='artefato',tier=1,power=1,from,target}){
+  const w=WEAPONS[weaponId];if(!w)throw new Error('Arma desconhecida');
+  const dx=target.x-from.x,dy=target.y-from.y;
+  const base=Math.atan2(dy,dx);
+  const angles=weaponId==='duplo'?[-0.105,0.105]:weaponId==='leque'?[-.24,0,.24]:[0];
+  const damage=1+Math.floor((Math.max(1,power)-1)/3); // Até o primeiro aprimoramento de potência: 3 acertos por criatura.
+  return angles.map((offset,i)=>{
+    const angle=base+offset;
+    const speed=w.speed*(1+(tier-1)*.07);
+    const range=w.range*(1+(tier-1)*.12);
+    return {
+      type:weaponId,color:w.color,angle,
+      x:from.x+Math.cos(angle)*19,y:from.y+Math.sin(angle)*19,
+      vx:Math.cos(angle)*speed,vy:Math.sin(angle)*speed,
+      range,life:range/speed*1000+100,
+      damage,hitRadius:weaponId==='lanca'?20:weaponId==='orbe'?19:15,
+      maxHits:weaponId==='lanca'?2+tier:1,
+      splashRadius:weaponId==='orbe'?42+(tier-1)*14:0,
+      visualIndex:i
+    };
+  });
+}
+
+function attackCooldown(weaponId,tier=1,cadence=0){
+  const w=WEAPONS[weaponId];if(!w)throw new Error('Arma desconhecida');
+  return Math.max(230,Math.round(w.cooldown*(1-.09*(tier-1))*(1-.12*Math.min(cadence,4))));
+}
+
+
+// --- src/systems/UpgradeSystem.js ---
+/** Melhorias por fragmentos. Três cartas distintas por rodada. */
+const UPGRADES=Object.freeze({
+  alcance:{title:'Visão de Caçador',description:'+17% de alcance para todas as armas.'},
+  cadencia:{title:'Ritmo Ancestral',description:'Projéteis disparados mais frequentemente.'},
+  velocidade:{title:'Passos Ligeiros',description:'+26 de velocidade de movimento.'},
+  potencia:{title:'Energia Concentrada',description:'Fortalece os ataques (a cada 3 cargas, +1 dano).'},
+  ima:{title:'Chamar Fragmentos',description:'Amplia o raio de coleta de fragmentos.'},
+  cura:{title:'Recuperação',description:'Restaura até 2 de vida e afasta criaturas.'}
+});
+const UPGRADE_CAPS=Object.freeze({alcance:Infinity,cadencia:4,velocidade:Infinity,potencia:Infinity,ima:Infinity,cura:Infinity});
+
+class UpgradeState {
+  constructor(){this.reset();}
+  reset(){this.levels={alcance:0,cadencia:0,velocidade:0,potencia:0,ima:0,cura:0};}
+  choices({health,maxHealth,random=Math.random}={}){
+    const available=Object.keys(UPGRADES).filter(id=>{
+      if(id==='cura'&&health>=maxHealth)return false;
+      return this.levels[id]<UPGRADE_CAPS[id];
+    });
+    // Em caso de todas as melhorias maximizadas, permitir recuperação como recurso de emergência.
+    if(available.length<3)for(const id of Object.keys(UPGRADES))if(!available.includes(id))available.push(id);
+    for(let i=available.length-1;i>0;i--){
+      const j=Math.min(i,Math.max(0,Math.floor(random()*(i+1))));
+      [available[i],available[j]]=[available[j],available[i]];
+    }
+    return available.slice(0,3);
+  }
+  apply(id){
+    if(!UPGRADES[id])return false;
+    if(this.levels[id]>=UPGRADE_CAPS[id])return false;
+    this.levels[id]++;
+    return true;
+  }
+  get rangeMultiplier(){return 1+this.levels.alcance*.17;}
+  get pickupRadius(){return 35+this.levels.ima*22;}
+  get damagePower(){return 1+this.levels.potencia;}
 }
 
 
@@ -724,9 +834,9 @@ class Creature {
     else {if(nav.isOpen(this.x+dx,this.y))this.x+=dx;if(nav.isOpen(this.x,this.y+dy))this.y+=dy;}
     return Math.hypot(this.x-beforeX,this.y-beforeY)>.15;
   }
-  damage(){
+  damage(amount=1){
     if(!this.alive)return false;
-    this.hp=Math.max(0,this.hp-1);
+    this.hp=Math.max(0,this.hp-Math.max(1,Math.floor(amount)));
     this.sprite.setTintFill(0xffe4bd);
     this.scene.time.delayedCall(120,()=>{if(this.sprite.active)this.sprite.clearTint();});
     this.lifeDots.forEach((dot,i)=>dot.setVisible(this.alive && i<this.hp));
@@ -780,7 +890,7 @@ class MenuScene extends Phaser.Scene {
     start.on('pointerover',()=>start.setStyle({backgroundColor:'#ffe1a4'}));
     start.on('pointerout',()=>start.setStyle({backgroundColor:'#e6ce93'}));
     start.on('pointerdown',()=>this.scene.start('GameScene'));
-    this.add.text(w/2,h*.88,'WASD / SETAS  •  F3 ROTAS  •  ESC PAUSAR  •  R REINICIAR AO MORRER',{fontFamily:'Arial',fontSize:'12px',color:'#94b4a1'}).setOrigin(.5);
+    this.add.text(w/2,h*.88,'WASD / SETAS: MOVER  •  Q/E: ARMAS  •  1–5: EQUIPAR  •  F3: ROTAS  •  ESC: PAUSAR',{fontFamily:'Arial',fontSize:'12px',color:'#94b4a1'}).setOrigin(.5);
     this.scale.on('resize',()=>this.scene.restart());
   }
 }
@@ -806,20 +916,61 @@ class PauseScene extends Phaser.Scene {
 
 // --- src/scenes/UpgradeScene.js ---
 
+
+/** Pausa o jogo e apresenta três melhorias únicas, também selecionáveis por 1/2/3. */
 class UpgradeScene extends Phaser.Scene {
   constructor(){super('UpgradeScene');}
-  init(data){this.level=data.level||1;this.power=data.power||1;}
+  init(data){this.level=data.level||1;this.choices=data.choices||['alcance','cadencia','velocidade'];}
   create(){
-    const {width,height}=this.scale;this.add.rectangle(0,0,width,height,0x07100d,.86).setOrigin(0);
-    this.add.text(width/2,height*.25,'EVOLUÇÃO DISPONÍVEL',{fontSize:Math.min(32,Math.max(22,width*.04)),fontStyle:'bold',color:'#ead9a5',letterSpacing:3}).setOrigin(.5);
-    this.add.text(width/2,height*.34,'Escolha uma melhoria para continuar',{fontSize:'15px',color:'#c5d2b8'}).setOrigin(.5);
-    const choices=[{name:'Alcance ampliado',desc:'Aumenta o alcance dos projéteis automáticos.',apply:()=>this.power++},{name:'Passos ligeiros',desc:'Aumenta a velocidade de exploração.',apply:()=>{const s=this.scene.get('GameScene');s.player.speed+=35;}},{name:'Recuperação',desc:'Recupera até 2 pontos de vida e afasta as criaturas.',apply:()=>{const s=this.scene.get('GameScene');const healed=s.survival.heal(2);if(healed)s.addFloatingNumber(s.player.x,s.player.y-76,`+${healed}`,'#92f2b2');s.updateHud();s.creatures.forEach(c=>{const dx=c.x-s.player.x,dy=c.y-s.player.y,d=Math.hypot(dx,dy)||1;c.x+=dx/d*90;c.y+=dy/d*90;c.sprite.setPosition(c.x,c.y);c.shadow.setPosition(c.x,c.y+10);});}}];
-    choices.forEach((c,i)=>{const x=width/2+(i-1)*Math.min(250,width*.29),y=height*.55;const card=this.add.rectangle(x,y,Math.min(220,width*.26),150,0x24372b,.98).setStrokeStyle(2,0x879b69).setInteractive({useHandCursor:true});this.add.text(x,y-35,c.name,{fontSize:'16px',fontStyle:'bold',color:'#ead9a5',align:'center',wordWrap:{width:180}}).setOrigin(.5);this.add.text(x,y+12,c.desc,{fontSize:'12px',color:'#d0d9c7',align:'center',wordWrap:{width:175}}).setOrigin(.5);card.on('pointerover',()=>card.setFillStyle(0x36523b));card.on('pointerout',()=>card.setFillStyle(0x24372b));card.on('pointerdown',()=>{c.apply();const game=this.scene.get('GameScene');game.level++;game.power=this.power;game.upgrading=false;game.updateHud();this.scene.stop();this.scene.resume('GameScene');game.showMessage(`Melhoria adquirida: ${c.name}`);});});
+    const {width:w,height:h}=this.scale;
+    this.add.rectangle(0,0,w,h,0x07100d,.92).setOrigin(0);
+    const stacked=w<690;
+    this.add.text(w/2,h*(stacked?.12:.25),'EVOLUÇÃO DISPONÍVEL',{
+      fontFamily:'Georgia,serif',fontSize:`${Math.min(31,Math.max(19,w*.04))}px`,fontStyle:'bold',color:'#ead9a5',align:'center'
+    }).setOrigin(.5);
+    this.add.text(w/2,h*(stacked?.20:.34),'Escolha uma melhoria para continuar',{fontFamily:'Arial',fontSize:'14px',color:'#c5d2b8'}).setOrigin(.5);
+    this.choosing=false;
+    this.choices.forEach((id,i)=>{
+      const choice=UPGRADES[id];
+      const x=stacked?w/2:w/2+(i-1)*Math.min(258,w*.29);
+      const y=stacked?h*(.37+i*.22):h*.56;
+      const cw=stacked?Math.min(w*.86,430):Math.min(226,w*.27);
+      const ch=stacked?Math.min(105,h*.19):158;
+      const card=this.add.rectangle(x,y,cw,ch,0x203b34,.98).setStrokeStyle(2,0x8fae90).setInteractive({useHandCursor:true});
+      const title=this.add.text(x,y-(stacked?24:34),`${i+1} · ${choice.title}`,{
+        fontFamily:'Arial',fontSize:`${stacked?15:16}px`,fontStyle:'bold',color:'#f3d8a0',align:'center',wordWrap:{width:cw-16}
+      }).setOrigin(.5);
+      const desc=this.add.text(x,y+(stacked?16:19),choice.description,{
+        fontFamily:'Arial',fontSize:'12px',color:'#d0e1ce',align:'center',wordWrap:{width:cw-25}
+      }).setOrigin(.5);
+      card.on('pointerover',()=>card.setFillStyle(0x365544));
+      card.on('pointerout',()=>card.setFillStyle(0x203b34));
+      card.on('pointerdown',()=>this.choose(id));
+    });
+    this.onChoiceKey=(event)=>{
+      if(event.repeat)return;
+      const index=Number(event.key)-1;
+      if(Number.isInteger(index)&&index>=0&&index<this.choices.length)this.choose(this.choices[index]);
+    };
+    this.input.keyboard.on('keydown',this.onChoiceKey);
+    this.events.once(Phaser.Scenes.Events.SHUTDOWN,()=>this.input.keyboard.off('keydown',this.onChoiceKey));
+  }
+  choose(id){
+    if(this.choosing)return;
+    const game=this.scene.get('GameScene');
+    if(!game.applyUpgrade(id))return;
+    this.choosing=true;
+    game.upgrading=false;
+    this.scene.stop();
+    this.scene.resume('GameScene');
+    game.showMessage(`Melhoria adquirida: ${UPGRADES[id].title}`);
   }
 }
 
 
 // --- src/scenes/GameScene.js ---
+
+
 
 
 
@@ -861,6 +1012,17 @@ class GameScene extends Phaser.Scene {
     this.cameras.main.setZoom(this.getZoom(this.scale.width));
 
     this.keys=this.input.keyboard.addKeys('W,A,S,D,UP,DOWN,LEFT,RIGHT,ESC,F3');
+    this.onWeaponKey=(event)=>{
+      if(event.repeat||this.ended||this.upgrading||!this.scene.isActive())return;
+      const previous=this.weapons.active;
+      if(event.code==='KeyQ')this.weapons.cycle(-1);
+      else if(event.code==='KeyE')this.weapons.cycle(1);
+      else if(/^Digit[1-5]$/.test(event.code))this.weapons.select(this.weapons.unlocked[Number(event.code.slice(-1))-1]);
+      if(previous!==this.weapons.active){
+        this.lastAttack=-Infinity;this.updateHud();this.showMessage(`Arma equipada: ${this.weapons.current.label}`);
+      }
+    };
+    this.input.keyboard.on('keydown',this.onWeaponKey);
     this.debugRoutes=false;
     this.routeGraphics=this.add.graphics().setDepth(9990);
     this.onRouteKey=()=>{
@@ -878,6 +1040,10 @@ class GameScene extends Phaser.Scene {
     this.creatures=[];
     this.fragments=[];
     this.projectiles=[];
+    this.weaponPickups=[];
+    this.weapons=new WeaponState();
+    this.upgrades=new UpgradeState();
+    this.weaponAura=this.add.circle(this.player.x+20,this.player.y-20,5,WEAPONS.artefato.color,.95).setDepth(this.player.y+340);
     this.kills=0;
     this.fragmentCount=0;
     this.level=1;
@@ -897,6 +1063,7 @@ class GameScene extends Phaser.Scene {
     };
     this.scale.on('resize',this.onResize);
     this.events.once(Phaser.Scenes.Events.SHUTDOWN,()=>{
+      this.input.keyboard.off('keydown',this.onWeaponKey);
       this.input.keyboard.off('keydown-F3',this.onRouteKey);
       this.input.keyboard.off('keydown-ESC',this.onPauseKey);
       this.scale.off('resize',this.onResize);
@@ -906,7 +1073,7 @@ class GameScene extends Phaser.Scene {
   }
 
   getZoom(width){return Math.min(1.1,Math.max(.72,width/1200));}
-  messageScreenY(){return this.scale.width<960?180:16;}
+  messageScreenY(){return this.scale.width<960?210:16;}
   spawnInitialCreatures(){for(let i=0;i<8;i++)this.spawnCreature(i);}
   spawnCreature(id){
     const candidates=[[5,5],[28,5],[5,22],[28,22],[12,4],[22,23],[8,14],[26,13]];
@@ -933,9 +1100,9 @@ class GameScene extends Phaser.Scene {
   }
   createHud(){
     const h=this.hud=this.add.container(0,0).setScrollFactor(0).setDepth(10000);
-    this.hudBack=this.add.rectangle(0,0,390,154,0x0d2420,.94).setOrigin(0).setStrokeStyle(1,0x719579,.68);
+    this.hudBack=this.add.rectangle(0,0,390,184,0x0d2420,.94).setOrigin(0).setStrokeStyle(1,0x719579,.68);
     h.add(this.hudBack);
-    h.add(this.add.rectangle(0,0,5,154,0xd7bd7f).setOrigin(0));
+    h.add(this.add.rectangle(0,0,5,184,0xd7bd7f).setOrigin(0));
     h.add(this.add.text(17,12,'ERA 01  |  CRETÁCEO',{fontFamily:'Georgia,serif',fontSize:'17px',fontStyle:'bold',color:'#f1deb0'}));
     h.add(this.add.text(17,38,'SOBREVIVA AO MUNDO PRIMORDIAL',{fontFamily:'Arial',fontSize:'10px',color:'#9ec5a9',letterSpacing:1}));
     h.add(this.add.text(17,60,'VIDA',{fontFamily:'Arial',fontSize:'11px',fontStyle:'bold',color:'#c3d9c2'}));
@@ -945,10 +1112,11 @@ class GameScene extends Phaser.Scene {
     this.healthFill=this.add.rectangle(17,89,352,8,0xef9d7d,1).setOrigin(0);
     h.add([this.healthTrack,this.healthFill]);
     this.stats=this.add.text(17,106,'Eliminações: 0/100   •   Fragmentos: 0/10',{fontFamily:'Arial',fontSize:'12px',color:'#f2ead1'});
-    this.weaponText=this.add.text(17,125,'Nível 1   •   Arma: Artefato   •   Potência 1',{fontFamily:'Arial',fontSize:'11px',color:'#bdd5c0'});
-    h.add([this.stats,this.weaponText]);
-    this.eraTrack=this.add.rectangle(17,145,352,4,0x314739).setOrigin(0);
-    this.eraFill=this.add.rectangle(17,145,0,4,0xe2c17a).setOrigin(0);
+    this.weaponText=this.add.text(17,125,'Nível 1  •  Artefato Verde Nv.1',{fontFamily:'Arial',fontSize:'11px',color:'#bdd5c0'});
+    this.inventoryText=this.add.text(17,143,'Q/E troca arma  •  1–5 seleção rápida',{fontFamily:'Arial',fontSize:'10px',color:'#96b9ae'});
+    h.add([this.stats,this.weaponText,this.inventoryText]);
+    this.eraTrack=this.add.rectangle(17,171,352,5,0x314739).setOrigin(0);
+    this.eraFill=this.add.rectangle(17,171,0,5,0xe2c17a).setOrigin(0);
     h.add([this.eraTrack,this.eraFill]);
     this.layoutHud();
   }
@@ -956,7 +1124,7 @@ class GameScene extends Phaser.Scene {
     if(!this.hud)return;
     const width=Math.min(390,Math.max(275,this.scale.width-32));
     const track=width-34;
-    this.hudBack.setSize(width,154).setDisplaySize(width,154);
+    this.hudBack.setSize(width,184).setDisplaySize(width,184);
     this.healthTrack.setDisplaySize(track,8);
     this.eraTrack.setDisplaySize(track,4);
     this.hudWidth=width;
@@ -970,11 +1138,14 @@ class GameScene extends Phaser.Scene {
     this.healthFill.setDisplaySize(Math.max(.01,(this.hudWidth-34)*health/this.survival.maxHealth),8);
     this.healthFill.setFillStyle(health<=2?0xe66f6e:0xef9d7d);
     this.stats.setText(`Eliminações: ${Math.min(this.kills,SETTINGS.eraKillGoal)}/${SETTINGS.eraKillGoal}   •   Fragmentos: ${this.fragmentCount}/${SETTINGS.fragmentGoal}`);
-    this.weaponText.setText(`Nível ${this.level}  •  Arma: Artefato  •  Potência ${this.power}`);
+    this.weaponText.setText(`Nível ${this.level}  •  ${this.weapons.current.label} Nv.${this.weapons.tier}  •  Poder ${this.power}`);
+    this.weaponText.setColor('#'+this.weapons.current.color.toString(16).padStart(6,'0'));
+    this.inventoryText.setText(`${this.weapons.unlocked.length} armas  •  Q/E alternar  •  1–5 equipar`);
     this.eraFill.setDisplaySize(Math.max(.01,(this.hudWidth-34)*Math.min(1,this.kills/SETTINGS.eraKillGoal)),4);
     const compact=this.scale.width<470;
     this.stats.setFontSize(compact?10:12);
-    this.weaponText.setFontSize(compact?10:11);
+    this.weaponText.setFontSize(compact?9:11);
+    this.inventoryText.setFontSize(compact?9:10);
   }
   showMessage(message){
     if(this.message?.active)this.message.destroy();
@@ -998,6 +1169,7 @@ class GameScene extends Phaser.Scene {
       y:Number(this.keys.S.isDown||this.keys.DOWN.isDown)-Number(this.keys.W.isDown||this.keys.UP.isDown)
     };
     this.player.update(delta,dir,this.world.obstacles,this.map);
+    this.weaponAura.setPosition(this.player.x+20,this.player.y-20).setDepth(this.player.y+340).setFillStyle(this.weapons.current.color,.95);
     this.creatures.forEach(c=>c.update(delta,this.player,this.navigation,this.creatures));
     this.checkPlayerContact();
     if(this.ended)return;
@@ -1006,6 +1178,7 @@ class GameScene extends Phaser.Scene {
     this.renderRouteDebug();
     this.autoShoot();
     this.updateProjectiles(delta);
+    this.collectWeaponPickups();
     this.collectFragments();
     this.spawnTimer+=delta;
     if(this.spawnTimer>7000&&this.creatures.filter(c=>c.alive).length<8){
@@ -1072,43 +1245,118 @@ class GameScene extends Phaser.Scene {
   }
   autoShoot(){
     const now=this.time.now;
-    if(now-this.lastAttack<SETTINGS.attackCooldown)return;
-    const range=SETTINGS.attackRange*(1+(this.power-1)*.2);
-    const target=this.creatures.filter(c=>c.alive&&Phaser.Math.Distance.Between(c.x,c.y,this.player.x,this.player.y)<range)
-      .sort((a,b)=>Phaser.Math.Distance.Between(a.x,a.y,this.player.x,this.player.y)-Phaser.Math.Distance.Between(b.x,b.y,this.player.x,this.player.y))[0];
+    if(now-this.lastAttack<attackCooldown(this.weapons.active,this.weapons.tier,this.upgrades.levels.cadencia))return;
+    const w=this.weapons.current;
+    const range=w.range*this.upgrades.rangeMultiplier*(1+.12*(this.weapons.tier-1));
+    const target=this.creatures.filter(c=>c.alive&&Math.hypot(c.x-this.player.x,c.y-this.player.y)<range)
+      .sort((a,b)=>Math.hypot(a.x-this.player.x,a.y-this.player.y)-Math.hypot(b.x-this.player.x,b.y-this.player.y))[0];
     if(!target)return;
     this.lastAttack=now;
-    const dx=target.x-this.player.x,dy=target.y-this.player.y,dist=Math.hypot(dx,dy)||1;
-    const x=this.player.x+dx/dist*20,y=this.player.y-15+dy/dist*20;
-    const bolt=this.add.star(x,y,4,3,10,0x64f5d2,1).setStrokeStyle(1.5,0xeaffd5).setDepth(y+350);
-    const glow=this.add.circle(x,y,16,0x54efc6,.2).setDepth(y+349);
-    this.projectiles.push({x,y,vx:dx/dist*460,vy:dy/dist*460,life:range/460*1000+180,bolt,glow});
+    const shots=createSalvo({weaponId:this.weapons.active,tier:this.weapons.tier,power:this.power,
+      from:{x:this.player.x,y:this.player.y-18},target:{x:target.x,y:target.y-8}});
+    for(const spec of shots){
+      spec.life+=spec.range*(this.upgrades.rangeMultiplier-1)/Math.hypot(spec.vx,spec.vy)*1000;
+      let bolt;
+      if(spec.type==='lanca')bolt=this.add.rectangle(spec.x,spec.y,29,8,spec.color).setStrokeStyle(2,0xfff7c2).setRotation(spec.angle);
+      else if(spec.type==='orbe')bolt=this.add.circle(spec.x,spec.y,11,spec.color).setStrokeStyle(2,0xffedbd);
+      else if(spec.type==='duplo')bolt=this.add.circle(spec.x,spec.y,6,spec.color).setStrokeStyle(2,0xd9f8ff);
+      else bolt=this.add.star(spec.x,spec.y,4,3,spec.type==='leque'?10:9,spec.color).setStrokeStyle(1.5,0xf8f1ff);
+      bolt.setDepth(spec.y+350);
+      const glow=this.add.circle(spec.x,spec.y,spec.type==='orbe'?21:16,spec.color,.23).setDepth(spec.y+349);
+      this.projectiles.push({...spec,bolt,glow,hitsRemaining:spec.maxHits,hitCreatures:new Set()});
+    }
   }
   updateProjectiles(delta){
     const dt=Math.min(delta,40)/1000;
     this.projectiles=this.projectiles.filter(p=>{
       p.x+=p.vx*dt;p.y+=p.vy*dt;p.life-=delta;
       p.bolt.setPosition(p.x,p.y).setDepth(p.y+350);
-      p.bolt.rotation+=dt*7;
+      if(p.type!=='lanca')p.bolt.rotation+=dt*7;
       p.glow.setPosition(p.x,p.y).setDepth(p.y+349);
-      const target=this.creatures.find(c=>c.alive&&Phaser.Math.Distance.Between(c.x,c.y-7,p.x,p.y)<19);
+      const target=this.creatures.find(c=>c.alive&&!p.hitCreatures.has(c)&&Math.hypot(c.x-p.x,c.y-8-p.y)<p.hitRadius+7);
       if(target){
-        target.damage();
-        this.addFloatingNumber(target.x,target.y-58,'1','#f9e3a6');
-        this.makeImpact(p.x,p.y,0x8cf7cf,11);
-        if(!target.alive){
-          this.kills++;
-          this.dropFragment(target.x,target.y);
-          if(this.kills%10===0)this.showMessage('A atividade aumentou: novas criaturas estão chegando!');
-          if(this.kills>=SETTINGS.eraKillGoal&&!this.eraGoalAnnounced){
-            this.eraGoalAnnounced=true;
-            this.showMessage('Meta de eliminações atingida! Chefe previsto para o próximo ciclo.');
+        if(p.splashRadius){
+          this.makeImpact(p.x,p.y,p.color,p.splashRadius*.55);
+          for(const creature of this.creatures){
+            if(creature.alive&&Math.hypot(creature.x-p.x,creature.y-p.y)<p.splashRadius){
+              this.damageCreature(creature,p.damage,p.color);p.hitCreatures.add(creature);
+            }
           }
+        }else{
+          this.damageCreature(target,p.damage,p.color);p.hitCreatures.add(target);
+          this.makeImpact(p.x,p.y,p.color,p.type==='lanca'?18:11);
         }
+        p.hitsRemaining--;
       }
-      if(target||p.life<=0){p.bolt.destroy();p.glow.destroy();return false;}
+      if((target&&p.hitsRemaining<=0)||p.life<=0){p.bolt.destroy();p.glow.destroy();return false;}
       return true;
     });
+  }
+  damageCreature(target,damage,color){
+    if(!target.alive)return;
+    target.damage(damage);
+    this.addFloatingNumber(target.x,target.y-58,String(damage),'#'+color.toString(16).padStart(6,'0'));
+    if(!target.alive){
+      this.kills++;
+      this.dropFragment(target.x,target.y);
+      const reward=weaponRewardForKills(this.kills);
+      if(reward)this.spawnWeaponPickup(reward);
+      if(this.kills>=SETTINGS.eraKillGoal&&!this.eraGoalAnnounced){
+        this.eraGoalAnnounced=true;
+        this.showMessage('100 eliminações! O chefe chegará num próximo ciclo.');
+      }
+    }
+  }
+  spawnWeaponPickup(reward){
+    // Aparecer numa área navegável e com caminho direto até o protagonista.
+    const candidates=[];
+    for(const radius of [110,145,90,55])for(let step=0;step<16;step++){
+      const angle=step*Math.PI/8+(reward.milestone%30)/30;
+      const x=this.player.x+Math.cos(angle)*radius,y=this.player.y+Math.sin(angle)*radius;
+      if(this.navigation.isOpen(x,y)&&this.navigation.lineClear(this.player.x,this.player.y,x,y))candidates.push({x,y});
+    }
+    const p=candidates[reward.milestone%candidates.length]||{x:this.player.x,y:this.player.y};
+    const color=WEAPONS[reward.id].color;
+    const halo=this.add.circle(p.x,p.y-10,22,color,.1).setStrokeStyle(2,color,.85).setDepth(p.y+420);
+    const icon=this.add.star(p.x,p.y-26,6,9,18,color).setStrokeStyle(2,0xffffff,.8).setDepth(p.y+440);
+    const label=this.add.text(p.x,p.y-62,`${reward.kind==='nova'?'NOVA ARMA':'EVOLUÇÃO'}\n${WEAPONS[reward.id].label} Nv.${reward.tier}`,
+      {fontFamily:'Arial',fontSize:'12px',fontStyle:'bold',align:'center',color:'#fff5d8',stroke:'#153029',strokeThickness:4}).setOrigin(.5).setDepth(p.y+500);
+    this.tweens.add({targets:icon,y:p.y-38,yoyo:true,repeat:-1,duration:850});
+    this.tweens.add({targets:halo,scale:1.25,alpha:.28,yoyo:true,repeat:-1,duration:1050});
+    this.weaponPickups.push({x:p.x,y:p.y,reward,halo,icon,label});
+    this.showMessage(`Relíquia encontrada! Apanhe ${WEAPONS[reward.id].label}.`);
+  }
+  collectWeaponPickups(){
+    this.weaponPickups=this.weaponPickups.filter(item=>{
+      if(Math.hypot(item.x-this.player.x,item.y-this.player.y)>42)return true;
+      if(this.weapons.collect(item.reward)){
+        this.lastAttack=-Infinity;
+        this.makeImpact(item.x,item.y,WEAPONS[item.reward.id].color,31);
+        this.showMessage(`${WEAPONS[item.reward.id].label} Nv.${this.weapons.tier} equipada! Q/E troca a arma.`);
+      }
+      item.halo.destroy();item.icon.destroy();item.label.destroy();
+      return false;
+    });
+  }
+  applyUpgrade(id){
+    if(!this.upgrades.apply(id))return false;
+    if(id==='velocidade')this.player.speed+=26;
+    if(id==='cura'){
+      const healed=this.survival.heal(2);
+      if(healed)this.addFloatingNumber(this.player.x,this.player.y-76,`+${healed}`,'#92f2b2');
+      this.creatures.forEach(c=>{
+        if(!c.alive)return;
+        const dx=c.x-this.player.x,dy=c.y-this.player.y,d=Math.hypot(dx,dy)||1;
+        const nx=c.x+dx/d*65,ny=c.y+dy/d*65;
+        if(this.navigation.isOpen(nx,ny)&&this.navigation.lineClear(c.x,c.y,nx,ny)){
+          c.x=nx;c.y=ny;c.sprite.setPosition(nx,ny);c.shadow.setPosition(nx,ny+10);
+        }
+      });
+    }
+    this.power=this.upgrades.damagePower;
+    this.level++;
+    this.updateHud();
+    return true;
   }
   dropFragment(x,y){
     const shard=this.add.star(x,y,4,5,11,0xf1d58f).setDepth(y+250);
@@ -1119,7 +1367,7 @@ class GameScene extends Phaser.Scene {
     if(this.upgrading)return;
     this.fragments=this.fragments.filter(f=>{
       if(!f.active)return false;
-      if(Phaser.Math.Distance.Between(f.x,f.y,this.player.x,this.player.y)<35){
+      if(Phaser.Math.Distance.Between(f.x,f.y,this.player.x,this.player.y)<this.upgrades.pickupRadius){
         f.destroy();this.fragmentCount++;
         if(this.fragmentCount>=SETTINGS.fragmentGoal)this.openUpgrade();
         return false;
@@ -1132,7 +1380,7 @@ class GameScene extends Phaser.Scene {
     this.upgrading=true;
     this.fragmentCount=0;
     this.scene.pause();
-    this.scene.launch('UpgradeScene',{level:this.level,power:this.power});
+    this.scene.launch('UpgradeScene',{level:this.level,choices:this.upgrades.choices({health:this.survival.health,maxHealth:this.survival.maxHealth})});
   }
 }
 

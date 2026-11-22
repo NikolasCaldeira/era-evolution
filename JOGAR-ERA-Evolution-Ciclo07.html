@@ -1,0 +1,1474 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <meta name="theme-color" content="#102820" />
+  <title>ERA: Evolution | Cretáceo — Ciclo 07</title>
+  <style>:root { color-scheme: dark; font-family: Inter, ui-sans-serif, system-ui, sans-serif; background:#0b1415; color:#edf2df; }
+* { box-sizing:border-box; }
+html,body { margin:0; width:100%; height:100%; overflow:hidden; background:#0b1415; }
+#game-shell { width:100%; height:100%; display:grid; place-items:center; background:radial-gradient(ellipse at center,#1b302d 0%,#0b1415 75%); }
+#game { width:100%; height:100%; max-width:1600px; max-height:1000px; }
+canvas { display:block; width:100%; height:100%; object-fit:contain; touch-action:none; }
+#loading { position:fixed; inset:0; display:grid; place-content:center; gap:12px; text-align:center; background:#101b1b; color:#e7d9a2; letter-spacing:.2em; font-weight:800; font-size:clamp(20px,4vw,38px); z-index:10; transition:opacity .35s; }
+#loading span { color:#9eb4a4; letter-spacing:.08em; font-size:12px; font-weight:500; }
+</style>
+</head>
+<body>
+  <main id="game-shell">
+    <div id="game"></div>
+    <div id="loading">ERA: EVOLUTION<span>Carregando a expedição do Cretáceo…</span></div>
+  </main>
+  <!-- Dependência externa: jogo exige acesso à internet, sem npm ou terminal. -->
+  <script src="https://cdn.jsdelivr.net/npm/phaser@3.90.0/dist/phaser.min.js"></script>
+  <script>
+  if (!window.Phaser) {
+    document.getElementById('loading').innerHTML='Não foi possível carregar o Phaser.<span>Verifique a conexão com a internet e recarregue esta página.</span>';
+  } else {
+    
+// --- src/core/Settings.js ---
+const SETTINGS = Object.freeze({
+  mapColumns: 34,
+  mapRows: 28,
+  tileWidth: 96,
+  tileHeight: 48,
+  playerSpeed: 250,
+  playerRadius: 16,
+  enemySpeed: 72,
+  enemyRadius: 15,
+  attackRange: 150,
+  attackCooldown: 650,
+  fragmentGoal: 10,
+  maxHealth: 5,
+  contactRadius: 36,
+  damageInvulnerabilityMs: 1250,
+  eraKillGoal: 100
+});
+
+
+// --- src/core/SurvivalState.js ---
+/** Regras puras de sobrevivência. Tempo em milissegundos (relógio da cena). */
+class SurvivalState {
+  constructor({ maxHealth = 5, invulnerabilityMs = 1250 } = {}) {
+    if (!Number.isFinite(maxHealth) || maxHealth <= 0 ||
+        !Number.isFinite(invulnerabilityMs) || invulnerabilityMs < 0) {
+      throw new Error('Parâmetros de sobrevivência inválidos');
+    }
+    this.maxHealth = Math.floor(maxHealth);
+    this.invulnerabilityMs = invulnerabilityMs;
+    this.reset();
+  }
+
+  reset() {
+    this.health = this.maxHealth;
+    this.invulnerableUntil = -Infinity;
+  }
+
+  get alive() { return this.health > 0; }
+  isInvulnerable(now) { return this.alive && now < this.invulnerableUntil; }
+
+  takeHit(now, damage = 1) {
+    if (!Number.isFinite(now)) throw new Error('Tempo inválido');
+    if (!Number.isFinite(damage) || damage <= 0) return { applied: false, defeated: !this.alive };
+    if (!this.alive || this.isInvulnerable(now)) return { applied: false, defeated: !this.alive };
+    this.health = Math.max(0, this.health - Math.ceil(damage));
+    this.invulnerableUntil = now + this.invulnerabilityMs;
+    return { applied: true, defeated: !this.alive };
+  }
+
+  heal(amount = 1) {
+    if (!this.alive || !Number.isFinite(amount) || amount <= 0) return 0;
+    const before = this.health;
+    this.health = Math.min(this.maxHealth, this.health + Math.floor(amount));
+    return this.health - before;
+  }
+}
+
+
+// --- src/core/ScreenAnchor.js ---
+/**
+ * Converte coordenadas desejadas da tela em coordenadas de um objeto Phaser
+ * com scrollFactor(0), compensando o zoom centralizado da câmera.
+ * Também informa a escala inversa para manter a interface com tamanho fixo.
+ */
+function screenAnchor(width,height,zoom,screenX,screenY){
+  if(!Number.isFinite(zoom)||zoom<=0)throw new Error('Zoom inválido');
+  const inverse=1/zoom;
+  return {
+    x:width/2+(screenX-width/2)*inverse,
+    y:height/2+(screenY-height/2)*inverse,
+    scale:inverse
+  };
+}
+
+
+// --- src/systems/WeaponSystem.js ---
+/** Arsenal do Cretáceo. Regras puras, sem dependências de renderização. */
+const WEAPONS = Object.freeze({
+  artefato:{label:'Artefato Verde',desc:'Um disparo preciso de energia.',color:0x64f5d2,cooldown:650,speed:480,range:165,style:'pulse'},
+  duplo:{label:'Gêmeos de Quartzo',desc:'Dois cristais disparados em paralelo.',color:0x70d9ff,cooldown:760,speed:495,range:175,style:'twin'},
+  lanca:{label:'Lança Solar',desc:'Projétil que atravessa até três criaturas.',color:0xffd17b,cooldown:950,speed:560,range:225,style:'pierce'},
+  leque:{label:'Leque Prismático',desc:'Três fragmentos em ângulos diferentes.',color:0xc69fff,cooldown:850,speed:465,range:185,style:'fan'},
+  orbe:{label:'Orbe de Âmbar',desc:'Impacto circular que alcança criaturas próximas.',color:0xffae70,cooldown:1050,speed:360,range:190,style:'splash'}
+});
+const WEAPON_ORDER=Object.freeze(Object.keys(WEAPONS));
+const MILESTONE_ORDER=Object.freeze(['duplo','lanca','leque','orbe','artefato','duplo','lanca','leque','orbe']);
+
+/** Nos primeiros quatro marcos aparecem novas armas; depois, versões evoluídas. */
+function weaponRewardForKills(kills){
+  if(!Number.isInteger(kills)||kills<10||kills>90||kills%10!==0)return null;
+  const index=kills/10-1;
+  return {milestone:kills,id:MILESTONE_ORDER[index],tier:index<4?1:2,kind:index<4?'nova':'evolucao'};
+}
+
+class WeaponState {
+  constructor(){this.reset();}
+  reset(){this.unlocked=['artefato'];this.levels={artefato:1};this.active='artefato';this.collectedMilestones=new Set();}
+  get current(){return WEAPONS[this.active];}
+  get tier(){return this.levels[this.active]||1;}
+  collect(reward){
+    if(!reward||!WEAPONS[reward.id]||this.collectedMilestones.has(reward.milestone))return false;
+    this.collectedMilestones.add(reward.milestone);
+    if(!this.unlocked.includes(reward.id))this.unlocked.push(reward.id);
+    this.levels[reward.id]=Math.max(this.levels[reward.id]||0,reward.tier);
+    this.active=reward.id;
+    return true;
+  }
+  select(id){if(!this.unlocked.includes(id))return false;this.active=id;return true;}
+  cycle(direction=1){
+    const index=this.unlocked.indexOf(this.active);
+    this.active=this.unlocked[(index+direction+this.unlocked.length)%this.unlocked.length];
+    return this.active;
+  }
+}
+
+/** Construção da salva, reutilizada no jogo e validada por testes unitários. */
+function createSalvo({weaponId='artefato',tier=1,power=1,from,target}){
+  const w=WEAPONS[weaponId];if(!w)throw new Error('Arma desconhecida');
+  const dx=target.x-from.x,dy=target.y-from.y;
+  const base=Math.atan2(dy,dx);
+  const angles=weaponId==='duplo'?[-0.105,0.105]:weaponId==='leque'?[-.24,0,.24]:[0];
+  const damage=1+Math.floor((Math.max(1,power)-1)/3); // Até o primeiro aprimoramento de potência: 3 acertos por criatura.
+  return angles.map((offset,i)=>{
+    const angle=base+offset;
+    const speed=w.speed*(1+(tier-1)*.07);
+    const range=w.range*(1+(tier-1)*.12);
+    return {
+      type:weaponId,color:w.color,angle,
+      x:from.x+Math.cos(angle)*19,y:from.y+Math.sin(angle)*19,
+      vx:Math.cos(angle)*speed,vy:Math.sin(angle)*speed,
+      range,life:range/speed*1000+100,
+      damage,hitRadius:weaponId==='lanca'?20:weaponId==='orbe'?19:15,
+      maxHits:weaponId==='lanca'?2+tier:1,
+      splashRadius:weaponId==='orbe'?42+(tier-1)*14:0,
+      visualIndex:i
+    };
+  });
+}
+
+function attackCooldown(weaponId,tier=1,cadence=0){
+  const w=WEAPONS[weaponId];if(!w)throw new Error('Arma desconhecida');
+  return Math.max(230,Math.round(w.cooldown*(1-.09*(tier-1))*(1-.12*Math.min(cadence,4))));
+}
+
+
+// --- src/systems/UpgradeSystem.js ---
+/** Melhorias por fragmentos. Três cartas distintas por rodada. */
+const UPGRADES=Object.freeze({
+  alcance:{title:'Visão de Caçador',description:'+17% de alcance para todas as armas.'},
+  cadencia:{title:'Ritmo Ancestral',description:'Projéteis disparados mais frequentemente.'},
+  velocidade:{title:'Passos Ligeiros',description:'+26 de velocidade de movimento.'},
+  potencia:{title:'Energia Concentrada',description:'Fortalece os ataques (a cada 3 cargas, +1 dano).'},
+  ima:{title:'Chamar Fragmentos',description:'Amplia o raio de coleta de fragmentos.'},
+  cura:{title:'Recuperação',description:'Restaura até 2 de vida e afasta criaturas.'}
+});
+const UPGRADE_CAPS=Object.freeze({alcance:Infinity,cadencia:4,velocidade:Infinity,potencia:Infinity,ima:Infinity,cura:Infinity});
+
+class UpgradeState {
+  constructor(){this.reset();}
+  reset(){this.levels={alcance:0,cadencia:0,velocidade:0,potencia:0,ima:0,cura:0};}
+  choices({health,maxHealth,random=Math.random}={}){
+    const available=Object.keys(UPGRADES).filter(id=>{
+      if(id==='cura'&&health>=maxHealth)return false;
+      return this.levels[id]<UPGRADE_CAPS[id];
+    });
+    // Em caso de todas as melhorias maximizadas, permitir recuperação como recurso de emergência.
+    if(available.length<3)for(const id of Object.keys(UPGRADES))if(!available.includes(id))available.push(id);
+    for(let i=available.length-1;i>0;i--){
+      const j=Math.min(i,Math.max(0,Math.floor(random()*(i+1))));
+      [available[i],available[j]]=[available[j],available[i]];
+    }
+    return available.slice(0,3);
+  }
+  apply(id){
+    if(!UPGRADES[id])return false;
+    if(this.levels[id]>=UPGRADE_CAPS[id])return false;
+    this.levels[id]++;
+    return true;
+  }
+  get rangeMultiplier(){return 1+this.levels.alcance*.17;}
+  get pickupRadius(){return 35+this.levels.ima*22;}
+  get damagePower(){return 1+this.levels.potencia;}
+}
+
+
+// --- src/world/IsoProjection.js ---
+class IsoProjection {
+  constructor(tileWidth, tileHeight, originX = 0, originY = 0) {
+    this.tileWidth = tileWidth; this.tileHeight = tileHeight;
+    this.originX = originX; this.originY = originY;
+  }
+  toScreen(x, y) {
+    return { x: this.originX + (x - y) * this.tileWidth / 2, y: this.originY + (x + y) * this.tileHeight / 2 };
+  }
+  toWorld(screenX, screenY) {
+    const sx = (screenX - this.originX) / (this.tileWidth / 2);
+    const sy = (screenY - this.originY) / (this.tileHeight / 2);
+    return { x: (sx + sy) / 2, y: (sy - sx) / 2 };
+  }
+  depth(x, y) { return x + y; }
+}
+
+
+// --- src/world/NavigationGrid.js ---
+/**
+ * Navegação em coordenadas de tela para um mundo desenhado em projeção isométrica.
+ * A mesma regra de colisão é usada na procura de rota e no deslocamento real.
+ * Não depende do Phaser, facilitando testes automatizados.
+ */
+class NavigationGrid {
+  constructor({ projection, columns, rows, obstacles, cellSize = 24, radius = 10, margin = 1.55 }) {
+    this.projection = projection;
+    this.columns = columns;
+    this.rows = rows;
+    this.obstacles = obstacles;
+    this.cellSize = cellSize;
+    this.radius = radius;
+    this.margin = margin;
+    this.width = Math.ceil((columns + rows) * projection.tileWidth / 2 / cellSize) + 2;
+    this.height = Math.ceil((columns + rows) * projection.tileHeight / 2 / cellSize + projection.originY / cellSize) + 2;
+    this.count = this.width * this.height;
+
+    // Índice espacial para não verificar todas as árvores/rochas a cada movimento.
+    this.bucketSize = 96;
+    this.buckets = new Map();
+    for (const obstacle of obstacles) {
+      const minX = Math.floor((obstacle.x - obstacle.rx - radius) / this.bucketSize);
+      const maxX = Math.floor((obstacle.x + obstacle.rx + radius) / this.bucketSize);
+      const minY = Math.floor((obstacle.y - obstacle.ry - radius) / this.bucketSize);
+      const maxY = Math.floor((obstacle.y + obstacle.ry + radius) / this.bucketSize);
+      for (let by = minY; by <= maxY; by++) {
+        for (let bx = minX; bx <= maxX; bx++) {
+          const key = `${bx},${by}`;
+          if (!this.buckets.has(key)) this.buckets.set(key, []);
+          this.buckets.get(key).push(obstacle);
+        }
+      }
+    }
+    this.walkable = new Uint8Array(this.count);
+    for (let row = 0; row < this.height; row++) {
+      for (let col = 0; col < this.width; col++) {
+        this.walkable[row * this.width + col] = Number(this.isOpen(col * cellSize, row * cellSize));
+      }
+    }
+  }
+
+  isOpen(x, y) {
+    const tile = this.projection.toWorld(x, y);
+    if (tile.x < this.margin || tile.y < this.margin ||
+        tile.x > this.columns - this.margin || tile.y > this.rows - this.margin) return false;
+    const key = `${Math.floor(x / this.bucketSize)},${Math.floor(y / this.bucketSize)}`;
+    const nearby = this.buckets.get(key) || [];
+    return !nearby.some(o => Math.abs(x - o.x) < o.rx + this.radius && Math.abs(y - o.y) < o.ry + this.radius);
+  }
+
+  lineClear(x1, y1, x2, y2) {
+    const distance = Math.hypot(x2 - x1, y2 - y1);
+    const steps = Math.max(1, Math.ceil(distance / 10));
+    for (let i = 0; i <= steps; i++) {
+      const t = i / steps;
+      if (!this.isOpen(x1 + (x2 - x1) * t, y1 + (y2 - y1) * t)) return false;
+    }
+    return true;
+  }
+
+  point(index) {
+    const col = index % this.width;
+    const row = Math.floor(index / this.width);
+    return { x: col * this.cellSize, y: row * this.cellSize };
+  }
+
+  closestIndex(x, y, maxRing = 7, requireVisible = false) {
+    const col = Math.round(x / this.cellSize);
+    const row = Math.round(y / this.cellSize);
+    let best = -1, bestDist = Infinity;
+    for (let ring = 0; ring <= maxRing; ring++) {
+      for (let dy = -ring; dy <= ring; dy++) for (let dx = -ring; dx <= ring; dx++) {
+        if (Math.max(Math.abs(dx), Math.abs(dy)) !== ring) continue;
+        const c = col + dx, r = row + dy;
+        if (c < 0 || c >= this.width || r < 0 || r >= this.height) continue;
+        const index = r * this.width + c;
+        if (!this.walkable[index]) continue;
+        const p = this.point(index), dist = (p.x - x) ** 2 + (p.y - y) ** 2;
+        if (dist >= bestDist) continue;
+        if (requireVisible && !this.lineClear(x, y, p.x, p.y)) continue;
+        best = index; bestDist = dist;
+      }
+      // Não selecionar células muito distantes se uma adjacente já for válida.
+      if (best !== -1) return best;
+    }
+    return best;
+  }
+
+  nearestOpenPoint(x, y) {
+    const index = this.closestIndex(x, y, 12);
+    return index === -1 ? null : this.point(index);
+  }
+
+  findPath(startX, startY, endX, endY) {
+    if (!this.isOpen(startX, startY)) return [];
+    if (this.lineClear(startX, startY, endX, endY)) return [{ x: endX, y: endY }];
+    const start = this.closestIndex(startX, startY, 5, true);
+    const goal = this.closestIndex(endX, endY, 9, this.isOpen(endX, endY));
+    if (start < 0 || goal < 0) return [];
+
+    const cost = new Float64Array(this.count); cost.fill(Infinity);
+    const previous = new Int32Array(this.count); previous.fill(-1);
+    const closed = new Uint8Array(this.count);
+    const heap = new MinHeap();
+    const goalPoint = this.point(goal);
+    const heuristic = index => {
+      const p = this.point(index);
+      return Math.hypot(p.x - goalPoint.x, p.y - goalPoint.y);
+    };
+    cost[start] = 0;
+    heap.push({ index: start, priority: heuristic(start) });
+    let arrived = false;
+    const directions = [
+      [-1, 0], [1, 0], [0, -1], [0, 1],
+      [-1, -1], [1, -1], [-1, 1], [1, 1]
+    ];
+
+    while (heap.length) {
+      const { index } = heap.pop();
+      if (closed[index]) continue;
+      if (index === goal) { arrived = true; break; }
+      closed[index] = 1;
+      const row = Math.floor(index / this.width), col = index % this.width;
+      for (const [dx, dy] of directions) {
+        const nextCol = col + dx, nextRow = row + dy;
+        if (nextCol < 0 || nextCol >= this.width || nextRow < 0 || nextRow >= this.height) continue;
+        const next = nextRow * this.width + nextCol;
+        if (!this.walkable[next] || closed[next]) continue;
+        // Impede passar por diagonal entre duas células bloqueadas.
+        if (dx !== 0 && dy !== 0 &&
+          (!this.walkable[row * this.width + nextCol] || !this.walkable[nextRow * this.width + col])) continue;
+        const step = (dx && dy ? Math.SQRT2 : 1) * this.cellSize;
+        const newCost = cost[index] + step;
+        if (newCost >= cost[next]) continue;
+        cost[next] = newCost;
+        previous[next] = index;
+        heap.push({ index: next, priority: newCost + heuristic(next) });
+      }
+    }
+    if (!arrived) return [];
+
+    const raw = [];
+    let next = goal;
+    while (next !== -1) {
+      raw.push(this.point(next));
+      if (next === start) break;
+      next = previous[next];
+    }
+    raw.reverse();
+    const end = this.isOpen(endX, endY) ? { x: endX, y: endY } : goalPoint;
+    raw.push(end);
+
+    // Path smoothing: usa o ponto mais distante acessível sem atravessar rochas.
+    const path = [];
+    let cursor = 0;
+    let anchor = { x: startX, y: startY };
+    while (cursor < raw.length) {
+      let furthest = cursor;
+      for (let i = cursor; i < raw.length; i++) {
+        if (this.lineClear(anchor.x, anchor.y, raw[i].x, raw[i].y)) furthest = i;
+        // Depois do primeiro ponto obstruído, não há vantagem em testar muitos outros.
+        else if (i > furthest + 8) break;
+      }
+      if (furthest === cursor && !this.lineClear(anchor.x, anchor.y, raw[furthest].x, raw[furthest].y)) return [];
+      anchor = raw[furthest];
+      path.push(anchor);
+      cursor = furthest + 1;
+    }
+    return path;
+  }
+}
+
+/** Priority queue mínima para A*. */
+class MinHeap {
+  constructor() { this.items = []; }
+  get length() { return this.items.length; }
+  push(value) {
+    const arr = this.items; arr.push(value);
+    let i = arr.length - 1;
+    while (i > 0) {
+      const parent = (i - 1) >> 1;
+      if (arr[parent].priority <= value.priority) break;
+      arr[i] = arr[parent]; i = parent;
+    }
+    arr[i] = value;
+  }
+  pop() {
+    const arr = this.items;
+    const result = arr[0]; const last = arr.pop();
+    if (arr.length) {
+      let i = 0;
+      while (true) {
+        let child = i * 2 + 1;
+        if (child >= arr.length) break;
+        if (child + 1 < arr.length && arr[child + 1].priority < arr[child].priority) child++;
+        if (last.priority <= arr[child].priority) break;
+        arr[i] = arr[child]; i = child;
+      }
+      arr[i] = last;
+    }
+    return result;
+  }
+}
+
+
+// --- src/world/WorldGenerator.js ---
+/** Mundo 2.5D do Cretáceo fictício. A arte é desenhada em vetor, em camadas,
+ *  sem modificar o modelo de colisões aprovado no Ciclo 04.
+ */
+class WorldGenerator {
+  constructor(scene,projection){this.scene=scene;this.projection=projection;this.obstacles=[];}
+  create(columns,rows){
+    this.columns=columns;this.rows=rows;
+    const ground=this.scene.add.graphics();
+    const grass=[0x4b7056,0x587b57,0x61815b,0x50745a,0x66865b,0x587959,0x5b8056];
+    for(let y=0;y<rows;y++)for(let x=0;x<columns;x++){
+      const p=this.projection.toScreen(x,y);
+      const seed=(x*1277+y*1579+x*y*17)%101;
+      const color=grass[(x*17+y*31)%grass.length];
+      ground.fillStyle(color,1);ground.lineStyle(.5,0x183f36,.23);
+      ground.beginPath();ground.moveTo(p.x,p.y-24);ground.lineTo(p.x+48,p.y);
+      ground.lineTo(p.x,p.y+24);ground.lineTo(p.x-48,p.y);ground.closePath();ground.fillPath();ground.strokePath();
+      // manchas de terra, musgos e líquenes sob os objetos, sem alinhamento rígido
+      if(seed%7===0){
+        ground.fillStyle(0x9b865c,.12);ground.fillEllipse(p.x+(seed%19)-9,p.y+(seed%11)-5,18+seed%13,7);
+      }
+      if(seed%11===0){
+        ground.fillStyle(0xb8c688,.17);
+        for(let j=0;j<4;j++)ground.fillCircle(p.x-18+j*7,p.y+(j%2)*4,1.3);
+      }
+      if(seed%13===0){
+        ground.lineStyle(2,0x9cbd78,.28);
+        for(let j=0;j<3;j++)ground.lineBetween(p.x-10+j*7,p.y+6,p.x-12+j*7,p.y+1);
+      }
+      // Folhagem baixa; a geometria é decorativa, não bloqueia movimento.
+      if((x*13+y*19)%27===0)this.addFern(p.x,p.y-5,seed%2===0,.62);
+      if((x*23+y*7)%53===0)this.addSporeCluster(p.x,p.y);
+      if((x*11+y*29)%73===0)this.addCycad(p.x,p.y-4,.56);
+    }
+    ground.setDepth(-1000);
+    this.addPerimeter(columns,rows);
+    [[7,7,'rock'],[12,10,'tree'],[19,7,'rock'],[24,15,'tree'],[9,20,'rock'],[28,20,'tree'],[16,10,'rock']].forEach(([tx,ty,type])=>{
+      const p=this.projection.toScreen(tx,ty);
+      this.addObstacle(p.x,p.y,type==='tree'?48:40,type==='tree'?32:28,type);
+    });
+  }
+  addPerimeter(columns,rows){
+    for(let y=0;y<rows;y++)for(let x=0;x<columns;x++){
+      if(x!==0&&y!==0&&x!==columns-1&&y!==rows-1)continue;
+      const p=this.projection.toScreen(x,y);
+      const kind=(x*7+y*11)%5;
+      if(kind===0||kind===3)this.addObstacle(p.x,p.y,30,18,'rock',true);
+      else if(kind===1)this.addObstacle(p.x,p.y,28,20,'tree',true);
+      else this.addBush(p.x,p.y);
+    }
+  }
+  addSporeCluster(x,y){
+    const g=this.scene.add.graphics();
+    g.fillStyle(0x0a2a20,.25);g.fillEllipse(x,y+10,41,10);
+    for(let i=0;i<5;i++){
+      const dx=-17+i*8,dy=Math.sin(i*5)*5;
+      g.lineStyle(2,0x507b58,.9);g.lineBetween(x+dx,y+6,x+dx-2,y-5+dy);
+      g.fillStyle(i%2?0xdbb77a:0x8dbc8f,.9);g.fillEllipse(x+dx-2,y-7+dy,5,4);
+    }
+    g.setDepth(y+90);
+  }
+  addFern(x,y,flipped=false,scale=1){
+    const g=this.scene.add.graphics();g.setDepth(y+100);
+    const left=flipped?-1:1;
+    g.fillStyle(0x112e24,.28);g.fillEllipse(x,y+10,47*scale,11*scale);
+    for(let branch=-3;branch<=3;branch++){
+      const startX=x+branch*3*scale;
+      const tipX=x+left*(branch*6+9)*scale;
+      const tipY=y-11*scale-Math.cos(branch*.65)*13*scale;
+      g.lineStyle(2.5*scale,0x315c3b,.9);g.lineBetween(startX,y+4,tipX,tipY);
+      for(let j=1;j<=3;j++){
+        const t=j/4,bx=startX+(tipX-startX)*t,by=y+4+(tipY-y-4)*t;
+        g.fillStyle((branch+j)%2?0x7eb06b:0x456e47,1);
+        g.fillEllipse(bx-5*scale,by-2*scale,12*scale,4.2*scale);
+        g.fillEllipse(bx+4*scale,by,12*scale,4*scale);
+      }
+    }
+  }
+  addCycad(x,y,scale=1){
+    const g=this.scene.add.graphics();g.setDepth(y+105);
+    g.fillStyle(0x12251c,.27);g.fillEllipse(x,y+14,55*scale,12*scale);
+    g.fillStyle(0x7a6445);g.fillRoundedRect(x-5*scale,y-22*scale,10*scale,35*scale,3);
+    for(let i=0;i<11;i++){
+      const a=i*Math.PI*2/11,ex=x+Math.cos(a)*39*scale,ey=y-28*scale+Math.sin(a)*17*scale;
+      g.lineStyle(3*scale,0x2c563b,1);g.lineBetween(x,y-25*scale,ex,ey);
+      g.fillStyle(i%2?0x7fa663:0x446c47);
+      g.fillEllipse((ex+x)/2,(ey+y-25*scale)/2,37*scale,7*scale,24);
+    }
+    g.fillStyle(0xb29f68);g.fillEllipse(x,y-23*scale,8*scale,12*scale);
+  }
+  addBush(x,y){
+    const g=this.scene.add.graphics();
+    g.fillStyle(0x122a1c,.4);g.fillEllipse(x,y+11,73,18);
+    g.fillStyle(0x244f3c);g.fillEllipse(x-17,y-7,43,29);
+    g.fillStyle(0x366d4d);g.fillEllipse(x+12,y-16,47,40);
+    g.fillStyle(0x52875b);g.fillEllipse(x-6,y-22,35,21);
+    for(let i=0;i<5;i++){g.fillStyle(i%2?0x9fbd78:0x76a771,.65);g.fillCircle(x-22+i*11,y-19+(i%3)*3,3);}
+    g.setDepth(y+200);
+    this.obstacles.push({x,y,rx:38,ry:24,type:'bush',perimeter:true});
+  }
+  addObstacle(x,y,rx,ry,type,perimeter=false){
+    const g=this.scene.add.graphics();
+    g.fillStyle(0x0b2b24,.38);g.fillEllipse(x+4,y+16,rx*2.6,19);
+    if(type==='tree'){
+      // Tronco estriado, raízes e uma copa tropical escalonada.
+      g.fillStyle(0x604c34);g.fillRoundedRect(x-8,y-47,17,76,5);
+      g.lineStyle(2,0x96754e,.85);g.lineBetween(x-3,y-41,x-4,y+20);g.lineBetween(x+4,y-36,x+5,y+21);
+      g.lineStyle(7,0x604c34,.9);g.lineBetween(x-3,y+23,x-19,y+28);g.lineBetween(x+5,y+22,x+22,y+28);
+      g.fillStyle(0x244c3b);g.fillEllipse(x,y-62,rx*2.4,ry*2.5);
+      g.fillStyle(0x316749);g.fillEllipse(x-23,y-74,rx*1.42,ry*1.4);
+      g.fillStyle(0x467c55);g.fillEllipse(x+18,y-72,rx*1.5,ry*1.45);
+      g.fillStyle(0x72a069,.85);g.fillEllipse(x-17,y-92,rx*.94,ry*.67);
+      for(let i=0;i<8;i++){g.fillStyle(i%3?0x8ea967:0xb0a66c,.65);g.fillCircle(x-30+(i*13)%60,y-63-(i*7)%26,2.5);}
+    }else{
+      // Rocha com várias faces, fissuras e líquenes.
+      g.fillStyle(0x58645d);g.fillPoints([{x:x-rx,y:y+6},{x:x-rx*.7,y:y-ry*.9},{x:x+rx*.22,y:y-ry*1.5},{x:x+rx,y:y+3},{x:x+rx*.32,y:y+ry*.63}],true);
+      g.fillStyle(0x879686);g.fillTriangle(x-rx*.7,y-ry*.85,x+rx*.2,y-ry*1.5,x+rx*.38,y-ry*.2);
+      g.fillStyle(0xa7ad94,.78);g.fillTriangle(x-rx*.63,y-ry*.65,x-rx*.12,y-ry*1.3,x+rx*.15,y-ry*.34);
+      g.fillStyle(0x495c51);g.fillTriangle(x+rx*.38,y-ry*.2,x+rx,y+3,x+rx*.3,y+ry*.5);
+      g.lineStyle(1.8,0x435b51,.6);g.lineBetween(x-rx*.1,y-ry*.45,x+rx*.14,y+ry*.4);
+      for(let i=0;i<4;i++){g.fillStyle(0x6d996d,.4);g.fillCircle(x-rx*.6+i*rx*.34,y-3+(i%2)*6,3.2);}
+    }
+    g.setDepth(y+200);
+    this.obstacles.push({x,y,rx:rx+12,ry:ry+14,type,perimeter});
+  }
+}
+
+
+// --- src/art/CharacterArt.js ---
+/** Arte original em Canvas. Sem dependências de imagens externas ou sprites de terceiros.
+ *  Gera quadros 2D com oito direções do protagonista e três espécies distintas.
+ */
+const PLAYER_FACINGS = ['down','down-right','right','up-right','up','up-left','left','down-left'];
+const CREATURE_SPECIES = ['compsognato','anquilossauro','pterossauro'];
+const PLAYER_FRAMES = 4;
+const CREATURE_FRAMES = 4;
+
+function oval(ctx, x, y, rx, ry, fill, rotation=0) {
+  ctx.beginPath(); ctx.ellipse(x,y,rx,ry,rotation,0,Math.PI*2);
+  ctx.fillStyle=fill;ctx.fill();
+}
+function path(ctx, points, fill, stroke=null, lineWidth=2) {
+  ctx.beginPath();ctx.moveTo(...points[0]);for(const point of points.slice(1))ctx.lineTo(...point);ctx.closePath();
+  ctx.fillStyle=fill;ctx.fill();if(stroke){ctx.strokeStyle=stroke;ctx.lineWidth=lineWidth;ctx.stroke();}
+}
+function curve(ctx, points, fill, stroke=null, width=2) {
+  ctx.beginPath();ctx.moveTo(...points[0]);
+  for (let i=1;i+2<points.length;i+=3) ctx.bezierCurveTo(...points.slice(i,i+3).flat());
+  ctx.closePath();ctx.fillStyle=fill;ctx.fill();if(stroke){ctx.strokeStyle=stroke;ctx.lineWidth=width;ctx.stroke();}
+}
+function line(ctx,x1,y1,x2,y2,stroke,width=2) {
+  ctx.beginPath();ctx.moveTo(x1,y1);ctx.lineTo(x2,y2);ctx.strokeStyle=stroke;ctx.lineWidth=width;ctx.lineCap='round';ctx.stroke();
+}
+function fillTexture(scene,key,w,h,draw) {
+  if(scene.textures.exists(key))return;
+  const texture=scene.textures.createCanvas(key,w,h);
+  const ctx=texture.getContext();ctx.clearRect(0,0,w,h);
+  ctx.save(); draw(ctx);ctx.restore();texture.refresh();
+}
+function drawPlayer(ctx, facing, frame) {
+  const isBack = facing.startsWith('up');
+  const isSide = facing.includes('left') || facing.includes('right');
+  const left = facing.includes('left');
+  const stride = [0,4,0,-4][frame], bob = [0,-1,-2,-1][frame];
+  ctx.translate(48,78+bob);
+  ctx.scale(left?-1:1,1);
+  const edge='#28392c', boots='#423b2b';
+  // pernas / botas: pés visíveis durante as passadas
+  path(ctx,[[-12,3],[-3,3],[-5,22+stride],[-17,23+stride]],'#635038',edge,2);
+  path(ctx,[[3,3],[13,3],[17,23-stride],[5,23-stride]],'#6a5740',edge,2);
+  oval(ctx,-11,23+stride,9,4,boots);oval(ctx,11,23-stride,9,4,boots);
+  // manto curto, voltado para trás, e equipamento de sobrevivente fictício
+  path(ctx,[[-21,-35],[14,-36],[23,8],[-23,9]],'#6c7950','#253f34',2.5);
+  path(ctx,[[-15,-33],[13,-32],[15,12],[-16,12]],'#31736a','#193d3c',2.5);
+  path(ctx,[[1,-32],[14,-32],[15,9],[1,9]],'#234e54');
+  if (isBack) {
+    // mochila e correias visíveis quando o jogador se afasta da câmera
+    path(ctx,[[-11,-27],[11,-27],[13,-2],[-13,-2]],'#977348','#543d2a',2);
+    line(ctx,-8,-25,5,-2,'#ceb078',3);line(ctx,9,-26,-4,-2,'#d4b87e',3);
+    oval(ctx,0,-14,6,6,'#c7a56b');
+  }
+  // cinto, tira cruzada, botões e fivela dourada
+  path(ctx,[[-16,-3],[17,-3],[17,4],[-16,4]],'#5a422e');
+  oval(ctx,1,0,4,3,'#e0bb70');
+  if(!isBack) line(ctx,-13,-32,11,-3,'#c7a66b',4);
+  // braços alternando no caminhar
+  line(ctx,-18,-25,-22,-4-stride*.6,'#bc8864',8);
+  line(ctx,17,-24,22,-6+stride*.6,'#bc8864',8);
+  oval(ctx,-22,-4-stride*.6,5,5,'#d3a175');
+  oval(ctx,22,-6+stride*.6,5,5,'#d3a175');
+  // luva e artefato luminoso de disparo (fantasia, não arma real)
+  path(ctx,[[18,-8],[26,-10],[29,-3],[20,0]],'#85643c','#4a3c29',2);
+  oval(ctx,28,-7,5,7,'#4cd6bd');oval(ctx,28,-9,2,3,'#e9ffee');
+  // cabeça / cabelo / expressão direcional
+  oval(ctx,0,-39,15,17,'#d6a77a');
+  oval(ctx,-2,-52,16,8,'#4b3729');
+  path(ctx,[[-17,-48],[-13,-56],[0,-58],[11,-54],[14,-49]],'#6b4a2e');
+  if(isBack){
+    oval(ctx,0,-40,13,11,'#6b4a2e');
+    line(ctx,-8,-34,8,-34,'#c49a72',2);
+  } else {
+    const eyeShift = isSide ? 5 : 0;
+    oval(ctx,-6+eyeShift,-39,1.7,2.1,'#263b39');
+    if(!isSide)oval(ctx,6,-39,1.7,2.1,'#263b39');
+    line(ctx,-3+eyeShift,-30,4+eyeShift,-31,'#9e6847',2);
+  }
+  // gola de pelo, marca registrada da primeira era
+  line(ctx,-12,-27,11,-27,'#e5c991',6);
+  oval(ctx,0,-28,8,3,'#c9b180');
+  if(isSide) {
+    oval(ctx,11,-39,4,5,'#c3946d');
+  }
+}
+
+function drawCompsognato(ctx, frame, flip) {
+  ctx.translate(52,74+[0,-2,0,-1][frame]);ctx.scale(flip?-1:1,1);
+  const stride = [0,5,0,-5][frame];
+  // cauda longa e arqueada, corpo estreito e pernas de corredor
+  ctx.beginPath();ctx.moveTo(-12,-12);ctx.bezierCurveTo(-43,-12,-47,-35,-51,-39);ctx.bezierCurveTo(-46,-16,-35,-3,-10,-3);ctx.closePath();ctx.fillStyle='#558c5c';ctx.fill();
+  line(ctx,-5,3,-14,23+stride,'#426847',7);
+  line(ctx,8,4,14,22-stride,'#416744',7);
+  line(ctx,-14,23+stride,-24,24+stride,'#354a31',4);
+  line(ctx,14,22-stride,25,23-stride,'#354a31',4);
+  oval(ctx,-3,-13,20,15,'#6d9f63',-.23);oval(ctx,-1,-20,13,5,'#9ac17a',-.23);
+  // pescoço curvado e cabeça alongada, crista
+  line(ctx,8,-17,18,-35,'#598d57',11);
+  oval(ctx,25,-39,15,11,'#78ac6b',-.16);
+  path(ctx,[[31,-38],[48,-32],[36,-27],[23,-29]],'#b8c783','#4c7250',1.2);
+  path(ctx,[[14,-47],[18,-58],[24,-47]],'#cc8c58');
+  oval(ctx,27,-41,3.3,3.3,'#fff1ca');oval(ctx,28,-41,1.5,2,'#263b29');
+  // marcas distintas no dorso
+  for(let i=0;i<4;i++)oval(ctx,-16+i*8,-22-(i%2),2.8,3.6,'#cfb56d');
+  line(ctx,3,-5,17,0,'#568458',3);
+}
+function drawAnquilossauro(ctx,frame,flip) {
+  ctx.translate(51,74+[0,-1,0,-1][frame]);ctx.scale(flip?-1:1,1);
+  const step = [0,3,0,-3][frame];
+  // cauda e ponta arredondada (não gráfica)
+  line(ctx,-23,-2,-40,-13,'#617e4a',12);
+  oval(ctx,-45,-15,10,8,'#718d50');
+  for(const [x,y,d] of [[-18,6,step],[5,8,-step],[19,7,step]]) {
+    path(ctx,[[x-5,y],[x+5,y],[x+8,y+16+d],[x-6,y+16+d]],'#516d43','#354b3e',2);
+  }
+  oval(ctx,-4,-13,34,23,'#678856');
+  oval(ctx,-4,-19,28,15,'#9da769');
+  for(const [x,y] of [[-24,-26],[-8,-31],[8,-30],[22,-23]])path(ctx,[[x-7,y+8],[x,y-10],[x+6,y+8]],'#b9a776','#556f51',1.8);
+  for(const [x,y] of [[-17,-16],[0,-18],[17,-14]])oval(ctx,x,y,4,3,'#5a7048');
+  oval(ctx,24,-7,18,13,'#83a56b');
+  oval(ctx,35,-5,4.2,4,'#efe4b1');oval(ctx,36,-5,1.7,2.3,'#2b3c30');
+  oval(ctx,41,1,5,2,'#5c744b');
+}
+function drawPterossauro(ctx,frame,flip) {
+  ctx.translate(50,73+[0,-2,0,-1][frame]);ctx.scale(flip?-1:1,1);
+  const wing = [0,3,0,-3][frame];
+  // pterossauro terrestre: asas dobradas com membranas visíveis
+  line(ctx,-6,-5,-16,20,'#4a7976',6);line(ctx,7,-5,14,20,'#4a7976',6);
+  line(ctx,-16,20,-23,20,'#345e5b',3);line(ctx,14,20,23,20,'#345e5b',3);
+  path(ctx,[[-6,-26],[-42,-35+wing],[-33,-4],[-4,5]],'#57968c','#2c5b59',2);
+  path(ctx,[[7,-26],[37,-32-wing],[27,-4],[0,7]],'#49827d','#2e5d5a',2);
+  line(ctx,-6,-26,-33,-4,'#b4c99d',2);line(ctx,7,-26,27,-4,'#b4c99d',2);
+  oval(ctx,0,-15,12,21,'#80aaa0');
+  line(ctx,4,-30,11,-43,'#649589',11);
+  oval(ctx,14,-49,13,10,'#91b5a2');
+  path(ctx,[[18,-48],[43,-44],[22,-39],[12,-40]],'#cfb07c','#5c7967',1.5);
+  path(ctx,[[2,-52],[-6,-63],[13,-55]],'#ba8b64');
+  oval(ctx,17,-50,3.7,3.5,'#f5efc7');oval(ctx,18,-50,1.4,1.8,'#283d38');
+}
+
+function drawCreature(ctx, species, frame, flip) {
+  if(species==='compsognato')drawCompsognato(ctx,frame,flip);
+  if(species==='anquilossauro')drawAnquilossauro(ctx,frame,flip);
+  if(species==='pterossauro')drawPterossauro(ctx,frame,flip);
+}
+
+function createCharacterArt(scene) {
+  for (const facing of PLAYER_FACINGS) for(let frame=0;frame<PLAYER_FRAMES;frame++) {
+    fillTexture(scene,`era-player-${facing}-${frame}`,96,116,ctx=>drawPlayer(ctx,facing,frame));
+  }
+  for(const species of CREATURE_SPECIES) for(const flip of [false,true]) for(let frame=0;frame<CREATURE_FRAMES;frame++) {
+    fillTexture(scene,`era-${species}-${flip?'left':'right'}-${frame}`,112,110,ctx=>drawCreature(ctx,species,frame,flip));
+  }
+}
+function playerTexture(facing, frame){return `era-player-${PLAYER_FACINGS.includes(facing)?facing:'down'}-${frame%PLAYER_FRAMES}`;}
+function creatureTexture(species, toLeft, frame){return `era-${species}-${toLeft?'left':'right'}-${frame%CREATURE_FRAMES}`;}
+const creaturesList = CREATURE_SPECIES;
+
+
+// --- src/entities/Player.js ---
+
+
+const FACING = ['right','down-right','down','down-left','left','up-left','up','up-right'];
+class Player {
+  constructor(scene,x,y) {
+    this.scene=scene;this.x=x;this.y=y;this.speed=250;this.radius=16;
+    this.facing='down';this.isMoving=false;this.frame=0;this.elapsed=0;
+    this.shadow=scene.add.ellipse(x,y+12,40,15,0x071b17,.38).setDepth(y+180);
+    this.sprite=scene.add.image(x,y,playerTexture('down',0)).setOrigin(.5,.83).setDepth(y+300);
+    this.sprite.setScale(.85);
+  }
+  update(delta,direction,obstacles,map) {
+    const dt=Math.min(delta,40)/1000;
+    let dx=direction.x,dy=direction.y;
+    const magnitude=Math.hypot(dx,dy)||1;dx/=magnitude;dy/=magnitude;
+    const stepX=dx*this.speed*dt,stepY=dy*this.speed*dt;
+    const nx=this.x+stepX;
+    if(this.insideMap(nx,this.y,map)&&!this.collides(nx,this.y,obstacles))this.x=nx;
+    const ny=this.y+stepY;
+    if(this.insideMap(this.x,ny,map)&&!this.collides(this.x,ny,obstacles))this.y=ny;
+    this.isMoving=Math.abs(dx)+Math.abs(dy)>.01;
+    if(this.isMoving){
+      const angle=Math.atan2(dy,dx);
+      this.facing=FACING[Math.round(((angle+2*Math.PI)%(2*Math.PI))/(Math.PI/4))%8];
+      this.elapsed+=delta;if(this.elapsed>125){this.elapsed=0;this.frame=(this.frame+1)%4;}
+    }else{this.elapsed=0;this.frame=0;}
+    this.sprite.setTexture(playerTexture(this.facing,this.frame));
+    this.shadow.setPosition(this.x,this.y+12).setDepth(this.y+180);
+    this.sprite.setPosition(this.x,this.y).setDepth(this.y+300);
+  }
+  insideMap(screenX,screenY,map) {
+    const p=map.projection.toWorld(screenX,screenY),margin=1.55;
+    return p.x>=margin&&p.y>=margin&&p.x<=map.columns-margin&&p.y<=map.rows-margin;
+  }
+  collides(x,y,obstacles) {return obstacles.some(o=>Math.abs(x-o.x)<o.rx&&Math.abs(y-o.y)<o.ry);}
+}
+
+
+// --- src/entities/Creature.js ---
+
+class Creature {
+  constructor(scene,x,y,id) {
+    this.scene=scene;this.id=id;this.species=creaturesList[id%creaturesList.length];
+    this.x=x;this.y=y;this.radius=15;this.hp=3;this.speed=55+(id%3)*10;this.alive=true;
+    this.path=[];this.pathIndex=0;this.repathAt=0;
+    this.lastGoal={x:NaN,y:NaN};this.stuckMs=0;
+    this.frame=0;this.animTime=0;this.toLeft=false;
+    this.shadow=scene.add.ellipse(x,y+10,41,13,0x0a1711,.36).setDepth(y+180);
+    this.sprite=scene.add.image(x,y,creatureTexture(this.species,false,0)).setOrigin(.5,.81).setScale(.79).setDepth(y+200);
+    // A vida é indicada apenas depois de sofrer dano, mantendo a tela limpa.
+    this.lifeDots=[];
+    for(let i=0;i<3;i++){
+      const dot=scene.add.circle(x-10+i*10,y-57,2.6,0xe8dca8).setDepth(y+310).setVisible(false);
+      this.lifeDots.push(dot);
+    }
+  }
+
+  update(delta,target,nav,creatures) {
+    if(!this.alive)return;
+    const dt=Math.min(delta,40)/1000;
+    const distance=Math.hypot(target.x-this.x,target.y-this.y);
+    if(distance>29){
+      let waypoint={x:target.x,y:target.y};
+      if(!nav.lineClear(this.x,this.y,target.x,target.y)){
+        const goalMoved=Math.hypot(target.x-this.lastGoal.x,target.y-this.lastGoal.y)>44;
+        if(!this.path.length||this.pathIndex>=this.path.length||
+           (this.scene.time.now>=this.repathAt&&goalMoved)||this.stuckMs>450){
+          const route=nav.findPath(this.x,this.y,target.x,target.y);
+          if(route.length){this.path=route;this.pathIndex=0;this.stuckMs=0;}
+          this.lastGoal={x:target.x,y:target.y};
+          this.repathAt=this.scene.time.now+480+(this.id%5)*65;
+        }
+        while(this.pathIndex<this.path.length&&
+          Math.hypot(this.path[this.pathIndex].x-this.x,this.path[this.pathIndex].y-this.y)<14){this.pathIndex++;}
+        if(this.pathIndex<this.path.length) waypoint=this.path[this.pathIndex];
+        else waypoint={x:this.x,y:this.y};
+      }else{this.path=[];this.pathIndex=0;this.stuckMs=0;}
+      this.moveToward(waypoint,dt,delta,nav,creatures);
+    }
+    this.animTime+=delta;
+    if(this.animTime>145){this.animTime=0;this.frame=(this.frame+1)%4;}
+    this.sprite.setTexture(creatureTexture(this.species,this.toLeft,this.frame));
+    this.sprite.setPosition(this.x,this.y).setDepth(this.y+200);
+    this.shadow.setPosition(this.x,this.y+10).setDepth(this.y+180);
+    this.lifeDots.forEach((dot,i)=>dot.setPosition(this.x-10+i*10,this.y-49).setDepth(this.y+310));
+  }
+  moveToward(waypoint,dt,delta,nav,creatures) {
+    let dx=waypoint.x-this.x,dy=waypoint.y-this.y;
+    const distance=Math.hypot(dx,dy);if(distance<.01)return;
+    dx/=distance;dy/=distance;this.toLeft=dx<-.04;
+    let sepX=0,sepY=0;
+    for(const other of creatures){
+      if(other===this||!other.alive)continue;
+      const ox=this.x-other.x,oy=this.y-other.y,d=Math.hypot(ox,oy);
+      if(d>.1&&d<31){const intensity=(31-d)/31;sepX+=ox/d*intensity;sepY+=oy/d*intensity;}
+    }
+    const steerX=dx+sepX*.22,steerY=dy+sepY*.22;
+    const length=Math.hypot(steerX,steerY)||1,step=Math.min(this.speed*dt,distance);
+    let moved=this.tryMove(steerX/length*step,steerY/length*step,nav);
+    if(!moved)moved=this.tryMove(dx*step,dy*step,nav);
+    if(!moved)this.stuckMs+=delta;else this.stuckMs=0;
+  }
+  tryMove(dx,dy,nav){
+    const beforeX=this.x,beforeY=this.y;
+    if(nav.isOpen(this.x+dx,this.y+dy)){this.x+=dx;this.y+=dy;}
+    else {if(nav.isOpen(this.x+dx,this.y))this.x+=dx;if(nav.isOpen(this.x,this.y+dy))this.y+=dy;}
+    return Math.hypot(this.x-beforeX,this.y-beforeY)>.15;
+  }
+  damage(amount=1){
+    if(!this.alive)return false;
+    this.hp=Math.max(0,this.hp-Math.max(1,Math.floor(amount)));
+    this.sprite.setTintFill(0xffe4bd);
+    this.scene.time.delayedCall(120,()=>{if(this.sprite.active)this.sprite.clearTint();});
+    this.lifeDots.forEach((dot,i)=>dot.setVisible(this.alive && i<this.hp));
+    if(this.hp<=0)this.destroy();
+    return true;
+  }
+  destroy(){
+    if(!this.alive)return;
+    this.alive=false;
+    this.scene.tweens.add({targets:this.sprite,alpha:0,scale:.3,duration:180,onComplete:()=>this.sprite.destroy()});
+    this.lifeDots.forEach(dot=>dot.destroy());this.shadow.destroy();
+  }
+}
+
+
+// --- src/scenes/BootScene.js ---
+
+class BootScene extends Phaser.Scene {
+  constructor() { super('BootScene'); }
+  create() { this.scene.start('MenuScene'); }
+}
+
+
+// --- src/scenes/MenuScene.js ---
+
+class MenuScene extends Phaser.Scene {
+  constructor(){super('MenuScene');}
+  create(){
+    const {width:w,height:h}=this.scale;
+    this.cameras.main.setBackgroundColor('#0b231d');
+    const bg=this.add.graphics();
+    // Arte do menu: camadas de floresta pré-histórica e vegetação tropical.
+    bg.fillStyle(0x13352b);bg.fillRect(0,0,w,h);
+    bg.fillStyle(0x2e5642,.75);bg.fillEllipse(w*.52,h*.67,w*1.1,h*.65);
+    bg.fillStyle(0x426e4c);bg.fillEllipse(w*.51,h*.68,w*.82,h*.32);
+    bg.fillStyle(0x69926a,.45);bg.fillEllipse(w*.51,h*.7,w*.67,h*.2);
+    for(let i=0;i<16;i++){
+      const px=w*(i/15),py=h*(.7+Math.sin(i*1.78)*.07);
+      bg.fillStyle(i%2?0x194b39:0x24533b,.72);
+      bg.fillEllipse(px,py-45,150,100);
+      bg.fillStyle(0x486d48,.7);bg.fillEllipse(px-10,py-68,70,32);
+      bg.fillStyle(0x604f34);bg.fillRoundedRect(px-4,py-18,9,45,3);
+    }
+    bg.fillStyle(0x0b1b1b,.68);bg.fillRoundedRect(w/2-Math.min(440,w*.46),h*.15,Math.min(880,w*.92),h*.66,18);
+    const titleSize=Math.min(98,Math.max(49,w*.095));
+    this.add.text(w/2,h*.27,'ERA',{fontFamily:'Georgia,serif',fontSize:`${titleSize}px`,fontStyle:'bold',color:'#f3e3b5',stroke:'#0b241c',strokeThickness:5}).setOrigin(.5);
+    this.add.text(w/2,h*.39,'E V O L U T I O N',{fontFamily:'Arial',fontSize:`${Math.min(23,Math.max(13,w*.023))}px`,fontStyle:'bold',color:'#c8dabc'}).setOrigin(.5);
+    this.add.text(w/2,h*.49,'CAPÍTULO I · O CRETÁCEO',{fontFamily:'Arial',fontSize:'15px',fontStyle:'bold',color:'#e9c17f',letterSpacing:3}).setOrigin(.5);
+    this.add.text(w/2,h*.57,'Um sobrevivente perdido em um mundo que ainda não conhece a humanidade.',{fontFamily:'Arial',fontSize:'13px',color:'#b6c9b2',align:'center',wordWrap:{width:Math.min(520,w*.75)}}).setOrigin(.5);
+    const start=this.add.text(w/2,h*.72,'COMEÇAR EXPEDIÇÃO',{fontFamily:'Arial',fontSize:'18px',fontStyle:'bold',color:'#193329',backgroundColor:'#e6ce93',padding:{x:27,y:16}}).setOrigin(.5).setInteractive({useHandCursor:true});
+    start.on('pointerover',()=>start.setStyle({backgroundColor:'#ffe1a4'}));
+    start.on('pointerout',()=>start.setStyle({backgroundColor:'#e6ce93'}));
+    start.on('pointerdown',()=>this.scene.start('GameScene'));
+    this.add.text(w/2,h*.88,'WASD / SETAS: MOVER  •  Q/E: ARMAS  •  1–5: EQUIPAR  •  F3: ROTAS  •  ESC: PAUSAR',{fontFamily:'Arial',fontSize:'12px',color:'#94b4a1'}).setOrigin(.5);
+    this.scale.on('resize',()=>this.scene.restart());
+  }
+}
+
+
+// --- src/scenes/PauseScene.js ---
+
+class PauseScene extends Phaser.Scene {
+  constructor() { super('PauseScene'); }
+  create() {
+    this.scene.pause('GameScene');
+    const {width,height}=this.scale;
+    this.add.rectangle(width/2,height/2,width,height,0x07100f,.78);
+    this.add.text(width/2,height*.38,'JORNADA PAUSADA',{fontSize:'30px',fontStyle:'bold',color:'#e8d8a8',letterSpacing:3}).setOrigin(.5);
+    const resume=this.add.text(width/2,height*.53,'CONTINUAR',{fontSize:'17px',fontStyle:'bold',color:'#17231d',backgroundColor:'#d8c58f',padding:{x:26,y:13},letterSpacing:2}).setOrigin(.5).setInteractive({useHandCursor:true});
+    resume.on('pointerdown',()=>{this.scene.stop();this.scene.resume('GameScene');});
+    const menu=this.add.text(width/2,height*.65,'VOLTAR AO MENU',{fontSize:'14px',color:'#d1dbc9',letterSpacing:2}).setOrigin(.5).setInteractive({useHandCursor:true});
+    menu.on('pointerdown',()=>{this.scene.stop('GameScene');this.scene.start('MenuScene');});
+    this.input.keyboard.once('keydown-ESC',()=>{this.scene.stop();this.scene.resume('GameScene');});
+  }
+}
+
+
+// --- src/scenes/UpgradeScene.js ---
+
+
+/** Pausa o jogo e apresenta três melhorias únicas, também selecionáveis por 1/2/3. */
+class UpgradeScene extends Phaser.Scene {
+  constructor(){super('UpgradeScene');}
+  init(data){this.level=data.level||1;this.choices=data.choices||['alcance','cadencia','velocidade'];}
+  create(){
+    const {width:w,height:h}=this.scale;
+    this.add.rectangle(0,0,w,h,0x07100d,.92).setOrigin(0);
+    const stacked=w<690;
+    this.add.text(w/2,h*(stacked?.12:.25),'EVOLUÇÃO DISPONÍVEL',{
+      fontFamily:'Georgia,serif',fontSize:`${Math.min(31,Math.max(19,w*.04))}px`,fontStyle:'bold',color:'#ead9a5',align:'center'
+    }).setOrigin(.5);
+    this.add.text(w/2,h*(stacked?.20:.34),'Escolha uma melhoria para continuar',{fontFamily:'Arial',fontSize:'14px',color:'#c5d2b8'}).setOrigin(.5);
+    this.choosing=false;
+    this.choices.forEach((id,i)=>{
+      const choice=UPGRADES[id];
+      const x=stacked?w/2:w/2+(i-1)*Math.min(258,w*.29);
+      const y=stacked?h*(.37+i*.22):h*.56;
+      const cw=stacked?Math.min(w*.86,430):Math.min(226,w*.27);
+      const ch=stacked?Math.min(105,h*.19):158;
+      const card=this.add.rectangle(x,y,cw,ch,0x203b34,.98).setStrokeStyle(2,0x8fae90).setInteractive({useHandCursor:true});
+      const title=this.add.text(x,y-(stacked?24:34),`${i+1} · ${choice.title}`,{
+        fontFamily:'Arial',fontSize:`${stacked?15:16}px`,fontStyle:'bold',color:'#f3d8a0',align:'center',wordWrap:{width:cw-16}
+      }).setOrigin(.5);
+      const desc=this.add.text(x,y+(stacked?16:19),choice.description,{
+        fontFamily:'Arial',fontSize:'12px',color:'#d0e1ce',align:'center',wordWrap:{width:cw-25}
+      }).setOrigin(.5);
+      card.on('pointerover',()=>card.setFillStyle(0x365544));
+      card.on('pointerout',()=>card.setFillStyle(0x203b34));
+      card.on('pointerdown',()=>this.choose(id));
+    });
+    this.onChoiceKey=(event)=>{
+      if(event.repeat)return;
+      const index=Number(event.key)-1;
+      if(Number.isInteger(index)&&index>=0&&index<this.choices.length)this.choose(this.choices[index]);
+    };
+    this.input.keyboard.on('keydown',this.onChoiceKey);
+    this.events.once(Phaser.Scenes.Events.SHUTDOWN,()=>this.input.keyboard.off('keydown',this.onChoiceKey));
+  }
+  choose(id){
+    if(this.choosing)return;
+    const game=this.scene.get('GameScene');
+    if(!game.applyUpgrade(id))return;
+    this.choosing=true;
+    game.upgrading=false;
+    this.scene.stop();
+    this.scene.resume('GameScene');
+    game.showMessage(`Melhoria adquirida: ${UPGRADES[id].title}`);
+  }
+}
+
+
+// --- src/scenes/GameScene.js ---
+
+
+
+
+
+
+
+
+
+
+
+
+class GameScene extends Phaser.Scene {
+  constructor() { super('GameScene'); }
+
+  create() {
+    this.cameras.main.setBackgroundColor('#122a24');
+    createCharacterArt(this);
+    this.projection = new IsoProjection(
+      SETTINGS.tileWidth, SETTINGS.tileHeight,
+      SETTINGS.mapRows * SETTINGS.tileWidth / 2, SETTINGS.tileHeight / 2
+    );
+    this.world = new WorldGenerator(this,this.projection);
+    this.world.create(SETTINGS.mapColumns, SETTINGS.mapRows);
+    this.createAtmosphere();
+    this.navigation = new NavigationGrid({
+      projection:this.projection, columns:SETTINGS.mapColumns,
+      rows:SETTINGS.mapRows, obstacles:this.world.obstacles
+    });
+    const start=this.projection.toScreen(17,14);
+    this.player=new Player(this,start.x,start.y);
+    this.survival=new SurvivalState({
+      maxHealth:SETTINGS.maxHealth,
+      invulnerabilityMs:SETTINGS.damageInvulnerabilityMs
+    });
+    this.map={projection:this.projection,columns:SETTINGS.mapColumns,rows:SETTINGS.mapRows};
+    const mapW=(SETTINGS.mapColumns+SETTINGS.mapRows)*SETTINGS.tileWidth/2;
+    const mapH=(SETTINGS.mapColumns+SETTINGS.mapRows)*SETTINGS.tileHeight/2;
+    this.cameras.main.setBounds(0,0,mapW,mapH);
+    this.cameras.main.startFollow(this.player.sprite,true,.09,.09);
+    this.cameras.main.setZoom(this.getZoom(this.scale.width));
+
+    this.keys=this.input.keyboard.addKeys('W,A,S,D,UP,DOWN,LEFT,RIGHT,ESC,F3');
+    this.onWeaponKey=(event)=>{
+      if(event.repeat||this.ended||this.upgrading||!this.scene.isActive())return;
+      const previous=this.weapons.active;
+      if(event.code==='KeyQ')this.weapons.cycle(-1);
+      else if(event.code==='KeyE')this.weapons.cycle(1);
+      else if(/^Digit[1-5]$/.test(event.code))this.weapons.select(this.weapons.unlocked[Number(event.code.slice(-1))-1]);
+      if(previous!==this.weapons.active){
+        this.lastAttack=-Infinity;this.updateHud();this.showMessage(`Arma equipada: ${this.weapons.current.label}`);
+      }
+    };
+    this.input.keyboard.on('keydown',this.onWeaponKey);
+    this.debugRoutes=false;
+    this.routeGraphics=this.add.graphics().setDepth(9990);
+    this.onRouteKey=()=>{
+      if(this.ended)return;
+      this.debugRoutes=!this.debugRoutes;
+      this.routeGraphics.clear();
+      this.showMessage(this.debugRoutes?'Rotas das criaturas: visíveis (F3)':'Rotas das criaturas: ocultas (F3)');
+    };
+    this.onPauseKey=()=>{
+      if(!this.ended && !this.upgrading && !this.scene.isActive('PauseScene')) this.scene.launch('PauseScene');
+    };
+    this.input.keyboard.on('keydown-F3',this.onRouteKey);
+    this.input.keyboard.on('keydown-ESC',this.onPauseKey);
+
+    this.creatures=[];
+    this.fragments=[];
+    this.projectiles=[];
+    this.weaponPickups=[];
+    this.weapons=new WeaponState();
+    this.upgrades=new UpgradeState();
+    this.weaponAura=this.add.circle(this.player.x+20,this.player.y-20,5,WEAPONS.artefato.color,.95).setDepth(this.player.y+340);
+    this.kills=0;
+    this.fragmentCount=0;
+    this.level=1;
+    this.power=1;
+    this.lastAttack=-Infinity;
+    this.spawnTimer=0;
+    this.elapsedMs=0;
+    this.upgrading=false;
+    this.ended=false;
+    this.eraGoalAnnounced=false;
+    this.createHud();
+    this.showMessage('CRETÁCEO · Explore, sobreviva e recolha fragmentos');
+    this.onResize=size=>{
+      this.cameras.main.setZoom(this.getZoom(size.width));
+      this.layoutHud();
+      if(this.message?.active) this.fixToScreen(this.message,size.width/2,this.messageScreenY());
+    };
+    this.scale.on('resize',this.onResize);
+    this.events.once(Phaser.Scenes.Events.SHUTDOWN,()=>{
+      this.input.keyboard.off('keydown',this.onWeaponKey);
+      this.input.keyboard.off('keydown-F3',this.onRouteKey);
+      this.input.keyboard.off('keydown-ESC',this.onPauseKey);
+      this.scale.off('resize',this.onResize);
+    });
+    this.spawnInitialCreatures();
+    this.updateHud();
+  }
+
+  getZoom(width){return Math.min(1.1,Math.max(.72,width/1200));}
+  messageScreenY(){return this.scale.width<960?210:16;}
+  spawnInitialCreatures(){for(let i=0;i<8;i++)this.spawnCreature(i);}
+  spawnCreature(id){
+    const candidates=[[5,5],[28,5],[5,22],[28,22],[12,4],[22,23],[8,14],[26,13]];
+    const t=candidates[id%candidates.length];
+    const p=this.projection.toScreen(t[0],t[1]);
+    const spawn=this.navigation.isOpen(p.x,p.y)?p:this.navigation.nearestOpenPoint(p.x,p.y);
+    if(spawn)this.creatures.push(new Creature(this,spawn.x,spawn.y,id));
+  }
+  createAtmosphere(){
+    this.ambientMotes=[];
+    for(let i=0;i<24;i++){
+      const tileX=2+(i*17%29),tileY=2+(i*11%23);
+      const p=this.projection.toScreen(tileX,tileY);
+      const mote=this.add.circle(p.x+(i*13)%38,p.y-24,1.4+i%2,0xd4dca0,.17+i%3*.06).setDepth(p.y+40);
+      this.tweens.add({targets:mote,y:p.y-44-(i%4)*6,alpha:.08,yoyo:true,repeat:-1,duration:1400+(i*97)%1700});
+      this.ambientMotes.push(mote);
+    }
+  }
+
+  /** Objetos fixos devem compensar o zoom da câmera que segue o jogador. */
+  fixToScreen(object,screenX,screenY){
+    const pos=screenAnchor(this.scale.width,this.scale.height,this.cameras.main.zoom,screenX,screenY);
+    object.setScrollFactor(0).setScale(pos.scale).setPosition(pos.x,pos.y);
+  }
+  createHud(){
+    const h=this.hud=this.add.container(0,0).setScrollFactor(0).setDepth(10000);
+    this.hudBack=this.add.rectangle(0,0,390,184,0x0d2420,.94).setOrigin(0).setStrokeStyle(1,0x719579,.68);
+    h.add(this.hudBack);
+    h.add(this.add.rectangle(0,0,5,184,0xd7bd7f).setOrigin(0));
+    h.add(this.add.text(17,12,'ERA 01  |  CRETÁCEO',{fontFamily:'Georgia,serif',fontSize:'17px',fontStyle:'bold',color:'#f1deb0'}));
+    h.add(this.add.text(17,38,'SOBREVIVA AO MUNDO PRIMORDIAL',{fontFamily:'Arial',fontSize:'10px',color:'#9ec5a9',letterSpacing:1}));
+    h.add(this.add.text(17,60,'VIDA',{fontFamily:'Arial',fontSize:'11px',fontStyle:'bold',color:'#c3d9c2'}));
+    this.healthText=this.add.text(53,57,'♥ ♥ ♥ ♥ ♥',{fontFamily:'Arial',fontSize:'21px',color:'#eb9a7b'});
+    h.add(this.healthText);
+    this.healthTrack=this.add.rectangle(17,89,352,8,0x355044,.95).setOrigin(0);
+    this.healthFill=this.add.rectangle(17,89,352,8,0xef9d7d,1).setOrigin(0);
+    h.add([this.healthTrack,this.healthFill]);
+    this.stats=this.add.text(17,106,'Eliminações: 0/100   •   Fragmentos: 0/10',{fontFamily:'Arial',fontSize:'12px',color:'#f2ead1'});
+    this.weaponText=this.add.text(17,125,'Nível 1  •  Artefato Verde Nv.1',{fontFamily:'Arial',fontSize:'11px',color:'#bdd5c0'});
+    this.inventoryText=this.add.text(17,143,'Q/E troca arma  •  1–5 seleção rápida',{fontFamily:'Arial',fontSize:'10px',color:'#96b9ae'});
+    h.add([this.stats,this.weaponText,this.inventoryText]);
+    this.eraTrack=this.add.rectangle(17,171,352,5,0x314739).setOrigin(0);
+    this.eraFill=this.add.rectangle(17,171,0,5,0xe2c17a).setOrigin(0);
+    h.add([this.eraTrack,this.eraFill]);
+    this.layoutHud();
+  }
+  layoutHud(){
+    if(!this.hud)return;
+    const width=Math.min(390,Math.max(275,this.scale.width-32));
+    const track=width-34;
+    this.hudBack.setSize(width,184).setDisplaySize(width,184);
+    this.healthTrack.setDisplaySize(track,8);
+    this.eraTrack.setDisplaySize(track,4);
+    this.hudWidth=width;
+    this.fixToScreen(this.hud,16,16);
+    this.updateHud();
+  }
+  updateHud(){
+    if(!this.survival||!this.stats)return;
+    const health=this.survival.health;
+    this.healthText.setText('♥ '.repeat(health)+'♡ '.repeat(this.survival.maxHealth-health));
+    this.healthFill.setDisplaySize(Math.max(.01,(this.hudWidth-34)*health/this.survival.maxHealth),8);
+    this.healthFill.setFillStyle(health<=2?0xe66f6e:0xef9d7d);
+    this.stats.setText(`Eliminações: ${Math.min(this.kills,SETTINGS.eraKillGoal)}/${SETTINGS.eraKillGoal}   •   Fragmentos: ${this.fragmentCount}/${SETTINGS.fragmentGoal}`);
+    this.weaponText.setText(`Nível ${this.level}  •  ${this.weapons.current.label} Nv.${this.weapons.tier}  •  Poder ${this.power}`);
+    this.weaponText.setColor('#'+this.weapons.current.color.toString(16).padStart(6,'0'));
+    this.inventoryText.setText(`${this.weapons.unlocked.length} armas  •  Q/E alternar  •  1–5 equipar`);
+    this.eraFill.setDisplaySize(Math.max(.01,(this.hudWidth-34)*Math.min(1,this.kills/SETTINGS.eraKillGoal)),4);
+    const compact=this.scale.width<470;
+    this.stats.setFontSize(compact?10:12);
+    this.weaponText.setFontSize(compact?9:11);
+    this.inventoryText.setFontSize(compact?9:10);
+  }
+  showMessage(message){
+    if(this.message?.active)this.message.destroy();
+    const m=this.add.text(0,0,message,{
+      fontFamily:'Arial',fontSize:'13px',color:'#f0dfaa',backgroundColor:'#101b1b',
+      padding:{x:14,y:9},align:'center',wordWrap:{width:Math.max(210,this.scale.width-32)}
+    }).setOrigin(.5,0).setDepth(12000);
+    this.message=m;
+    this.fixToScreen(m,this.scale.width/2,this.messageScreenY());
+    this.time.delayedCall(2600,()=>{
+      if(m.active)m.destroy();
+      if(this.message===m)this.message=null;
+    });
+  }
+
+  update(_time,delta){
+    if(!this.player||this.ended)return;
+    this.elapsedMs+=delta;
+    const dir={
+      x:Number(this.keys.D.isDown||this.keys.RIGHT.isDown)-Number(this.keys.A.isDown||this.keys.LEFT.isDown),
+      y:Number(this.keys.S.isDown||this.keys.DOWN.isDown)-Number(this.keys.W.isDown||this.keys.UP.isDown)
+    };
+    this.player.update(delta,dir,this.world.obstacles,this.map);
+    this.weaponAura.setPosition(this.player.x+20,this.player.y-20).setDepth(this.player.y+340).setFillStyle(this.weapons.current.color,.95);
+    this.creatures.forEach(c=>c.update(delta,this.player,this.navigation,this.creatures));
+    this.checkPlayerContact();
+    if(this.ended)return;
+    // Piscar comunica invulnerabilidade temporária sem impedir movimento ou disparos.
+    this.player.sprite.setAlpha(this.survival.isInvulnerable(this.time.now)?(Math.floor(this.time.now/115)%2?.43:1):1);
+    this.renderRouteDebug();
+    this.autoShoot();
+    this.updateProjectiles(delta);
+    this.collectWeaponPickups();
+    this.collectFragments();
+    this.spawnTimer+=delta;
+    if(this.spawnTimer>7000&&this.creatures.filter(c=>c.alive).length<8){
+      this.spawnTimer=0;this.spawnCreature(this.kills+this.creatures.length);
+    }
+    this.updateHud();
+  }
+  checkPlayerContact(){
+    if(this.survival.isInvulnerable(this.time.now))return;
+    const attacker=this.creatures.find(c=>c.alive&&Math.hypot(c.x-this.player.x,c.y-this.player.y)<SETTINGS.contactRadius);
+    if(!attacker)return;
+    const result=this.survival.takeHit(this.time.now,1);
+    if(!result.applied)return;
+    this.addFloatingNumber(this.player.x,this.player.y-68,'−1','#ff9d8d');
+    this.makeImpact(this.player.x,this.player.y-20,0xffab95,24);
+    this.cameras.main.shake(120,.002);
+    this.player.sprite.setTintFill(0xffb1a1);
+    this.time.delayedCall(110,()=>{if(this.player?.sprite?.active)this.player.sprite.clearTint();});
+    // Pequeno recuo, sem atravessar rochas nem sair da arena.
+    const dx=this.player.x-attacker.x,dy=this.player.y-attacker.y;
+    const distance=Math.hypot(dx,dy)||1;
+    const nx=this.player.x+dx/distance*23,ny=this.player.y+dy/distance*23;
+    if(this.navigation.isOpen(nx,ny)&&this.player.insideMap(nx,ny,this.map)&&!this.player.collides(nx,ny,this.world.obstacles)){
+      this.player.x=nx;this.player.y=ny;
+      this.player.sprite.setPosition(nx,ny);
+      this.player.shadow.setPosition(nx,ny+12);
+    }
+    this.updateHud();
+    if(result.defeated)this.endRun();
+  }
+  endRun(){
+    if(this.ended)return;
+    this.ended=true;
+    this.player.sprite.setAlpha(1);
+    this.scene.pause();
+    this.scene.launch('GameOverScene',{
+      kills:this.kills,level:this.level,seconds:Math.floor(this.elapsedMs/1000)
+    });
+  }
+  addFloatingNumber(x,y,text,color){
+    const label=this.add.text(x,y,text,{
+      fontFamily:'Arial',fontSize:'20px',fontStyle:'bold',color,
+      stroke:'#172920',strokeThickness:4
+    }).setOrigin(.5).setDepth(y+1050);
+    this.tweens.add({targets:label,y:y-36,alpha:0,duration:570,ease:'Sine.easeOut',onComplete:()=>label.destroy()});
+  }
+  makeImpact(x,y,color=0xb8f7d7,radius=12){
+    const flash=this.add.circle(x,y,radius,color,.65).setDepth(y+900);
+    const ring=this.add.circle(x,y,radius+5,color,0).setStrokeStyle(2,color,.9).setDepth(y+901);
+    this.tweens.add({targets:flash,scale:2.2,alpha:0,duration:200,onComplete:()=>flash.destroy()});
+    this.tweens.add({targets:ring,scale:2.1,alpha:0,duration:250,onComplete:()=>ring.destroy()});
+  }
+  renderRouteDebug(){
+    this.routeGraphics.clear();
+    if(!this.debugRoutes)return;
+    const g=this.routeGraphics;g.lineStyle(2,0xffdc78,.78);
+    this.creatures.filter(c=>c.alive).forEach(c=>{
+      const points=c.path.slice(c.pathIndex);
+      if(!points.length)return;
+      g.beginPath();g.moveTo(c.x,c.y);
+      points.forEach(point=>g.lineTo(point.x,point.y));g.strokePath();
+      points.forEach(p=>{g.fillStyle(0xffdf8d,.85);g.fillCircle(p.x,p.y,4);});
+    });
+  }
+  autoShoot(){
+    const now=this.time.now;
+    if(now-this.lastAttack<attackCooldown(this.weapons.active,this.weapons.tier,this.upgrades.levels.cadencia))return;
+    const w=this.weapons.current;
+    const range=w.range*this.upgrades.rangeMultiplier*(1+.12*(this.weapons.tier-1));
+    const target=this.creatures.filter(c=>c.alive&&Math.hypot(c.x-this.player.x,c.y-this.player.y)<range)
+      .sort((a,b)=>Math.hypot(a.x-this.player.x,a.y-this.player.y)-Math.hypot(b.x-this.player.x,b.y-this.player.y))[0];
+    if(!target)return;
+    this.lastAttack=now;
+    const shots=createSalvo({weaponId:this.weapons.active,tier:this.weapons.tier,power:this.power,
+      from:{x:this.player.x,y:this.player.y-18},target:{x:target.x,y:target.y-8}});
+    for(const spec of shots){
+      spec.life+=spec.range*(this.upgrades.rangeMultiplier-1)/Math.hypot(spec.vx,spec.vy)*1000;
+      let bolt;
+      if(spec.type==='lanca')bolt=this.add.rectangle(spec.x,spec.y,29,8,spec.color).setStrokeStyle(2,0xfff7c2).setRotation(spec.angle);
+      else if(spec.type==='orbe')bolt=this.add.circle(spec.x,spec.y,11,spec.color).setStrokeStyle(2,0xffedbd);
+      else if(spec.type==='duplo')bolt=this.add.circle(spec.x,spec.y,6,spec.color).setStrokeStyle(2,0xd9f8ff);
+      else bolt=this.add.star(spec.x,spec.y,4,3,spec.type==='leque'?10:9,spec.color).setStrokeStyle(1.5,0xf8f1ff);
+      bolt.setDepth(spec.y+350);
+      const glow=this.add.circle(spec.x,spec.y,spec.type==='orbe'?21:16,spec.color,.23).setDepth(spec.y+349);
+      this.projectiles.push({...spec,bolt,glow,hitsRemaining:spec.maxHits,hitCreatures:new Set()});
+    }
+  }
+  updateProjectiles(delta){
+    const dt=Math.min(delta,40)/1000;
+    this.projectiles=this.projectiles.filter(p=>{
+      p.x+=p.vx*dt;p.y+=p.vy*dt;p.life-=delta;
+      p.bolt.setPosition(p.x,p.y).setDepth(p.y+350);
+      if(p.type!=='lanca')p.bolt.rotation+=dt*7;
+      p.glow.setPosition(p.x,p.y).setDepth(p.y+349);
+      const target=this.creatures.find(c=>c.alive&&!p.hitCreatures.has(c)&&Math.hypot(c.x-p.x,c.y-8-p.y)<p.hitRadius+7);
+      if(target){
+        if(p.splashRadius){
+          this.makeImpact(p.x,p.y,p.color,p.splashRadius*.55);
+          for(const creature of this.creatures){
+            if(creature.alive&&Math.hypot(creature.x-p.x,creature.y-p.y)<p.splashRadius){
+              this.damageCreature(creature,p.damage,p.color);p.hitCreatures.add(creature);
+            }
+          }
+        }else{
+          this.damageCreature(target,p.damage,p.color);p.hitCreatures.add(target);
+          this.makeImpact(p.x,p.y,p.color,p.type==='lanca'?18:11);
+        }
+        p.hitsRemaining--;
+      }
+      if((target&&p.hitsRemaining<=0)||p.life<=0){p.bolt.destroy();p.glow.destroy();return false;}
+      return true;
+    });
+  }
+  damageCreature(target,damage,color){
+    if(!target.alive)return;
+    target.damage(damage);
+    this.addFloatingNumber(target.x,target.y-58,String(damage),'#'+color.toString(16).padStart(6,'0'));
+    if(!target.alive){
+      this.kills++;
+      this.dropFragment(target.x,target.y);
+      const reward=weaponRewardForKills(this.kills);
+      if(reward)this.spawnWeaponPickup(reward);
+      if(this.kills>=SETTINGS.eraKillGoal&&!this.eraGoalAnnounced){
+        this.eraGoalAnnounced=true;
+        this.showMessage('100 eliminações! O chefe chegará num próximo ciclo.');
+      }
+    }
+  }
+  spawnWeaponPickup(reward){
+    // Aparecer numa área navegável e com caminho direto até o protagonista.
+    const candidates=[];
+    for(const radius of [110,145,90,55])for(let step=0;step<16;step++){
+      const angle=step*Math.PI/8+(reward.milestone%30)/30;
+      const x=this.player.x+Math.cos(angle)*radius,y=this.player.y+Math.sin(angle)*radius;
+      if(this.navigation.isOpen(x,y)&&this.navigation.lineClear(this.player.x,this.player.y,x,y))candidates.push({x,y});
+    }
+    const p=candidates[reward.milestone%candidates.length]||{x:this.player.x,y:this.player.y};
+    const color=WEAPONS[reward.id].color;
+    const halo=this.add.circle(p.x,p.y-10,22,color,.1).setStrokeStyle(2,color,.85).setDepth(p.y+420);
+    const icon=this.add.star(p.x,p.y-26,6,9,18,color).setStrokeStyle(2,0xffffff,.8).setDepth(p.y+440);
+    const label=this.add.text(p.x,p.y-62,`${reward.kind==='nova'?'NOVA ARMA':'EVOLUÇÃO'}\n${WEAPONS[reward.id].label} Nv.${reward.tier}`,
+      {fontFamily:'Arial',fontSize:'12px',fontStyle:'bold',align:'center',color:'#fff5d8',stroke:'#153029',strokeThickness:4}).setOrigin(.5).setDepth(p.y+500);
+    this.tweens.add({targets:icon,y:p.y-38,yoyo:true,repeat:-1,duration:850});
+    this.tweens.add({targets:halo,scale:1.25,alpha:.28,yoyo:true,repeat:-1,duration:1050});
+    this.weaponPickups.push({x:p.x,y:p.y,reward,halo,icon,label});
+    this.showMessage(`Relíquia encontrada! Apanhe ${WEAPONS[reward.id].label}.`);
+  }
+  collectWeaponPickups(){
+    this.weaponPickups=this.weaponPickups.filter(item=>{
+      if(Math.hypot(item.x-this.player.x,item.y-this.player.y)>42)return true;
+      if(this.weapons.collect(item.reward)){
+        this.lastAttack=-Infinity;
+        this.makeImpact(item.x,item.y,WEAPONS[item.reward.id].color,31);
+        this.showMessage(`${WEAPONS[item.reward.id].label} Nv.${this.weapons.tier} equipada! Q/E troca a arma.`);
+      }
+      item.halo.destroy();item.icon.destroy();item.label.destroy();
+      return false;
+    });
+  }
+  applyUpgrade(id){
+    if(!this.upgrades.apply(id))return false;
+    if(id==='velocidade')this.player.speed+=26;
+    if(id==='cura'){
+      const healed=this.survival.heal(2);
+      if(healed)this.addFloatingNumber(this.player.x,this.player.y-76,`+${healed}`,'#92f2b2');
+      this.creatures.forEach(c=>{
+        if(!c.alive)return;
+        const dx=c.x-this.player.x,dy=c.y-this.player.y,d=Math.hypot(dx,dy)||1;
+        const nx=c.x+dx/d*65,ny=c.y+dy/d*65;
+        if(this.navigation.isOpen(nx,ny)&&this.navigation.lineClear(c.x,c.y,nx,ny)){
+          c.x=nx;c.y=ny;c.sprite.setPosition(nx,ny);c.shadow.setPosition(nx,ny+10);
+        }
+      });
+    }
+    this.power=this.upgrades.damagePower;
+    this.level++;
+    this.updateHud();
+    return true;
+  }
+  dropFragment(x,y){
+    const shard=this.add.star(x,y,4,5,11,0xf1d58f).setDepth(y+250);
+    this.tweens.add({targets:shard,y:y-12,yoyo:true,repeat:2,duration:280});
+    this.fragments.push(shard);
+  }
+  collectFragments(){
+    if(this.upgrading)return;
+    this.fragments=this.fragments.filter(f=>{
+      if(!f.active)return false;
+      if(Phaser.Math.Distance.Between(f.x,f.y,this.player.x,this.player.y)<this.upgrades.pickupRadius){
+        f.destroy();this.fragmentCount++;
+        if(this.fragmentCount>=SETTINGS.fragmentGoal)this.openUpgrade();
+        return false;
+      }
+      return true;
+    });
+  }
+  openUpgrade(){
+    if(this.upgrading||this.ended)return;
+    this.upgrading=true;
+    this.fragmentCount=0;
+    this.scene.pause();
+    this.scene.launch('UpgradeScene',{level:this.level,choices:this.upgrades.choices({health:this.survival.health,maxHealth:this.survival.maxHealth})});
+  }
+}
+
+
+// --- src/scenes/GameOverScene.js ---
+
+/** Tela de fim de partida: reinicia a expedição sem progresso permanente. */
+class GameOverScene extends Phaser.Scene {
+  constructor(){super('GameOverScene');}
+  init(data){
+    this.kills=data.kills||0;
+    this.level=data.level||1;
+    this.seconds=data.seconds||0;
+  }
+  create(){
+    const {width:w,height:h}=this.scale;
+    this.cameras.main.setBackgroundColor('#10241e');
+    this.add.rectangle(w/2,h/2,w,h,0x071411,.91);
+    this.add.circle(w/2,h*.26,62,0x855f4b,.13).setStrokeStyle(2,0xdfb487,.7);
+    this.add.text(w/2,h*.25,'✦',{fontFamily:'Georgia,serif',fontSize:'45px',color:'#e6ba87'}).setOrigin(.5);
+    this.add.text(w/2,h*.40,'FIM DA EXPEDIÇÃO',{
+      fontFamily:'Georgia,serif',fontSize:`${Math.min(35,Math.max(21,w*.037))}px`,fontStyle:'bold',color:'#f2d9a8',align:'center'
+    }).setOrigin(.5);
+    this.add.text(w/2,h*.48,'O Cretáceo permanece à espera de outro sobrevivente.',{
+      fontFamily:'Arial',fontSize:'14px',color:'#bdd4be',align:'center',wordWrap:{width:Math.min(560,w*.85)}
+    }).setOrigin(.5);
+    const minutes=Math.floor(this.seconds/60);
+    const seconds=String(this.seconds%60).padStart(2,'0');
+    this.add.text(w/2,h*.57,`CRIATURAS: ${this.kills}    •    NÍVEL: ${this.level}    •    TEMPO: ${minutes}:${seconds}`,{
+      fontFamily:'Arial',fontSize:`${Math.min(15,Math.max(11,w*.023))}px`,color:'#e3ddb9',align:'center'
+    }).setOrigin(.5);
+
+    const replay=this.add.text(w/2,h*.69,'RECOMEÇAR EXPEDIÇÃO',{
+      fontFamily:'Arial',fontSize:'17px',fontStyle:'bold',color:'#173227',
+      backgroundColor:'#f1d39b',padding:{x:24,y:14}
+    }).setOrigin(.5).setInteractive({useHandCursor:true});
+    replay.on('pointerover',()=>replay.setStyle({backgroundColor:'#ffe6b7'}));
+    replay.on('pointerout',()=>replay.setStyle({backgroundColor:'#f1d39b'}));
+    replay.on('pointerdown',()=>this.restart());
+    const menu=this.add.text(w/2,h*.81,'VOLTAR AO MENU',{
+      fontFamily:'Arial',fontSize:'13px',color:'#c1d3c0',letterSpacing:2
+    }).setOrigin(.5).setInteractive({useHandCursor:true});
+    menu.on('pointerdown',()=>this.goToMenu());
+    this.restartKey=()=>this.restart();
+    this.input.keyboard.on('keydown-R',this.restartKey);
+    this.input.keyboard.on('keydown-ENTER',this.restartKey);
+    this.events.once(Phaser.Scenes.Events.SHUTDOWN,()=>{
+      this.input.keyboard.off('keydown-R',this.restartKey);
+      this.input.keyboard.off('keydown-ENTER',this.restartKey);
+    });
+  }
+  restart(){
+    this.scene.stop('GameScene');
+    this.scene.start('GameScene');
+  }
+  goToMenu(){
+    this.scene.stop('GameScene');
+    this.scene.start('MenuScene');
+  }
+}
+
+
+// --- src/main.js ---
+
+
+
+
+
+
+
+const config = {
+  type: Phaser.AUTO,
+  parent: 'game',
+  backgroundColor: '#172522',
+  scale: { mode: Phaser.Scale.RESIZE, autoCenter: Phaser.Scale.CENTER_BOTH, width: 1280, height: 720 },
+  render: { antialias: true, pixelArt: false },
+  scene: [BootScene, MenuScene, GameScene, PauseScene, UpgradeScene, GameOverScene]
+};
+
+window.addEventListener('load', () => {
+  const game = new Phaser.Game(config);
+  game.events.once('ready', () => {
+    const loading = document.getElementById('loading');
+    if (loading) { loading.style.opacity = '0'; setTimeout(() => loading.remove(), 400); }
+  });
+});
+
+  }
+  </script>
+</body>
+</html>

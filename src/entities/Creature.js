@@ -67,9 +67,9 @@ export class Creature {
     else {if(nav.isOpen(this.x+dx,this.y))this.x+=dx;if(nav.isOpen(this.x,this.y+dy))this.y+=dy;}
     return Math.hypot(this.x-beforeX,this.y-beforeY)>.15;
   }
-  damage(){
+  damage(amount=1){
     if(!this.alive)return false;
-    this.hp=Math.max(0,this.hp-1);
+    this.hp=Math.max(0,this.hp-Math.max(1,Math.floor(amount)));
     this.sprite.setTintFill(0xffe4bd);
     this.scene.time.delayedCall(120,()=>{if(this.sprite.active)this.sprite.clearTint();});
     this.lifeDots.forEach((dot,i)=>dot.setVisible(this.alive && i<this.hp));
