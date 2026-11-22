@@ -72,7 +72,7 @@ export class GameScene extends Phaser.Scene {
     this.onResize=size=>{
       this.cameras.main.setZoom(this.getZoom(size.width));
       this.layoutHud();
-      if(this.message?.active) this.fixToScreen(this.message,size.width/2,16);
+      if(this.message?.active) this.fixToScreen(this.message,size.width/2,this.messageScreenY());
     };
     this.scale.on('resize',this.onResize);
     this.events.once(Phaser.Scenes.Events.SHUTDOWN,()=>{
@@ -85,6 +85,7 @@ export class GameScene extends Phaser.Scene {
   }
 
   getZoom(width){return Math.min(1.1,Math.max(.72,width/1200));}
+  messageScreenY(){return this.scale.width<960?180:16;}
   spawnInitialCreatures(){for(let i=0;i<8;i++)this.spawnCreature(i);}
   spawnCreature(id){
     const candidates=[[5,5],[28,5],[5,22],[28,22],[12,4],[22,23],[8,14],[26,13]];
@@ -161,7 +162,7 @@ export class GameScene extends Phaser.Scene {
       padding:{x:14,y:9},align:'center',wordWrap:{width:Math.max(210,this.scale.width-32)}
     }).setOrigin(.5,0).setDepth(12000);
     this.message=m;
-    this.fixToScreen(m,this.scale.width/2,16);
+    this.fixToScreen(m,this.scale.width/2,this.messageScreenY());
     this.time.delayedCall(2600,()=>{
       if(m.active)m.destroy();
       if(this.message===m)this.message=null;
