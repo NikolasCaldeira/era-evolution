@@ -39,7 +39,7 @@ for(const [index,era] of [2,3,4].map(i=>[i,ERAS[i]])){
     assert.equal(boss.phase,1);
     boss.takeDamage(Math.ceil(boss.config.health*.3));assert.equal(boss.phase,2);
     boss.takeDamage(Math.ceil(boss.config.health*.36));assert.equal(boss.phase,3);
-    assert.ok(['charge','stomp','beam','summon'].includes(boss.chooseAttack(200)));
+    assert.ok([...boss.config.attacks,'summon'].includes(boss.chooseAttack(200)));
     const rewards=Array.from({length:9},(_,i)=>rewardForEraKills(index,(i+1)*10));
     assert.equal(new Set(rewards.map(r=>r.milestone)).size,9);
     const weapon=new WeaponState();rewards.forEach(r=>assert.equal(weapon.collect(r),true));
@@ -79,7 +79,7 @@ test('arte da Era III, IV e V gera sprites para todas as direções e chefes',()
 // Regressão integrada para as ações de chefe sem dependência de canvas ou DOM.
 import {CivilizationBoss} from '../src/entities/CivilizationBoss.js';
 test('chefes de todas as civilizações executam avisos, ataques e derrota',()=>{
-  function shape(){let o={active:true};for(const m of ['setDepth','setPosition','setScale','setOrigin','setTexture','setStrokeStyle','setTintFill','clearTint','clear','lineStyle','lineBetween','strokeCircle','fillStyle','fillCircle','fillPoints'])o[m]=()=>o;o.destroy=()=>{o.active=false;return o;};return o;}
+  function shape(){let o={active:true};for(const m of ['setDepth','setPosition','setScale','setOrigin','setTexture','setStrokeStyle','setTintFill','clearTint','clear','lineStyle','lineBetween','strokeCircle','fillStyle','fillCircle','fillPoints','beginPath','arc','strokePath'])o[m]=()=>o;o.destroy=()=>{o.active=false;return o;};return o;}
   for(const era of CIVILIZATION_WORLDS){
     const scene={time:{now:0,delayedCall(){}},creatures:[],tweens:{add(){}},add:{graphics:shape,ellipse:shape,image:shape,text:shape},
       makeImpact(){},showMessage(){},damagePlayer(){},spawnBossMinions(){return 2;}};
@@ -88,7 +88,7 @@ test('chefes de todas as civilizações executam avisos, ataques e derrota',()=>
     scene.time.now=2000;boss.update(16,target,nav);
     assert.ok(boss.attack);assert.ok(boss.attack.fireAt>scene.time.now);
     scene.time.now=boss.attack.fireAt+1;boss.update(16,target,nav);
-    assert.equal(boss.attack?.executed,true);
+    assert.ok(!boss.attack||boss.attack.executed, 'o ataque deve ser executado e limpo, ou manter a investida ativa');
     boss.damage(boss.config.health);assert.equal(boss.alive,false);
   }
 });

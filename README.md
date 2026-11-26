@@ -1,52 +1,42 @@
-# ERA: Evolution — Ciclo 12 · Cinco Eras
+# ERA: Evolution — Ciclo 13 — Equilíbrio e Chefes
 
-Protótipo roguelike de sobrevivência isométrico em **Phaser 3.90**, JavaScript e Vite. O projeto é publicado automaticamente via GitHub Pages, sem necessidade de terminal para quem joga.
+Roguelike isométrico em Phaser 3.90.0. Cinco eras jogáveis, publicação automática no GitHub Pages.
 
-## Capítulos jogáveis
+## Melhorias deste ciclo
 
-| Era | Cenário | Criaturas | Guardião ao completar 100 eliminações |
-|---|---|---|---|
-| I · Cretáceo (fantasia temporal) | Floresta tropical e rochas | Compsognato, anquilossauro, pterossauro | Tricerátops Ancestral |
-| II · Pré-História (Pleistoceno) | Neve, pinheiros, geleiras | Smilodonte, rinoceronte-lanoso, mamute juvenil | Mamute Ancestral |
-| III · Civilizações Antigas | Areias, ruínas e colunas | Escaravelho, guardião de arenito, espírito-chacal | Guardião da Esfinge |
-| IV · Era Medieval | Fortaleza, pátio de pedra, torres | Lobo sombrio, gárgula, cavaleiro encantado | Gárgula Coroada |
-| V · Renascimento | Jardins, fontes e estátuas | Autômato, quimera alquímica, sentinela de bronze | Autômato Magno |
+- **Chefes distintos por era (03–05):** Esfinge com leque de areia, areia movediça e raio solar; Gárgula com mergulho, chuva de runas e cone de petrificação; Autômato com anel de engrenagens com centro seguro, pistões de impacto e feixes paralelos que deixam uma faixa segura.
+- **Avisos consistentes:** as formas de aviso e as colisões dos ataques partilham a mesma geometria. Há espaço para o jogador se desviar, incluindo a esquiva manual (Espaço).
+- **Escalada equilibrada:** máximo de criaturas simultâneas por era limitado a 17, 18, 19, 20 e 21, respetivamente, com progressão a cada 10 eliminações. Três pontos de vida continuam a ser a regra para criaturas comuns.
+- **Pressão por era:** velocidade e agressividade sobem gradualmente. Os chefes têm barras de vida mais robustas e intervalos de ataque legíveis.
+- **Medição opcional de desempenho:** F4 exibe estimativa de FPS e contagem de criaturas/projéteis. Usar para comparar Eras 01 e 04, onde foram relatados engasgos; não se trata de correção completa de desempenho.
 
-Ao derrotar o guardião, a próxima era é desbloqueada na mesma partida. A quinta era termina com uma tela de conclusão da expedição; os capítulos VI–X ainda **não** foram construídos. A fidelidade histórica é estilizada/fantástica, especialmente no primeiro capítulo.
+## Controles
 
-## Novidades do Ciclo 12
+- **WASD / setas:** mover; **Espaço:** esquiva com recarga.
+- **Q/E** ou **1–5:** alternar as armas desbloqueadas.
+- **F3:** mostrar rotas dos inimigos; **F4:** mostrar/ocultar FPS e contadores.
+- **ESC:** pausa; **R:** reinicia após a derrota.
+- Disparos são automáticos na direção de criaturas dentro do alcance.
+- A cada dez eliminações surge uma relíquia; a cada dez fragmentos abre a escolha de três melhorias.
 
-- **Rastro do Mamute** dura cerca de **6,1 segundos**; ao tocá-lo há uma **paralisação de 0,42 s**, seguida de **2,65 s de desaceleração com recuperação gradual**. A mesma marca de gelo não paralisa infinitamente quem continua sobre ela.
-- **Dificuldade entre eras:** cada capítulo aumenta a quantidade, a velocidade e a agressividade de criaturas. Mantida a progressão a cada dez eliminações dentro de cada era.
-- **Combate ativo:** áreas de perigo avisam antes de atingir; surgem da metade das Eras I–II e passam a ser características importantes das Eras III–V. Mover-se para fora do círculo evita o impacto.
-- **Esquiva manual no ESPAÇO:** avanço curto na direção do movimento, respeitando limites e obstáculos; recarga de 4,9 s e breve proteção. Não substitui automaticamente o deslocamento.
-- **Novos cenários, arte direcional, três espécies e chefes temáticos** das Eras III, IV e V. Os chefes desses capítulos são uma primeira versão funcional; animações e habilidades exclusivas poderão ser aprimoradas nos próximos ciclos.
-- Vida, armas, melhorias, níveis, fragmentos, estatísticas e tempo seguem entre eras, com recuperação limitada de vida após a Era II.
+## Links de teste
 
-## Comandos
+- Jogo normal: https://nikolascaldeira.github.io/era-evolution/
+- Chefe da Era 03: https://nikolascaldeira.github.io/era-evolution/?testeChefe=3
+- Chefe da Era 04: https://nikolascaldeira.github.io/era-evolution/?testeChefe=4
+- Chefe da Era 05: https://nikolascaldeira.github.io/era-evolution/?testeChefe=5
 
-- **WASD / setas:** mover em oito direções.
-- **Espaço:** esquiva manual com recarga.
-- **Q/E, 1–5:** alternar ou selecionar armas.
-- **ESC:** pausa. **F3:** exibir as rotas dos inimigos.
-- **R:** reiniciar depois de perder ou concluir.
-- A cada **10 eliminações** surge uma relíquia; cada **10 fragmentos** abre três opções de melhoria.
+## Instalação
 
-## Testes de acesso direto
-
-- `?testeEra=3`, `?testeEra=4`, `?testeEra=5` — visitar imediatamente os novos cenários com equipamento de teste.
-- `?testeChefe=2` — encontro do Mamute para verificar a recuperação depois do gelo.
-- `?testeChefe=3`, `?testeChefe=4`, `?testeChefe=5` — encontros dos novos chefes.
-- Sem parâmetros — expedição completa desde o Cretáceo.
-
-## Desenvolvimento
-
-```bash
+```sh
 npm install
 npm test
-npm run dev
 npm run build
-npm run export:web
+npm run dev
 ```
 
-O workflow em `.github/workflows/deploy.yml` executa `npm test`, `npm run build` e publica automaticamente `dist/` no GitHub Pages. O HTML único (`JOGAR-ERA-Evolution-Ciclo12.html`) carrega Phaser via CDN e exige internet; não substitui o bundle Vite publicado pelo GitHub Pages.
+O projeto utiliza Vite com `base: './'`. O GitHub Actions realiza testes, compilação e publicação em cada alteração na branch `main`. A exportação HTML de página única pode ser gerada com `npm run export:web` (Phaser carregado via CDN).
+
+## Notas de implementação
+
+Os avisos são resolvidos com as mesmas formas usadas para calcular o dano, em `CivilizationBossSystem.js`. Os padrões são construídos em pontos do mapa no início do aviso, para que não mudem arbitrariamente antes do impacto. O movimento de esquiva e a invulnerabilidade temporária permanecem intactos. As Eras 06–10 ainda não foram desenvolvidas.

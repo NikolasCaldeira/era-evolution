@@ -1,14 +1,9 @@
-# Publicação e testes — Ciclo 12
+# GitHub Pages — ERA Evolution — Ciclo 13
 
-O GitHub Actions compila com Vite, executa testes e publica em https://nikolascaldeira.github.io/era-evolution/ .
+O repositório publica o projeto via GitHub Actions (`.github/workflows/deploy.yml`).
 
-Após `git push` na branch `main`, verifique **Actions > Publicar ERA Evolution no GitHub Pages**.
-
-Atalhos de teste:
-- ?testeEra=3 (Civilizações Antigas)
-- ?testeEra=4 (Era Medieval)
-- ?testeEra=5 (Renascimento)
-- ?testeChefe=2 (Mamute glacial)
-- ?testeChefe=3, 4 ou 5 (chefes das novas eras)
-
-Os três chefes novos possuem ataques de primeira versão. O jogo pode ser testado sem baixar arquivos, pela mesma URL.
+- Site: https://nikolascaldeira.github.io/era-evolution/
+- Os testes e o build do Vite são executados a cada commit em `main`.
+- `?testeChefe=3`, `4` ou `5` permitem testar os três chefes sem repetir as 100 eliminações.
+- `F4` apresenta a estimativa de FPS e contagem de entidades para investigar desempenho.
+- A experiência de jogo em diferentes computadores e celulares ainda necessita de validação manual.

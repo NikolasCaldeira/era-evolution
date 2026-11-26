@@ -38,15 +38,27 @@ export function chooseSpawnPoint({navigation,projection,player,sequence=0,minimu
   return null;
 }
 
-/** Mantém progressão de 10 em 10 abates, somando pressão proporcional à era.
- * Inimigos comuns continuam com três pontos de vida; a exigência cresce pelo comportamento. */
+/** Limites por era: mantém a escalada, mas evita lotação excessiva nas Eras IV–V.
+ * O custo da navegação cresce aproximadamente com o número de criaturas;
+ * limitar a população melhora a previsibilidade do combate.
+ */
+export const ERA_BALANCE=Object.freeze([
+  Object.freeze({maxAlive:17,extraAlive:0,spawnFactor:1,speedFactor:1,aggressionFactor:1}),
+  Object.freeze({maxAlive:18,extraAlive:1,spawnFactor:.95,speedFactor:1.065,aggressionFactor:1.09}),
+  Object.freeze({maxAlive:19,extraAlive:2,spawnFactor:.91,speedFactor:1.13,aggressionFactor:1.17}),
+  Object.freeze({maxAlive:20,extraAlive:3,spawnFactor:.88,speedFactor:1.18,aggressionFactor:1.26}),
+  Object.freeze({maxAlive:21,extraAlive:4,spawnFactor:.85,speedFactor:1.235,aggressionFactor:1.34})
+]);
+/** Inimigos comuns continuam com três pontos de vida. Escalada por ritmo, IA e posicionamento. */
 export function difficultyForEra(kills,eraIndex=0){
-  const within=difficultyForKills(kills),era=Math.max(0,Math.min(4,Math.floor(eraIndex)||0));
+  const within=difficultyForKills(kills);
+  const era=Math.max(0,Math.min(ERA_BALANCE.length-1,Math.floor(eraIndex)||0));
+  const balance=ERA_BALANCE[era];
   return Object.freeze({
     ...within,era,
-    maxAlive:Math.min(24,within.maxAlive+Math.round(era*1.5)),
-    spawnIntervalMs:Math.max(1500,Math.round(within.spawnIntervalMs*(1-era*.075))),
-    speedMultiplier:within.speedMultiplier*(1+era*.092),
-    aggression:within.aggression*(1+era*.13)
+    maxAlive:Math.min(balance.maxAlive,within.maxAlive+balance.extraAlive),
+    spawnIntervalMs:Math.max(1850,Math.round(within.spawnIntervalMs*balance.spawnFactor)),
+    speedMultiplier:within.speedMultiplier*balance.speedFactor,
+    aggression:within.aggression*balance.aggressionFactor
   });
 }

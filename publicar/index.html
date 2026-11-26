@@ -4,7 +4,7 @@
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width,initial-scale=1" />
   <meta name="theme-color" content="#102820" />
-  <title>ERA: Evolution | Cinco Eras — Ciclo 12</title>
+  <title>ERA: Evolution | Cinco Eras — Ciclo 13</title>
   <style>:root { color-scheme: dark; font-family: Inter, ui-sans-serif, system-ui, sans-serif; background:#0b1415; color:#edf2df; }
 * { box-sizing:border-box; }
 html,body { margin:0; width:100%; height:100%; overflow:hidden; background:#0b1415; }
@@ -302,7 +302,7 @@ return {UPGRADES,UPGRADE_CAPS,UpgradeState};
 })();
 
 // --- src/systems/DifficultySystem.js ---
-const {CREATURE_BEHAVIORS,MAX_STAGE,difficultyForKills,behaviorForCreature,chooseSpawnPoint,difficultyForEra} = (() => {
+const {CREATURE_BEHAVIORS,MAX_STAGE,difficultyForKills,behaviorForCreature,chooseSpawnPoint,ERA_BALANCE,difficultyForEra} = (() => {
 /** Dificuldade progressiva do Cretáceo. Os inimigos mantêm 3 pontos de vida. */
 const CREATURE_BEHAVIORS = Object.freeze(['investida', 'resistente', 'flanqueador']);
 const MAX_STAGE = 9; // A partir de 100 eliminações, a arena passa para a luta do chefe.
@@ -343,20 +343,32 @@ function chooseSpawnPoint({navigation,projection,player,sequence=0,minimumDistan
   return null;
 }
 
-/** Mantém progressão de 10 em 10 abates, somando pressão proporcional à era.
- * Inimigos comuns continuam com três pontos de vida; a exigência cresce pelo comportamento. */
+/** Limites por era: mantém a escalada, mas evita lotação excessiva nas Eras IV–V.
+ * O custo da navegação cresce aproximadamente com o número de criaturas;
+ * limitar a população melhora a previsibilidade do combate.
+ */
+const ERA_BALANCE=Object.freeze([
+  Object.freeze({maxAlive:17,extraAlive:0,spawnFactor:1,speedFactor:1,aggressionFactor:1}),
+  Object.freeze({maxAlive:18,extraAlive:1,spawnFactor:.95,speedFactor:1.065,aggressionFactor:1.09}),
+  Object.freeze({maxAlive:19,extraAlive:2,spawnFactor:.91,speedFactor:1.13,aggressionFactor:1.17}),
+  Object.freeze({maxAlive:20,extraAlive:3,spawnFactor:.88,speedFactor:1.18,aggressionFactor:1.26}),
+  Object.freeze({maxAlive:21,extraAlive:4,spawnFactor:.85,speedFactor:1.235,aggressionFactor:1.34})
+]);
+/** Inimigos comuns continuam com três pontos de vida. Escalada por ritmo, IA e posicionamento. */
 function difficultyForEra(kills,eraIndex=0){
-  const within=difficultyForKills(kills),era=Math.max(0,Math.min(4,Math.floor(eraIndex)||0));
+  const within=difficultyForKills(kills);
+  const era=Math.max(0,Math.min(ERA_BALANCE.length-1,Math.floor(eraIndex)||0));
+  const balance=ERA_BALANCE[era];
   return Object.freeze({
     ...within,era,
-    maxAlive:Math.min(24,within.maxAlive+Math.round(era*1.5)),
-    spawnIntervalMs:Math.max(1500,Math.round(within.spawnIntervalMs*(1-era*.075))),
-    speedMultiplier:within.speedMultiplier*(1+era*.092),
-    aggression:within.aggression*(1+era*.13)
+    maxAlive:Math.min(balance.maxAlive,within.maxAlive+balance.extraAlive),
+    spawnIntervalMs:Math.max(1850,Math.round(within.spawnIntervalMs*balance.spawnFactor)),
+    speedMultiplier:within.speedMultiplier*balance.speedFactor,
+    aggression:within.aggression*balance.aggressionFactor
   });
 }
 
-return {CREATURE_BEHAVIORS,MAX_STAGE,difficultyForKills,behaviorForCreature,chooseSpawnPoint,difficultyForEra};
+return {CREATURE_BEHAVIORS,MAX_STAGE,difficultyForKills,behaviorForCreature,chooseSpawnPoint,ERA_BALANCE,difficultyForEra};
 })();
 
 // --- src/systems/MagnetSystem.js ---
@@ -554,37 +566,102 @@ return {DASH,DashState,threatForEra,threatHits};
 })();
 
 // --- src/systems/CivilizationBossSystem.js ---
-const {CIVILIZATION_BOSSES,CivilizationBossState,withinBossBeam} = (() => {
-/** Chefes dos três capítulos em desenvolvimento. Mecânicas comuns, identidades distintas. */
+const {CIVILIZATION_BOSSES,makeBossAttackPlan,withinBossBeam,bossShapeHits,bossAttackHits,CivilizationBossState} = (() => {
+/** Ciclo 13 — Ataques diferenciados com geometria idêntica para aviso e colisão.
+ * Todas as funções são puras: podem ser testadas sem Phaser.
+ */
 const CIVILIZATION_BOSSES=Object.freeze({
-  antiga:Object.freeze({name:'GUARDIÃO DA ESFINGE',health:160,speed:81,color:0xf1c77e,charge:'AVANÇO DE ARENITO',stomp:'TERREMOTO DO TEMPLO',beam:'RAIO SOLAR',summon:'ESCARAVELHOS DESPERTAM'}),
-  medieval:Object.freeze({name:'GÁRGULA COROADA',health:188,speed:95,color:0xb4d9ed,charge:'MERGULHO SOMBRIO',stomp:'ONDA DA FORTALEZA',beam:'OLHAR DE PEDRA',summon:'MATILHA DA NOITE'}),
-  renascimento:Object.freeze({name:'AUTÔMATO MAGNO',health:220,speed:91,color:0xe9bd7b,charge:'ARRANCADA MECÂNICA',stomp:'ENGRENAGEM DE CHOQUE',beam:'FEIXE ALQUÍMICO',summon:'ENGENHOS DE APOIO'})
+  antiga:Object.freeze({
+    name:'GUARDIÃO DA ESFINGE',health:210,speed:78,color:0xf1c77e,
+    attackNames:{sandfan:'LEQUE DE AREIA',quicksand:'AREIAS MOVEDIÇAS',sunray:'RAIO SOLAR',summon:'ESCARAVELHOS DESPERTAM'},
+    attacks:['sandfan','quicksand','sunray','sandfan'],
+    hint:'LEQUE DE AREIA · AREIAS MOVEDIÇAS · RAIO SOLAR · APOIO'
+  }),
+  medieval:Object.freeze({
+    name:'GÁRGULA COROADA',health:270,speed:92,color:0xa7d5eb,
+    attackNames:{dive:'MERGULHO SOMBRIO',runefall:'CHUVA DE RUNAS',stonegaze:'OLHAR PETRIFICANTE',summon:'MATILHA DA NOITE'},
+    attacks:['dive','runefall','stonegaze','runefall'],
+    hint:'MERGULHO · RUNAS · PETRIFICAÇÃO · APOIO'
+  }),
+  renascimento:Object.freeze({
+    name:'AUTÔMATO MAGNO',health:330,speed:86,color:0xe9bd7b,
+    attackNames:{gearring:'ANEL DE ENGRENAGENS',piston:'PISTÕES DE IMPACTO',arcbeam:'FEIXES PARALELOS',summon:'ENGENHOS DE APOIO'},
+    attacks:['gearring','piston','arcbeam','piston'],
+    hint:'ENGRENAGENS · PISTÕES · FEIXES · APOIO'
+  })
 });
-class CivilizationBossState {
-  constructor(era){this.config=CIVILIZATION_BOSSES[era];if(!this.config)throw new Error('Boss de era inválida');this.health=this.config.health;this.attackIndex=0;this.summons=0;}
-  get alive(){return this.health>0;}
-  get phase(){return this.health>this.config.health*.7?1:this.health>this.config.health*.35?2:3;}
-  get healthRatio(){return Math.max(0,this.health/this.config.health);}
-  takeDamage(damage){if(!this.alive)return false;this.health=Math.max(0,this.health-Math.max(1,Math.floor(damage)));return true;}
-  chooseAttack(distance){
-    const index=this.attackIndex++;
-    if(this.phase===3&&this.summons<2&&index%5===0){this.summons++;return 'summon';}
-    if(distance<130&&index%3===0)return 'stomp';
-    if(distance>250&&index%3===0)return 'charge';
-    return (this.phase===1?['charge','stomp','beam']:['beam','charge','stomp','beam'])[index%(this.phase===1?3:4)];
+
+const point=(x,y)=>({x,y});
+const rotate=(v,angle)=>point(v.x*Math.cos(angle)-v.y*Math.sin(angle),v.x*Math.sin(angle)+v.y*Math.cos(angle));
+const distance=(a,b)=>Math.hypot(a.x-b.x,a.y-b.y);
+
+/** Congela a mira ao começar o aviso. A colisão usa precisamente as mesmas formas. */
+function makeBossAttackPlan(era,type,origin,target){
+  if(!CIVILIZATION_BOSSES[era])throw new Error('Era inválida');
+  if(type==='summon')return [{kind:'circle',x:origin.x,y:origin.y,radius:86,warningOnly:true}];
+  const delta=point(target.x-origin.x,target.y-origin.y);
+  const len=Math.hypot(delta.x,delta.y)||1;
+  const dir=point(delta.x/len,delta.y/len),side=point(-dir.y,dir.x);
+  const line=(offset,length,width,turn=0)=>{
+    const shifted=point(origin.x+side.x*offset,origin.y+side.y*offset-12);
+    const ray=rotate(dir,turn);
+    return {kind:'line',from:shifted,to:point(shifted.x+ray.x*length,shifted.y+ray.y*length),radius:width};
+  };
+  const circle=(x,y,radius)=>({kind:'circle',x,y,radius});
+  switch(type){
+    case 'sandfan':return [-.29,0,.29].map(angle=>line(0,440,18,angle));
+    case 'sunray':return [line(0,520,27)];
+    case 'quicksand':return [circle(target.x,target.y,57),circle(target.x+side.x*105,target.y+side.y*105,43)];
+    case 'dive':return [line(0,Math.min(580,Math.max(270,len+75)),30)];
+    case 'runefall':return [-1,0,1].map(i=>circle(target.x+side.x*i*90,target.y+side.y*i*90,36));
+    case 'stonegaze':return [{kind:'cone',x:origin.x,y:origin.y-15,angle:Math.atan2(dir.y,dir.x),reach:280,halfAngle:.38}];
+    case 'gearring':return [{kind:'ring',x:origin.x,y:origin.y,inner:72,outer:155}];
+    case 'piston':return [circle(target.x,target.y,40),circle(target.x+dir.x*95+side.x*56,target.y+dir.y*95+side.y*56,34),circle(target.x+dir.x*95-side.x*56,target.y+dir.y*95-side.y*56,34)];
+    case 'arcbeam':return [line(-48,480,21),line(48,480,21)];
+    default:throw new Error(`Ataque não configurado: ${type}`);
   }
-  windupMs(){return Math.max(780,1250-(this.phase-1)*150);}
-  cooldownMs(){return Math.max(1450,3550-(this.phase-1)*560);}
 }
+
 function withinBossBeam(from,to,player,width=35){
   const dx=to.x-from.x,dy=to.y-from.y,len2=dx*dx+dy*dy;
-  if(len2<1)return Math.hypot(player.x-from.x,player.y-from.y)<width;
+  if(len2<1)return distance(player,from)<=width;
   const t=Math.max(0,Math.min(1,((player.x-from.x)*dx+(player.y-from.y)*dy)/len2));
   return Math.hypot(player.x-(from.x+dx*t),player.y-(from.y+dy*t))<=width;
 }
+function bossShapeHits(shape,player,playerRadius=10){
+  if(shape.warningOnly)return false;
+  if(shape.kind==='line')return withinBossBeam(shape.from,shape.to,player,shape.radius+playerRadius);
+  const d=Math.hypot(player.x-shape.x,player.y-shape.y);
+  if(shape.kind==='circle')return d<=shape.radius+playerRadius;
+  if(shape.kind==='ring')return d>=shape.inner-playerRadius&&d<=shape.outer+playerRadius;
+  if(shape.kind==='cone'){
+    if(d>shape.reach+playerRadius||d<1)return false;
+    const a=Math.atan2(player.y-shape.y,player.x-shape.x);
+    const delta=Math.atan2(Math.sin(a-shape.angle),Math.cos(a-shape.angle));
+    return Math.abs(delta)<=shape.halfAngle+Math.atan2(playerRadius,Math.max(1,d));
+  }
+  return false;
+}
+function bossAttackHits(shapes,player,playerRadius=10){return shapes.some(shape=>bossShapeHits(shape,player,playerRadius));}
 
-return {CIVILIZATION_BOSSES,CivilizationBossState,withinBossBeam};
+class CivilizationBossState {
+  constructor(era){this.config=CIVILIZATION_BOSSES[era];if(!this.config)throw new Error('Boss de era inválida');this.health=this.config.health;this.attackIndex=0;this.summons=0;}
+  get alive(){return this.health>0;}
+  get phase(){return this.health>Math.round(this.config.health*.7)?1:this.health>Math.round(this.config.health*.35)?2:3;}
+  get healthRatio(){return Math.max(0,this.health/this.config.health);}
+  takeDamage(damage){if(!this.alive)return false;this.health=Math.max(0,this.health-Math.max(1,Math.floor(damage)));return true;}
+  chooseAttack(_distance){
+    const index=this.attackIndex++;
+    if(this.phase===3&&this.summons<2&&index%5===0){this.summons++;return 'summon';}
+    // Primeira fase apresenta os padrões com um aviso amplo; fases posteriores
+    // alternam todos os golpes, incluindo os que exigem mudança de posicionamento.
+    return this.config.attacks[index%this.config.attacks.length];
+  }
+  windupMs(){return Math.max(880,1490-(this.phase-1)*165);}
+  cooldownMs(){return Math.max(1750,3600-(this.phase-1)*490);}
+}
+
+return {CIVILIZATION_BOSSES,makeBossAttackPlan,withinBossBeam,bossShapeHits,bossAttackHits,CivilizationBossState};
 })();
 
 // --- src/systems/RelicVisual.js ---
@@ -2219,36 +2296,39 @@ return {PleistoceneBoss};
 const {CivilizationBoss} = (() => {
 
 
-/** Chefe temático de cada civilização. Investida, onda e feixe com telegráficos próprios. */
+/** Ciclo 13: cada chefe usa formas de perigo e táticas próprias, anunciadas antes do dano. */
 class CivilizationBoss {
   constructor(scene,x,y,era){
     this.scene=scene;this.x=x;this.y=y;this.era=era;this.id=99500;this.isBoss=true;
     this.config=CIVILIZATION_BOSSES[era];this.state=new CivilizationBossState(era);
     this.alive=true;this.contactRadius=57;this.phase=1;this.path=[];this.pathIndex=0;this.repathAt=0;
-    this.attack=null;this.nextAttack=scene.time.now+1650;this.frame=0;this.animMs=0;this.toLeft=false;
+    this.attack=null;this.nextAttack=scene.time.now+1800;this.frame=0;this.animMs=0;this.toLeft=false;
     this.telegraph=scene.add.graphics().setDepth(9700);
     this.shadow=scene.add.ellipse(x,y+14,122,33,0x11211d,.39).setDepth(y+170);
     this.sprite=scene.add.image(x,y,civilizationBossTexture(era,false,0)).setOrigin(.5,.83).setDepth(y+260).setScale(1.04);
     this.nameplate=scene.add.text(x,y-140,this.config.name,{fontFamily:'Arial',fontSize:'12px',fontStyle:'bold',color:'#fff1cc',stroke:'#26302f',strokeThickness:4}).setOrigin(.5).setDepth(y+400);
   }
   damage(amount){
-    const prev=this.state.phase;
+    const previous=this.state.phase;
     if(!this.state.takeDamage(amount))return false;
     this.phase=this.state.phase;
     if(this.sprite?.active)this.sprite.setTintFill(0xffffff);
     this.scene.time.delayedCall(110,()=>this.sprite?.active&&this.sprite.clearTint());
-    if(this.alive&&prev!==this.phase){this.scene.showMessage(`${this.config.name}: FASE ${this.phase}`);this.scene.makeImpact(this.x,this.y-35,this.config.color,65);}
+    if(this.alive&&previous!==this.phase){this.scene.showMessage(`${this.config.name}: FASE ${this.phase}`);this.scene.makeImpact(this.x,this.y-35,this.config.color,65);}
     if(!this.state.alive)this.destroy();
     return true;
   }
   startAttack(now,target){
     const type=this.state.chooseAttack(Math.hypot(target.x-this.x,target.y-this.y));
-    this.attack={type,start:now,fireAt:now+this.state.windupMs(),originX:this.x,originY:this.y,targetX:target.x,targetY:target.y,executed:false};
-    this.nextAttack=this.attack.fireAt+this.state.cooldownMs();
-    this.scene.showMessage(`${this.config.name} — ${this.config[type].toUpperCase()}!`);
+    const from={x:this.x,y:this.y},to={x:target.x,y:target.y};
+    const fireAt=now+this.state.windupMs();
+    this.attack={type,start:now,fireAt,originX:this.x,originY:this.y,
+      targetX:to.x,targetY:to.y,shapes:makeBossAttackPlan(this.era,type,from,to),executed:false};
+    this.nextAttack=fireAt+this.state.cooldownMs();
+    this.scene.showMessage(`${this.config.name} — ${this.config.attackNames[type]}!`);
   }
   move(dx,dy,nav){
-    let nx=this.x+dx,ny=this.y+dy;
+    const nx=this.x+dx,ny=this.y+dy;
     if(nav.isOpen(nx,ny)){this.x=nx;this.y=ny;return true;}
     if(nav.isOpen(nx,this.y)){this.x=nx;return true;}
     if(nav.isOpen(this.x,ny)){this.y=ny;return true;}
@@ -2256,47 +2336,69 @@ class CivilizationBoss {
   }
   navigate(delta,target,nav){
     const now=this.scene.time.now;
-    if(Math.hypot(target.x-this.x,target.y-this.y)<145)return;
+    if(Math.hypot(target.x-this.x,target.y-this.y)<155)return;
     if(now>=this.repathAt||!this.path.length||this.pathIndex>=this.path.length){
-      this.path=nav.findPath(this.x,this.y,target.x,target.y);this.pathIndex=0;this.repathAt=now+600;
+      this.path=nav.findPath(this.x,this.y,target.x,target.y);this.pathIndex=0;this.repathAt=now+620;
     }
     while(this.pathIndex<this.path.length&&Math.hypot(this.path[this.pathIndex].x-this.x,this.path[this.pathIndex].y-this.y)<18)this.pathIndex++;
     const waypoint=this.path[this.pathIndex]||target;
     const dx=waypoint.x-this.x,dy=waypoint.y-this.y,d=Math.hypot(dx,dy)||1;
     this.toLeft=dx<0;
-    const s=Math.min(d,(this.config.speed+(this.phase-1)*15)*Math.min(delta,40)/1000);
-    if(!this.move(dx/d*s,dy/d*s,nav))this.repathAt=0;
+    const step=Math.min(d,(this.config.speed+(this.phase-1)*12)*Math.min(delta,40)/1000);
+    if(!this.move(dx/d*step,dy/d*step,nav))this.repathAt=0;
   }
   warn(now){
-    const g=this.telegraph,a=this.attack;g.clear();if(!a||a.executed)return;
-    const t=Math.min(1,(now-a.start)/(a.fireAt-a.start));
-    g.lineStyle(3+t*2,this.config.color,.45+t*.45);
-    if(a.type==='charge'||a.type==='beam'){
-      g.lineBetween(a.originX,a.originY-20,a.targetX,a.targetY);
-      g.strokeCircle(a.targetX,a.targetY,a.type==='beam'?32:17);
-    }else{
-      const radius=a.type==='summon'?104:133;
-      g.strokeCircle(this.x,this.y,radius);
-      g.strokeCircle(this.x,this.y,radius*(1-t));
+    const g=this.telegraph,a=this.attack;g.clear();
+    if(!a||a.executed)return;
+    const progress=Math.max(0,Math.min(1,(now-a.start)/(a.fireAt-a.start)));
+    const alpha=.48+progress*.42;
+    g.lineStyle(3+progress*2,this.config.color,alpha);
+    for(const s of a.shapes){
+      if(s.kind==='line'){
+        g.lineBetween(s.from.x,s.from.y,s.to.x,s.to.y);
+        g.strokeCircle(s.to.x,s.to.y,s.radius);
+      }else if(s.kind==='circle'){
+        g.strokeCircle(s.x,s.y,s.radius);
+        g.lineStyle(1,this.config.color,alpha*.6);
+        g.strokeCircle(s.x,s.y,Math.max(2,s.radius*(1-progress)));
+        g.lineStyle(3+progress*2,this.config.color,alpha);
+      }else if(s.kind==='ring'){
+        g.strokeCircle(s.x,s.y,s.outer);
+        g.lineStyle(2,0x8ae6c2,.75);
+        g.strokeCircle(s.x,s.y,s.inner); // zona central segura
+        g.lineStyle(3+progress*2,this.config.color,alpha);
+      }else if(s.kind==='cone'){
+        const a1=s.angle-s.halfAngle,a2=s.angle+s.halfAngle;
+        g.lineBetween(s.x,s.y,s.x+Math.cos(a1)*s.reach,s.y+Math.sin(a1)*s.reach);
+        g.lineBetween(s.x,s.y,s.x+Math.cos(a2)*s.reach,s.y+Math.sin(a2)*s.reach);
+        g.beginPath();g.arc(s.x,s.y,s.reach,a1,a2);g.strokePath();
+      }
     }
   }
   execute(now,target){
     const a=this.attack;if(!a||a.executed)return;
     a.executed=true;
-    if(a.type==='charge'){
-      const dx=a.targetX-a.originX,dy=a.targetY-a.originY,d=Math.hypot(dx,dy)||1;
-      a.direction={x:dx/d,y:dy/d};a.chargeUntil=now+510;
-      this.scene.makeImpact(this.x,this.y-23,this.config.color,28);
-    }else if(a.type==='stomp'){
-      this.scene.makeImpact(this.x,this.y-18,this.config.color,115);
-      if(Math.hypot(target.x-this.x,target.y-this.y)<135)this.scene.damagePlayer(this,1);
-    }else if(a.type==='beam'){
-      this.scene.makeImpact(a.targetX,a.targetY,this.config.color,45);
-      if(withinBossBeam({x:a.originX,y:a.originY-20},{x:a.targetX,y:a.targetY},target,36))this.scene.damagePlayer(this,1);
-    }else{
-      this.scene.makeImpact(this.x,this.y-20,this.config.color,65);
-      this.scene.spawnBossMinions(2);
+    if(a.type==='summon'){
+      this.scene.makeImpact(this.x,this.y-20,this.config.color,70);
+      this.scene.spawnBossMinions(2);return;
     }
+    if(a.type==='dive'){
+      const dx=a.targetX-a.originX,dy=a.targetY-a.originY,d=Math.hypot(dx,dy)||1;
+      a.direction={x:dx/d,y:dy/d};a.chargeUntil=now+630;
+      this.scene.makeImpact(this.x,this.y-25,this.config.color,35);return;
+    }
+    if(a.shapes.length){
+      const first=a.shapes[0];
+      const px=first.x??a.targetX,py=first.y??a.targetY;
+      this.scene.makeImpact(px,py-12,this.config.color,first.kind==='ring'?90:40);
+    }
+    if(!bossAttackHits(a.shapes,target,10))return;
+    // A lentidão é aplicada antes do dano (que ativa proteção temporária);
+    // durante a esquiva invulnerável não se recebe nem dano nem o efeito.
+    if(a.type==='quicksand')this.scene.applyCombatSlow?.(.66,1700,'AREIAS MOVEDIÇAS');
+    if(a.type==='stonegaze')this.scene.applyCombatSlow?.(.48,1350,'OLHAR PETRIFICANTE');
+    this.scene.damagePlayer(this,1);
+    if(a.type==='gearring')this.scene.makeImpact(target.x,target.y-17,0xeed38a,22);
   }
   update(delta,target,nav){
     if(!this.alive)return;
@@ -2305,12 +2407,14 @@ class CivilizationBoss {
     if(this.attack){
       const a=this.attack;this.warn(now);
       if(!a.executed&&now>=a.fireAt)this.execute(now,target);
-      if(a.executed&&a.type==='charge'&&now<a.chargeUntil){
-        const s=(325+(this.phase-1)*40)*Math.min(delta,40)/1000;
-        if(!this.move(a.direction.x*s,a.direction.y*s,nav))a.chargeUntil=now;
+      if(a.executed&&a.type==='dive'&&now<a.chargeUntil){
+        const step=(345+(this.phase-1)*42)*Math.min(delta,40)/1000;
+        if(!this.move(a.direction.x*step,a.direction.y*step,nav))a.chargeUntil=now;
         if(Math.hypot(this.x-target.x,this.y-target.y)<this.contactRadius)this.scene.damagePlayer(this,1);
       }
-      if(a.executed&&(a.type!=='charge'||now>=a.chargeUntil)){this.attack=null;this.telegraph.clear();this.repathAt=0;}
+      if(a.executed&&(a.type!=='dive'||now>=a.chargeUntil)){
+        this.attack=null;this.telegraph.clear();this.repathAt=0;
+      }
     }else this.navigate(delta,target,nav);
     this.animMs+=delta;if(this.animMs>190){this.frame=(this.frame+1)%4;this.animMs=0;}
     this.sprite.setTexture(civilizationBossTexture(this.era,this.toLeft,this.frame)).setPosition(this.x,this.y).setDepth(this.y+260);
@@ -2533,7 +2637,7 @@ class GameScene extends Phaser.Scene {
     this.cameras.main.startFollow(this.player.sprite,true,.09,.09);
     this.cameras.main.setZoom(this.getZoom(this.scale.width));
 
-    this.keys=this.input.keyboard.addKeys('W,A,S,D,UP,DOWN,LEFT,RIGHT,ESC,F3,SPACE');
+    this.keys=this.input.keyboard.addKeys('W,A,S,D,UP,DOWN,LEFT,RIGHT,ESC,F3,F4,SPACE');
     this.input.keyboard.addCapture('SPACE');
     this.onWeaponKey=(event)=>{
       if(event.repeat||this.ended||this.upgrading||!this.scene.isActive())return;
@@ -2558,6 +2662,20 @@ class GameScene extends Phaser.Scene {
       if(!this.ended && !this.upgrading && !this.scene.isActive('PauseScene')) this.scene.launch('PauseScene');
     };
     this.input.keyboard.on('keydown-F3',this.onRouteKey);
+    this.performanceVisible=false;
+    this.performanceTime=0;
+    this.performanceFrames=0;
+    this.performanceLabel=this.add.text(0,0,'FPS -- | Criaturas -- | Projéteis --',{
+      fontFamily:'monospace',fontSize:'12px',color:'#e2e7d3',backgroundColor:'#142320',
+      padding:{x:8,y:6}
+    }).setOrigin(1,0).setDepth(13000).setVisible(false);
+    this.onPerformanceKey=()=>{
+      this.performanceVisible=!this.performanceVisible;
+      this.performanceTime=0;this.performanceFrames=0;
+      this.performanceLabel.setVisible(this.performanceVisible);
+      this.fixToScreen(this.performanceLabel,this.scale.width-16,16);
+    };
+    this.input.keyboard.on('keydown-F4',this.onPerformanceKey);
     this.input.keyboard.on('keydown-ESC',this.onPauseKey);
     this.onDashKey=event=>{if(!event.repeat)this.activateDash();};
     this.input.keyboard.on('keydown-SPACE',this.onDashKey);
@@ -2582,6 +2700,9 @@ class GameScene extends Phaser.Scene {
     this.spawnTimer=0;
     this.elapsedMs=0;
     this.coldUntil=0;
+    this.combatSlowUntil=0;
+    this.combatSlowFactor=1;
+    this.combatSlowLabel='';
     this.frost=new FrostTrailState();
     this.dash=new DashState();
     this.lastDirection={x:0,y:1};
@@ -2605,11 +2726,13 @@ class GameScene extends Phaser.Scene {
       this.layoutHud();
       this.layoutBossHud();
       if(this.message?.active) this.fixToScreen(this.message,size.width/2,this.messageScreenY());
+      if(this.performanceLabel?.active)this.fixToScreen(this.performanceLabel,size.width-16,16);
     };
     this.scale.on('resize',this.onResize);
     this.events.once(Phaser.Scenes.Events.SHUTDOWN,()=>{
       this.input.keyboard.off('keydown',this.onWeaponKey);
       this.input.keyboard.off('keydown-F3',this.onRouteKey);
+      this.input.keyboard.off('keydown-F4',this.onPerformanceKey);
       this.input.keyboard.off('keydown-ESC',this.onPauseKey);
       this.input.keyboard.off('keydown-SPACE',this.onDashKey);
       this.clearThreats();
@@ -2728,7 +2851,7 @@ class GameScene extends Phaser.Scene {
     this.bossHPFill.setFillStyle(this.boss.phase===3?0xef856f:this.eraIndex===1?0x7ed6ea:this.eraIndex>=2?this.era.accent:0xe6a66f);
     const config=this.eraIndex>=2?CIVILIZATION_BOSSES[this.era.id]:this.eraIndex===1?ICE_BOSS_CONFIG:BOSS_CONFIG;
     this.bossTitle.setText(`CHEFE  •  ${config.name}  •  FASE ${this.boss.phase}`);
-    this.bossHint.setText(this.eraIndex===1?'INVESTIDA · PISADA · GELO · MATILHA':this.eraIndex>=2?'INVESTIDA · ONDA · FEIXE · APOIO':'INVESTIDA · PISADA · RAJADA');
+    this.bossHint.setText(this.eraIndex===1?'INVESTIDA · PISADA · GELO · MATILHA':this.eraIndex>=2?config.hint:'INVESTIDA · PISADA · RAJADA');
   }
   updateHud(){
     if(!this.survival||!this.stats)return;
@@ -2741,7 +2864,8 @@ class GameScene extends Phaser.Scene {
     this.weaponText.setColor('#'+this.weapons.current.color.toString(16).padStart(6,'0'));
     this.inventoryText.setText(`${this.weapons.unlocked.length} armas  •  Q/E alternar  •  Ímã ${magnetRadius(this.upgrades.pickupRadius)} px`);
     this.threatText.setText(this.time.now<this.coldUntil?`CONGELAMENTO • ${(Math.max(0,this.coldUntil-this.time.now)/1000).toFixed(1)} s · Movimento reduzido`:`PRESSÃO ${String(this.difficulty.stage+1).padStart(2,'0')}  •  ${this.difficulty.maxAlive} criaturas  •  ${(this.difficulty.spawnIntervalMs/1000).toFixed(1)} s`);
-    this.threatText.setColor(this.time.now<this.coldUntil?'#b0ebff':'#e5c17c');
+    if(this.time.now<this.combatSlowUntil)this.threatText.setText(`${this.combatSlowLabel} • ${(Math.max(0,this.combatSlowUntil-this.time.now)/1000).toFixed(1)} s`);
+    this.threatText.setColor(this.time.now<this.coldUntil?'#b0ebff':this.time.now<this.combatSlowUntil?'#efca9b':'#e5c17c');
     const frostPhase=this.frost?.phase(this.time.now);
     this.dodgeText.setText(frostPhase==='stun'?'GELO: PARALISADO!':frostPhase==='recuperando'?`GELO: RECUPERANDO MOVIMENTO · ${(this.frost.remaining(this.time.now)/1000).toFixed(1)} s`:
       this.dash.remaining(this.time.now)>0?`ESPAÇO: ESQUIVA · ${(this.dash.remaining(this.time.now)/1000).toFixed(1)} s de recarga`:'ESPAÇO: ESQUIVA · PRONTO');
@@ -2771,13 +2895,26 @@ class GameScene extends Phaser.Scene {
   update(_time,delta){
     if(!this.player||this.ended)return;
     this.elapsedMs+=delta;
+    if(this.performanceVisible){
+      this.performanceTime+=delta;this.performanceFrames++;
+      if(this.performanceTime>=950){
+        const fps=Math.round(1000*this.performanceFrames/this.performanceTime);
+        this.performanceLabel.setText(`FPS ${fps} | Criaturas ${this.creatures.filter(c=>c.alive).length} | Projéteis ${this.projectiles.length}`);
+        this.performanceTime=0;this.performanceFrames=0;
+      }
+    }
     const dir={
       x:Number(this.keys.D.isDown||this.keys.RIGHT.isDown)-Number(this.keys.A.isDown||this.keys.LEFT.isDown),
       y:Number(this.keys.S.isDown||this.keys.DOWN.isDown)-Number(this.keys.W.isDown||this.keys.UP.isDown)
     };
     if(dir.x||dir.y)this.lastDirection={...dir};
     const oldX=this.player.x,oldY=this.player.y;
-    const moveFactor=Math.min(this.time.now<this.coldUntil?ICE_BOSS_CONFIG.slowMultiplier:1,this.frost.movementMultiplier(this.time.now));
+    if(this.time.now>=this.combatSlowUntil)this.combatSlowFactor=1;
+    const moveFactor=Math.min(
+      this.time.now<this.coldUntil?ICE_BOSS_CONFIG.slowMultiplier:1,
+      this.frost.movementMultiplier(this.time.now),
+      this.time.now<this.combatSlowUntil?this.combatSlowFactor:1
+    );
     this.player.update(delta*moveFactor,dir,this.world.obstacles,this.map);
     const moved=Math.hypot(this.player.x-oldX,this.player.y-oldY)>1;
     this.playerIdleMs=moved?0:this.playerIdleMs+delta;
@@ -2849,6 +2986,14 @@ class GameScene extends Phaser.Scene {
       if(threatHits(t,this.player,t.radius*.75))this.damagePlayer({x:t.x-20,y:t.y-12},1);
       return false;
     });
+  }
+  applyCombatSlow(multiplier,durationMs,label='MOVIMENTO REDUZIDO'){
+    if(this.ended||this.survival.isInvulnerable(this.time.now))return false;
+    if(!Number.isFinite(multiplier)||multiplier<=0||multiplier>=1||!Number.isFinite(durationMs)||durationMs<=0)return false;
+    this.combatSlowUntil=Math.max(this.combatSlowUntil,this.time.now+durationMs);
+    this.combatSlowFactor=Math.min(this.combatSlowFactor,multiplier);
+    this.combatSlowLabel=label;
+    return true;
   }
   applyCold(durationMs=ICE_BOSS_CONFIG.slowDurationMs){
     if(!this.ended)this.coldUntil=Math.max(this.coldUntil,this.time.now+durationMs);

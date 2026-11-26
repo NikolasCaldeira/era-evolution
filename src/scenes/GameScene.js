@@ -74,7 +74,7 @@ export class GameScene extends Phaser.Scene {
     this.cameras.main.startFollow(this.player.sprite,true,.09,.09);
     this.cameras.main.setZoom(this.getZoom(this.scale.width));
 
-    this.keys=this.input.keyboard.addKeys('W,A,S,D,UP,DOWN,LEFT,RIGHT,ESC,F3,SPACE');
+    this.keys=this.input.keyboard.addKeys('W,A,S,D,UP,DOWN,LEFT,RIGHT,ESC,F3,F4,SPACE');
     this.input.keyboard.addCapture('SPACE');
     this.onWeaponKey=(event)=>{
       if(event.repeat||this.ended||this.upgrading||!this.scene.isActive())return;
@@ -99,6 +99,20 @@ export class GameScene extends Phaser.Scene {
       if(!this.ended && !this.upgrading && !this.scene.isActive('PauseScene')) this.scene.launch('PauseScene');
     };
     this.input.keyboard.on('keydown-F3',this.onRouteKey);
+    this.performanceVisible=false;
+    this.performanceTime=0;
+    this.performanceFrames=0;
+    this.performanceLabel=this.add.text(0,0,'FPS -- | Criaturas -- | Projéteis --',{
+      fontFamily:'monospace',fontSize:'12px',color:'#e2e7d3',backgroundColor:'#142320',
+      padding:{x:8,y:6}
+    }).setOrigin(1,0).setDepth(13000).setVisible(false);
+    this.onPerformanceKey=()=>{
+      this.performanceVisible=!this.performanceVisible;
+      this.performanceTime=0;this.performanceFrames=0;
+      this.performanceLabel.setVisible(this.performanceVisible);
+      this.fixToScreen(this.performanceLabel,this.scale.width-16,16);
+    };
+    this.input.keyboard.on('keydown-F4',this.onPerformanceKey);
     this.input.keyboard.on('keydown-ESC',this.onPauseKey);
     this.onDashKey=event=>{if(!event.repeat)this.activateDash();};
     this.input.keyboard.on('keydown-SPACE',this.onDashKey);
@@ -123,6 +137,9 @@ export class GameScene extends Phaser.Scene {
     this.spawnTimer=0;
     this.elapsedMs=0;
     this.coldUntil=0;
+    this.combatSlowUntil=0;
+    this.combatSlowFactor=1;
+    this.combatSlowLabel='';
     this.frost=new FrostTrailState();
     this.dash=new DashState();
     this.lastDirection={x:0,y:1};
@@ -146,11 +163,13 @@ export class GameScene extends Phaser.Scene {
       this.layoutHud();
       this.layoutBossHud();
       if(this.message?.active) this.fixToScreen(this.message,size.width/2,this.messageScreenY());
+      if(this.performanceLabel?.active)this.fixToScreen(this.performanceLabel,size.width-16,16);
     };
     this.scale.on('resize',this.onResize);
     this.events.once(Phaser.Scenes.Events.SHUTDOWN,()=>{
       this.input.keyboard.off('keydown',this.onWeaponKey);
       this.input.keyboard.off('keydown-F3',this.onRouteKey);
+      this.input.keyboard.off('keydown-F4',this.onPerformanceKey);
       this.input.keyboard.off('keydown-ESC',this.onPauseKey);
       this.input.keyboard.off('keydown-SPACE',this.onDashKey);
       this.clearThreats();
@@ -269,7 +288,7 @@ export class GameScene extends Phaser.Scene {
     this.bossHPFill.setFillStyle(this.boss.phase===3?0xef856f:this.eraIndex===1?0x7ed6ea:this.eraIndex>=2?this.era.accent:0xe6a66f);
     const config=this.eraIndex>=2?CIVILIZATION_BOSSES[this.era.id]:this.eraIndex===1?ICE_BOSS_CONFIG:BOSS_CONFIG;
     this.bossTitle.setText(`CHEFE  •  ${config.name}  •  FASE ${this.boss.phase}`);
-    this.bossHint.setText(this.eraIndex===1?'INVESTIDA · PISADA · GELO · MATILHA':this.eraIndex>=2?'INVESTIDA · ONDA · FEIXE · APOIO':'INVESTIDA · PISADA · RAJADA');
+    this.bossHint.setText(this.eraIndex===1?'INVESTIDA · PISADA · GELO · MATILHA':this.eraIndex>=2?config.hint:'INVESTIDA · PISADA · RAJADA');
   }
   updateHud(){
     if(!this.survival||!this.stats)return;
@@ -282,7 +301,8 @@ export class GameScene extends Phaser.Scene {
     this.weaponText.setColor('#'+this.weapons.current.color.toString(16).padStart(6,'0'));
     this.inventoryText.setText(`${this.weapons.unlocked.length} armas  •  Q/E alternar  •  Ímã ${magnetRadius(this.upgrades.pickupRadius)} px`);
     this.threatText.setText(this.time.now<this.coldUntil?`CONGELAMENTO • ${(Math.max(0,this.coldUntil-this.time.now)/1000).toFixed(1)} s · Movimento reduzido`:`PRESSÃO ${String(this.difficulty.stage+1).padStart(2,'0')}  •  ${this.difficulty.maxAlive} criaturas  •  ${(this.difficulty.spawnIntervalMs/1000).toFixed(1)} s`);
-    this.threatText.setColor(this.time.now<this.coldUntil?'#b0ebff':'#e5c17c');
+    if(this.time.now<this.combatSlowUntil)this.threatText.setText(`${this.combatSlowLabel} • ${(Math.max(0,this.combatSlowUntil-this.time.now)/1000).toFixed(1)} s`);
+    this.threatText.setColor(this.time.now<this.coldUntil?'#b0ebff':this.time.now<this.combatSlowUntil?'#efca9b':'#e5c17c');
     const frostPhase=this.frost?.phase(this.time.now);
     this.dodgeText.setText(frostPhase==='stun'?'GELO: PARALISADO!':frostPhase==='recuperando'?`GELO: RECUPERANDO MOVIMENTO · ${(this.frost.remaining(this.time.now)/1000).toFixed(1)} s`:
       this.dash.remaining(this.time.now)>0?`ESPAÇO: ESQUIVA · ${(this.dash.remaining(this.time.now)/1000).toFixed(1)} s de recarga`:'ESPAÇO: ESQUIVA · PRONTO');
@@ -312,13 +332,26 @@ export class GameScene extends Phaser.Scene {
   update(_time,delta){
     if(!this.player||this.ended)return;
     this.elapsedMs+=delta;
+    if(this.performanceVisible){
+      this.performanceTime+=delta;this.performanceFrames++;
+      if(this.performanceTime>=950){
+        const fps=Math.round(1000*this.performanceFrames/this.performanceTime);
+        this.performanceLabel.setText(`FPS ${fps} | Criaturas ${this.creatures.filter(c=>c.alive).length} | Projéteis ${this.projectiles.length}`);
+        this.performanceTime=0;this.performanceFrames=0;
+      }
+    }
     const dir={
       x:Number(this.keys.D.isDown||this.keys.RIGHT.isDown)-Number(this.keys.A.isDown||this.keys.LEFT.isDown),
       y:Number(this.keys.S.isDown||this.keys.DOWN.isDown)-Number(this.keys.W.isDown||this.keys.UP.isDown)
     };
     if(dir.x||dir.y)this.lastDirection={...dir};
     const oldX=this.player.x,oldY=this.player.y;
-    const moveFactor=Math.min(this.time.now<this.coldUntil?ICE_BOSS_CONFIG.slowMultiplier:1,this.frost.movementMultiplier(this.time.now));
+    if(this.time.now>=this.combatSlowUntil)this.combatSlowFactor=1;
+    const moveFactor=Math.min(
+      this.time.now<this.coldUntil?ICE_BOSS_CONFIG.slowMultiplier:1,
+      this.frost.movementMultiplier(this.time.now),
+      this.time.now<this.combatSlowUntil?this.combatSlowFactor:1
+    );
     this.player.update(delta*moveFactor,dir,this.world.obstacles,this.map);
     const moved=Math.hypot(this.player.x-oldX,this.player.y-oldY)>1;
     this.playerIdleMs=moved?0:this.playerIdleMs+delta;
@@ -390,6 +423,14 @@ export class GameScene extends Phaser.Scene {
       if(threatHits(t,this.player,t.radius*.75))this.damagePlayer({x:t.x-20,y:t.y-12},1);
       return false;
     });
+  }
+  applyCombatSlow(multiplier,durationMs,label='MOVIMENTO REDUZIDO'){
+    if(this.ended||this.survival.isInvulnerable(this.time.now))return false;
+    if(!Number.isFinite(multiplier)||multiplier<=0||multiplier>=1||!Number.isFinite(durationMs)||durationMs<=0)return false;
+    this.combatSlowUntil=Math.max(this.combatSlowUntil,this.time.now+durationMs);
+    this.combatSlowFactor=Math.min(this.combatSlowFactor,multiplier);
+    this.combatSlowLabel=label;
+    return true;
   }
   applyCold(durationMs=ICE_BOSS_CONFIG.slowDurationMs){
     if(!this.ended)this.coldUntil=Math.max(this.coldUntil,this.time.now+durationMs);
