@@ -4,7 +4,7 @@
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width,initial-scale=1" />
   <meta name="theme-color" content="#102820" />
-  <title>ERA: Evolution | Cinco Eras — Ciclo 13</title>
+  <title>ERA: Evolution | Oito Eras — Ciclo 14</title>
   <style>:root { color-scheme: dark; font-family: Inter, ui-sans-serif, system-ui, sans-serif; background:#0b1415; color:#edf2df; }
 * { box-sizing:border-box; }
 html,body { margin:0; width:100%; height:100%; overflow:hidden; background:#0b1415; }
@@ -113,14 +113,17 @@ return {screenAnchor};
 })();
 
 // --- src/systems/EraSystem.js ---
-const {ERAS,eraAt,snapshotRun,restoreRun,pleistoceneRewardForKills,NEXT_ERA_PREVIEW,prepareNextEraProgress,rewardForEraKills} = (() => {
+const {ERAS,eraAt,snapshotRun,restoreRun,pleistoceneRewardForKills,NEXT_ERA_PREVIEW,FUTURE_ERA_PREVIEW,prepareNextEraProgress,rewardForEraKills} = (() => {
 /** Eras em ordem histórica; Cretáceo é fantasia temporal, não coexistência de humanos e dinossauros. */
 const ERAS = Object.freeze([
   Object.freeze({id:'cretaceo',number:1,name:'CRETÁCEO',subtitle:'SOBREVIVA AO MUNDO PRIMORDIAL',theme:0x193b30,accent:0xd7bd7f,goal:100}),
   Object.freeze({id:'pleistoceno',number:2,name:'PRÉ-HISTÓRIA',subtitle:'PLEISTOCENO · A ERA DO GELO',theme:0x1d3847,accent:0x9ccae0,goal:100}),
   Object.freeze({id:'antiga',number:3,name:'CIVILIZAÇÕES ANTIGAS',subtitle:'TEMPLOS, DESERTO E MITOS DE PEDRA',theme:0x55432d,accent:0xf0c67c,goal:100}),
   Object.freeze({id:'medieval',number:4,name:'ERA MEDIEVAL',subtitle:'FORTALEZA SOB O CREPÚSCULO',theme:0x313d48,accent:0xb8cce0,goal:100}),
-  Object.freeze({id:'renascimento',number:5,name:'RENASCIMENTO',subtitle:'ENGENHOS, ARTE E ALQUIMIA',theme:0x374c45,accent:0xe5b879,goal:100})
+  Object.freeze({id:'renascimento',number:5,name:'RENASCIMENTO',subtitle:'ENGENHOS, ARTE E ALQUIMIA',theme:0x374c45,accent:0xe5b879,goal:100}),
+  Object.freeze({id:'industrial',number:6,name:'REVOLUÇÃO INDUSTRIAL',subtitle:'FÁBRICAS, FUMAÇA E ENGENHOS A VAPOR',theme:0x45382f,accent:0xe5b37e,goal:100}),
+  Object.freeze({id:'contemporanea',number:7,name:'ERA CONTEMPORÂNEA',subtitle:'CIDADES, MÁQUINAS E NOVOS PERIGOS',theme:0x293c4c,accent:0xb5dfe6,goal:100}),
+  Object.freeze({id:'digital',number:8,name:'ERA DIGITAL',subtitle:'CIRCUITOS, SISTEMAS E DADOS CORROMPIDOS',theme:0x193349,accent:0x80e5d3,goal:100})
 ]);
 function eraAt(index=0){return ERAS[index]||ERAS[0];}
 /** Congela somente os dados de uma partida. A transição não reinicia a jornada. */
@@ -159,8 +162,9 @@ function pleistoceneRewardForKills(kills){
   return {milestone:`era02-${kills}`,id:ids[index%ids.length],tier:index<5?3:4,kind:'evolucao'};
 }
 
-/** Compatibilidade com os capítulos anteriores, agora jogáveis até a Era 05. */
+/** Compatibilidade com os capítulos anteriores, agora jogáveis até a Era 08. */
 const NEXT_ERA_PREVIEW=Object.freeze({number:3,name:'CIVILIZAÇÕES ANTIGAS',status:'jogável'});
+const FUTURE_ERA_PREVIEW=Object.freeze([{number:9,name:'ERA ESPACIAL'},{number:10,name:'ERA DA EXTINÇÃO'}]);
 /** Bônus da vitória da Era 02, sem alterar o snapshot original. */
 function prepareNextEraProgress(progress,maxHealth=5,nextEra=3){
   if(!progress)return null;
@@ -177,12 +181,12 @@ function rewardForEraKills(index,kills){
     return {milestone:kills,id:ids[i],tier:i<4?1:2,kind:i<4?'nova':'evolucao'};
   }
   if(index===1)return pleistoceneRewardForKills(kills);
-  if(!Number.isInteger(kills)||kills<10||kills>90||kills%10!==0||index<2||index>4)return null;
+  if(!Number.isInteger(kills)||kills<10||kills>90||kills%10!==0||index<2||index>=ERAS.length)return null;
   const i=kills/10-1,ids=['artefato','duplo','lanca','leque','orbe'];
   return {milestone:`era${String(index+1).padStart(2,'0')}-${kills}`,id:ids[i%5],tier:2*index+1+(i>=5?1:0),kind:'evolucao'};
 }
 
-return {ERAS,eraAt,snapshotRun,restoreRun,pleistoceneRewardForKills,NEXT_ERA_PREVIEW,prepareNextEraProgress,rewardForEraKills};
+return {ERAS,eraAt,snapshotRun,restoreRun,pleistoceneRewardForKills,NEXT_ERA_PREVIEW,FUTURE_ERA_PREVIEW,prepareNextEraProgress,rewardForEraKills};
 })();
 
 // --- src/systems/WeaponSystem.js ---
@@ -352,7 +356,10 @@ const ERA_BALANCE=Object.freeze([
   Object.freeze({maxAlive:18,extraAlive:1,spawnFactor:.95,speedFactor:1.065,aggressionFactor:1.09}),
   Object.freeze({maxAlive:19,extraAlive:2,spawnFactor:.91,speedFactor:1.13,aggressionFactor:1.17}),
   Object.freeze({maxAlive:20,extraAlive:3,spawnFactor:.88,speedFactor:1.18,aggressionFactor:1.26}),
-  Object.freeze({maxAlive:21,extraAlive:4,spawnFactor:.85,speedFactor:1.235,aggressionFactor:1.34})
+  Object.freeze({maxAlive:21,extraAlive:4,spawnFactor:.85,speedFactor:1.235,aggressionFactor:1.34}),
+  Object.freeze({maxAlive:22,extraAlive:5,spawnFactor:.83,speedFactor:1.28,aggressionFactor:1.42}),
+  Object.freeze({maxAlive:23,extraAlive:6,spawnFactor:.81,speedFactor:1.33,aggressionFactor:1.50}),
+  Object.freeze({maxAlive:24,extraAlive:7,spawnFactor:.80,speedFactor:1.38,aggressionFactor:1.59})
 ]);
 /** Inimigos comuns continuam com três pontos de vida. Escalada por ritmo, IA e posicionamento. */
 function difficultyForEra(kills,eraIndex=0){
@@ -662,6 +669,88 @@ class CivilizationBossState {
 }
 
 return {CIVILIZATION_BOSSES,makeBossAttackPlan,withinBossBeam,bossShapeHits,bossAttackHits,CivilizationBossState};
+})();
+
+// --- src/systems/ModernBossSystem.js ---
+const {MODERN_BOSSES,modernAttackPlan,modernShapeHits,modernAttackHits,ModernBossState} = (() => {
+/** Chefes das Eras VI–VIII: três conjuntos de ataques e avisos geométricos. */
+const MODERN_BOSSES=Object.freeze({
+  industrial:Object.freeze({
+    name:'TITÃ A VAPOR',health:390,speed:80,color:0xf2bd7a,
+    attacks:['steamline','pressureburst','slagfall','steamline'],
+    attackNames:{steamline:'JATO DE VAPOR',pressureburst:'EXPLOSÃO DA CALDEIRA',slagfall:'CHUVA DE ESCÓRIA',summon:'MÁQUINAS AUXILIARES'},
+    hint:'VAPOR · CALDEIRA · ESCÓRIA · APOIO'
+  }),
+  contemporanea:Object.freeze({
+    name:'COLOSSO BLINDADO',health:445,speed:98,color:0xa0d5e9,
+    attacks:['roadcharge','signalburst','streetmines','roadcharge'],
+    attackNames:{roadcharge:'INVESTIDA BLINDADA',signalburst:'VARREDURA DE SINAL',streetmines:'ZONA DE ALERTA',summon:'DRONES DE APOIO'},
+    hint:'INVESTIDA · VARREDURA · ZONAS DE ALERTA · APOIO'
+  }),
+  digital:Object.freeze({
+    name:'NÚCLEO CORROMPIDO',health:510,speed:104,color:0x9cf8df,
+    attacks:['datagrid','glitchring','packetstorm','datagrid'],
+    attackNames:{datagrid:'GRADE DE DADOS',glitchring:'PULSO CORROMPIDO',packetstorm:'TEMPESTADE DE PACOTES',summon:'CÓPIAS DIGITAIS'},
+    hint:'GRADE · PULSO · PACOTES · CÓPIAS'
+  })
+});
+const point=(x,y)=>({x,y});
+const length=(v)=>Math.hypot(v.x,v.y);
+/** O mesmo conjunto de formas determina aviso no chão e colisão. */
+function modernAttackPlan(era,type,from,target){
+  if(!MODERN_BOSSES[era])throw new Error('Chefe moderno inválido');
+  if(type==='summon')return [{kind:'circle',x:from.x,y:from.y,radius:84,warningOnly:true}];
+  const dx=target.x-from.x,dy=target.y-from.y,d=Math.hypot(dx,dy)||1;
+  const dir=point(dx/d,dy/d),side=point(-dir.y,dir.x);
+  const line=(offset,reach,radius,turn=0)=>{
+    const cx=from.x+side.x*offset,cy=from.y+side.y*offset-10;
+    const angle=Math.atan2(dir.y,dir.x)+turn;
+    return {kind:'line',from:point(cx,cy),to:point(cx+Math.cos(angle)*reach,cy+Math.sin(angle)*reach),radius};
+  };
+  const circle=(x,y,radius)=>({kind:'circle',x,y,radius});
+  switch(type){
+    case 'steamline':return [line(0,465,32),line(67,370,13)];
+    case 'pressureburst':return [{kind:'ring',x:from.x,y:from.y,inner:64,outer:180}];
+    case 'slagfall':return [-1,0,1].map(i=>circle(target.x+side.x*77*i,target.y+side.y*77*i,35));
+    case 'roadcharge':return [line(0,Math.max(285,Math.min(590,d+100)),33)];
+    case 'signalburst':return [{kind:'cone',x:from.x,y:from.y-9,angle:Math.atan2(dy,dx),reach:320,halfAngle:.42}];
+    case 'streetmines':return [circle(target.x,target.y,44),circle(target.x+side.x*116,target.y+side.y*116,36),circle(target.x-side.x*116,target.y-side.y*116,36)];
+    case 'datagrid':return [-85,0,85].map(offset=>line(offset,485,17));
+    case 'glitchring':return [{kind:'ring',x:from.x,y:from.y,inner:83,outer:197}];
+    case 'packetstorm':return [-1,0,1].map(i=>circle(target.x+side.x*i*100+dir.x*55*(i%2),target.y+side.y*i*100+dir.y*55*(i%2),39));
+    default:throw new Error(`Ataque moderno inexistente: ${type}`);
+  }
+}
+function modernShapeHits(shape,target,radius=10){
+  if(shape.warningOnly)return false;
+  if(shape.kind==='line'){
+    const dx=shape.to.x-shape.from.x,dy=shape.to.y-shape.from.y,l2=dx*dx+dy*dy;
+    const t=l2<1?0:Math.max(0,Math.min(1,((target.x-shape.from.x)*dx+(target.y-shape.from.y)*dy)/l2));
+    return Math.hypot(target.x-shape.from.x-dx*t,target.y-shape.from.y-dy*t)<=shape.radius+radius;
+  }
+  const d=Math.hypot(target.x-shape.x,target.y-shape.y);
+  if(shape.kind==='circle')return d<=shape.radius+radius;
+  if(shape.kind==='ring')return d>=shape.inner-radius&&d<=shape.outer+radius;
+  if(shape.kind==='cone'){
+    const da=Math.atan2(target.y-shape.y,target.x-shape.x)-shape.angle;
+    const normalized=Math.atan2(Math.sin(da),Math.cos(da));
+    return d<=shape.reach+radius&&Math.abs(normalized)<=shape.halfAngle+Math.atan2(radius,Math.max(1,d));
+  }
+  return false;
+}
+function modernAttackHits(shapes,target,radius=10){return shapes.some(s=>modernShapeHits(s,target,radius));}
+class ModernBossState {
+  constructor(era){this.config=MODERN_BOSSES[era];if(!this.config)throw Error('Chefe de era não existente');this.health=this.config.health;this.attackIndex=0;this.summons=0;}
+  get alive(){return this.health>0;}
+  get phase(){return this.health>Math.round(this.config.health*.7)?1:this.health>Math.round(this.config.health*.35)?2:3;}
+  get healthRatio(){return Math.max(0,this.health/this.config.health);}
+  takeDamage(damage){if(!this.alive)return false;this.health=Math.max(0,this.health-Math.max(1,Math.floor(damage)));return true;}
+  chooseAttack(){const index=this.attackIndex++;if(this.phase===3&&this.summons<2&&index%5===0){this.summons++;return 'summon';}return this.config.attacks[index%this.config.attacks.length];}
+  windupMs(){return Math.max(900,1500-(this.phase-1)*180);}
+  cooldownMs(){return Math.max(1750,3520-(this.phase-1)*450);}
+}
+
+return {MODERN_BOSSES,modernAttackPlan,modernShapeHits,modernAttackHits,ModernBossState};
 })();
 
 // --- src/systems/RelicVisual.js ---
@@ -1261,6 +1350,129 @@ class CivilizationWorld {
 return {CIVILIZATION_WORLDS,CivilizationWorld};
 })();
 
+// --- src/world/ModernWorld.js ---
+const {MODERN_WORLDS,ModernWorld} = (() => {
+/** Capítulos VI–VIII: ambientes com obstáculo e identidade visual próprios. */
+const CONFIG = Object.freeze({
+  industrial:{
+    palette:[0x776e62,0x847b69,0x665f56,0x90816a,0x706961,0x887765],line:0x51483d,
+    edge:['pipe','furnace','crate','smokestack','pipe'],
+    center:[['boiler',8,7],['crate',25,6],['pipe',22,19],['gear',7,19],['smokestack',27,15],['crate',14,6],['boiler',20,10],['gear',13,22]]
+  },
+  contemporanea:{
+    palette:[0x777d81,0x858b8c,0x696f78,0x9ba09b,0x7c8889,0x8e9393],line:0x454f58,
+    edge:['barrier','lamppost','truck','barrier','tree'],
+    center:[['car',7,8],['barrier',22,7],['truck',26,16],['lamppost',8,19],['car',21,21],['tree',13,7],['barrier',17,10],['truck',28,9]]
+  },
+  digital:{
+    palette:[0x283a52,0x304765,0x24334c,0x40526b,0x293d58,0x354a61],line:0x4e9eae,
+    edge:['firewall','node','server','firewall','node'],
+    center:[['server',8,8],['node',23,7],['firewall',26,16],['node',9,19],['server',22,20],['crystal',15,6],['firewall',15,11],['crystal',26,9]]
+  }
+});
+const MODERN_WORLDS=Object.freeze(Object.keys(CONFIG));
+
+class ModernWorld {
+  constructor(scene,projection,era){
+    if(!CONFIG[era])throw new Error(`Era moderna inexistente: ${era}`);
+    this.scene=scene;this.projection=projection;this.era=era;this.cfg=CONFIG[era];this.obstacles=[];
+  }
+  create(columns,rows){
+    const {palette,line}=this.cfg,g=this.scene.add.graphics().setDepth(-1000);
+    for(let y=0;y<rows;y++)for(let x=0;x<columns;x++){
+      const p=this.projection.toScreen(x,y),seed=(x*37+y*53+x*y*7)%101;
+      g.fillStyle(palette[(seed+x+y)%palette.length]);g.lineStyle(.6,line,.3);
+      g.beginPath();g.moveTo(p.x,p.y-24);g.lineTo(p.x+48,p.y);g.lineTo(p.x,p.y+24);g.lineTo(p.x-48,p.y);g.closePath();g.fillPath();g.strokePath();
+      if(seed%11===0){
+        if(this.era==='industrial'){
+          g.lineStyle(1.4,0x332f2d,.42);g.lineBetween(p.x-21,p.y+6,p.x+18,p.y+6);
+          for(let n=-1;n<=1;n++)g.fillStyle(0xc3a67d,.5).fillRect(p.x+n*10,p.y-2,3,3);
+        }else if(this.era==='contemporanea'){
+          g.lineStyle(1.6,0xbfc8c2,.53);g.lineBetween(p.x-14,p.y+6,p.x+12,p.y-7);
+        }else{
+          g.lineStyle(1.5,0x66e0df,.42);g.lineBetween(p.x-17,p.y+6,p.x+7,p.y-6);
+          g.fillStyle(0x9cead4,.5);g.fillCircle(p.x+7,p.y-6,2.4);
+        }
+      }
+      if(seed%31===0){
+        g.fillStyle(this.era==='industrial'?0x473b31:this.era==='contemporanea'?0x697b73:0x53b7b8,.42);
+        g.fillEllipse(p.x,p.y+8,15,5);
+      }
+    }
+    for(let y=0;y<rows;y++)for(let x=0;x<columns;x++){
+      if(x!==0&&y!==0&&x!==columns-1&&y!==rows-1)continue;
+      const p=this.projection.toScreen(x,y);
+      this.addObstacle(p.x,p.y,this.cfg.edge[(x*5+y*3)%this.cfg.edge.length],true);
+    }
+    for(const [kind,x,y] of this.cfg.center){const p=this.projection.toScreen(x,y);this.addObstacle(p.x,p.y,kind,false);}
+  }
+  addObstacle(x,y,kind,perimeter){
+    const g=this.scene.add.graphics().setDepth(y+220),industrial=this.era==='industrial',digital=this.era==='digital';
+    const dark=industrial?0x51473c:digital?0x192f50:0x3d4b59;
+    const metal=industrial?0x9f896a:digital?0x4a8ca5:0xb6bdc2;
+    const highlight=industrial?0xe6b97c:digital?0x79e7e0:0xe4e4c4;
+    g.fillStyle(0x111b22,.36);g.fillEllipse(x,y+13,79,18);
+    if(kind==='smokestack'||kind==='lamppost'||kind==='node'){
+      g.fillStyle(dark);g.fillRoundedRect(x-9,y-103,18,113,3);
+      g.fillStyle(metal);g.fillRoundedRect(x-6,y-98,7,102,2);
+      if(kind==='smokestack'){
+        g.fillStyle(0x392e2a);g.fillEllipse(x,y-103,34,13);g.fillStyle(0xd5b6a1,.52);g.fillEllipse(x+7,y-117,40,15);
+      }else if(kind==='lamppost'){
+        g.fillStyle(0xffe3a6);g.fillEllipse(x,y-104,35,18);g.fillStyle(0x48575b);g.fillRoundedRect(x-21,y-119,42,9,3);
+      }else{
+        g.fillStyle(0x52f0d8,.8);g.fillCircle(x,y-108,15);g.lineStyle(3,0x98eff0,.9);g.strokeCircle(x,y-108,22);
+      }
+    }else if(kind==='gear'||kind==='tree'||kind==='crystal'){
+      if(kind==='tree'){
+        g.fillStyle(0x6a5743);g.fillRoundedRect(x-6,y-57,12,78,2);
+        for(let k=0;k<3;k++){g.fillStyle([0x3d6757,0x507a63,0x638e6d][k]);g.fillEllipse(x+(-1+k)*12,y-68-k*8,52,49);}
+      }else if(kind==='gear'){
+        g.fillStyle(dark);g.fillCircle(x,y-17,38);g.fillStyle(metal);g.fillCircle(x,y-17,29);
+        g.fillStyle(0x4b4941);g.fillCircle(x,y-17,14);
+        for(let i=0;i<8;i++){let a=Math.PI*i/4;g.lineStyle(7,highlight,.85);g.lineBetween(x+Math.cos(a)*25,y-17+Math.sin(a)*25,x+Math.cos(a)*41,y-17+Math.sin(a)*41);}
+      }else{
+        g.fillStyle(0x58d9de,.86);g.fillTriangle(x,y-82,x-38,y-8,x+37,y-8);
+        g.fillStyle(0x9afcf0,.66);g.fillTriangle(x,y-82,x-38,y-8,x-4,y-8);
+        g.lineStyle(3,0x29577b,.8);g.lineBetween(x,y-82,x+37,y-8);
+      }
+    }else if(kind==='pipe'||kind==='barrier'||kind==='firewall'){
+      g.fillStyle(dark);g.fillRoundedRect(x-39,y-40,78,45,4);
+      g.fillStyle(metal);g.fillRoundedRect(x-35,y-42,70,30,3);
+      if(kind==='pipe'){
+        g.fillStyle(0x3d352f);g.fillEllipse(x-26,y-24,20,18);g.fillStyle(0xcea46e);g.fillEllipse(x-26,y-24,10,10);
+      }else if(kind==='barrier'){
+        for(let k=0;k<4;k++){g.fillStyle(k%2?0xe1c371:0xb55c45);g.fillRect(x-32+k*17,y-28,15,11);}
+      }else{
+        g.fillStyle(0x77eaed,.7);for(let k=0;k<5;k++)g.fillRect(x-33+k*14,y-31,8,11);
+      }
+    }else{
+      const tall=kind==='furnace'||kind==='server'||kind==='truck'||kind==='boiler';
+      g.fillStyle(dark);g.fillRoundedRect(x-34,y-(tall?75:52),68,tall?80:59,5);
+      g.fillStyle(metal);g.fillRoundedRect(x-30,y-(tall?73:50),60,tall?68:49,4);
+      if(kind==='furnace'||kind==='boiler'){
+        g.fillStyle(0x36322f);g.fillRoundedRect(x-18,y-49,37,25,2);
+        g.fillStyle(0xf4a95a);g.fillEllipse(x,y-36,25,13);
+        g.lineStyle(3,highlight,.75);g.lineBetween(x-30,y-61,x+30,y-61);
+      }else if(kind==='server'){
+        g.fillStyle(0x122b40);for(let j=0;j<4;j++)g.fillRoundedRect(x-23,y-66+j*15,46,11,2);
+        for(let j=0;j<4;j++){g.fillStyle(j%2?0x78f0bc:0xe7d783);g.fillCircle(x+14,y-61+j*15,3);}
+      }else if(kind==='car'||kind==='truck'){
+        g.fillStyle(0x4b6075);g.fillRoundedRect(x-22,y-48,44,27,6);
+        g.fillStyle(0xb9d4e0);g.fillRoundedRect(x-17,y-45,34,14,2);
+        g.fillStyle(0x202e38);g.fillCircle(x-22,y+3,9);g.fillCircle(x+22,y+3,9);
+      }else{
+        g.fillStyle(0x6b4e35);g.fillRect(x-25,y-43,50,6);
+        g.fillStyle(highlight);g.fillRect(x-24,y-28,48,4);
+      }
+    }
+    const r={pipe:[39,25],furnace:[37,28],crate:[35,26],smokestack:[28,24],boiler:[40,28],gear:[43,28],barrier:[43,24],lamppost:[26,22],truck:[42,29],tree:[37,24],car:[43,24],firewall:[44,26],node:[28,24],server:[40,29],crystal:[40,28]}[kind]||[37,25];
+    this.obstacles.push({x,y,rx:r[0],ry:r[1],type:kind,perimeter});
+  }
+}
+
+return {MODERN_WORLDS,ModernWorld};
+})();
+
 // --- src/art/CharacterArt.js ---
 const {createCharacterArt,playerTexture,creatureTexture,creaturesList} = (() => {
 /** Arte original em Canvas. Sem dependências de imagens externas ou sprites de terceiros.
@@ -1775,8 +1987,159 @@ function createCivilizationArt(scene,era){
 return {CIVILIZATION_SPECIES,civilizationPlayerTexture,civilizationCreatureTexture,civilizationBossTexture,createCivilizationArt};
 })();
 
+// --- src/art/ModernArt.js ---
+const {MODERN_SPECIES,modernPlayerTexture,modernCreatureTexture,modernBossTexture,createModernArt} = (() => {
+/** Desenho procedural de personagens e criaturas para as Eras VI–VIII. */
+const MODERN_SPECIES=Object.freeze({
+  industrial:['rato-de-ferro','automato-fabril','besouro-a-vapor'],
+  contemporanea:['cao-mecanico','sentinela-urbano','drone-de-vigilancia'],
+  digital:['bug-de-codigo','firewall-vivo','espectro-digital']
+});
+const FACES=['right','down-right','down','down-left','left','up-left','up','up-right'];
+const PALETTES={
+  industrial:{body:'#9c7751',light:'#e5b98a',shadow:'#493b34',trim:'#d5bc78',eye:'#f6db91'},
+  contemporanea:{body:'#506e8b',light:'#a8c6d5',shadow:'#293c50',trim:'#e3cd80',eye:'#98e4ea'},
+  digital:{body:'#2f789b',light:'#65dec9',shadow:'#143456',trim:'#d99bec',eye:'#c9fff6'}
+};
+function ellipse(c,x,y,rx,ry,color){c.fillStyle=color;c.beginPath();c.ellipse(x,y,rx,ry,0,0,Math.PI*2);c.fill();}
+function poly(c,p,color){c.fillStyle=color;c.beginPath();c.moveTo(...p[0]);for(const v of p.slice(1))c.lineTo(...v);c.closePath();c.fill();}
+function line(c,x,y,u,v,color,w=4){c.strokeStyle=color;c.lineWidth=w;c.lineCap='round';c.beginPath();c.moveTo(x,y);c.lineTo(u,v);c.stroke();}
+function rect(c,x,y,w,h,color){c.fillStyle=color;c.fillRect(x,y,w,h);}
+function texture(scene,key,w,h,draw){if(scene.textures.exists(key))return;const t=scene.textures.createCanvas(key,w,h),c=t.getContext();c.clearRect(0,0,w,h);c.save();draw(c);c.restore();t.refresh();}
+function player(c,era,facing,frame){
+  const p=PALETTES[era],left=facing.includes('left'),back=facing.startsWith('up'),bob=[0,-2,0,-1][frame],stride=[-4,3,4,-3][frame];
+  c.translate(52,86+bob);c.scale(left?-1:1,1);
+  // Botas e pernas separadas para comunicar oito direções em movimento.
+  line(c,-11,-3,-14,24+stride,p.shadow,11);line(c,11,-3,15,24-stride,p.shadow,11);
+  ellipse(c,-14,24+stride,9,5,'#28333a');ellipse(c,15,24-stride,9,5,'#28333a');
+  poly(c,[[-20,-42],[17,-42],[24,9],[-23,9]],p.body);
+  poly(c,[[-19,-39],[1,-39],[-3,8],[-22,8]],p.shadow);
+  line(c,-18,-31,-26,-5+stride*.4,p.light,8);line(c,19,-31,27,-6-stride*.4,p.light,8);
+  rect(c,-20,-5,42,5,p.trim);ellipse(c,3,-3,4,4,p.eye);
+  ellipse(c,0,-53,16,19,'#d2a483');
+  if(era==='industrial'){
+    poly(c,[[-21,-60],[21,-60],[15,-67],[-15,-67]],'#56453a');
+    rect(c,-16,-82,32,18,'#674d3d');rect(c,-11,-85,22,4,p.trim);
+    line(c,-12,-43,12,-43,p.trim,3);
+  }else if(era==='contemporanea'){
+    poly(c,[[-19,-62],[20,-62],[12,-73],[-12,-73]],'#243c4c');
+    rect(c,-15,-67,30,6,p.light);
+    rect(c,-22,-29,8,19,'#315466');rect(c,13,-29,8,19,'#315466');
+  }else{
+    poly(c,[[-20,-62],[-12,-79],[11,-79],[20,-62]],p.shadow);
+    rect(c,-16,-65,32,8,p.light);rect(c,-9,-62,18,4,p.eye);
+    line(c,-27,-6,-34,-1,p.trim,2);
+  }
+  if(back)ellipse(c,0,-55,12,11,p.shadow);else{
+    ellipse(c,6,-55,2,2,'#2a3037');if(!facing.includes('right')&&!left)ellipse(c,-7,-55,2,2,'#2a3037');
+  }
+  ellipse(c,30,-11,8,8,p.trim);ellipse(c,30,-11,3,3,'#ecfff2');
+}
+function ironRat(c,f){
+  c.translate(56,78+[0,-3,0,-1][f]);
+  line(c,-28,-5,-53,-26,'#968a6c',6);
+  for(const x of [-22,-7,14,29])line(c,x,2,x+2,23+(f%2?3:-3),'#64584e',7);
+  ellipse(c,-3,-13,34,22,'#766657');ellipse(c,22,-24,20,18,'#a38d73');
+  ellipse(c,10,-41,10,13,'#ae8265');ellipse(c,30,-44,10,13,'#ae8265');
+  ellipse(c,27,-26,3,3,'#f1df9a');line(c,38,-20,51,-16,'#66574e',3);
+  for(let i=0;i<4;i++)line(c,-26+i*13,-29,-26+i*13,-34,'#d7b179',2);
+}
+function factoryBot(c,f){
+  c.translate(54,80+[0,-2,0,-1][f]);
+  for(const x of [-17,17]){line(c,x,-4,x+3,22,'#53463e',12);ellipse(c,x+3,22,9,4,'#332d2b');}
+  rect(c,-25,-51,50,45,'#92704f');rect(c,-20,-46,40,18,'#c3a579');
+  for(const x of [-34,34])line(c,Math.sign(x)*23,-39,x,7,'#a28c72',9);
+  rect(c,-21,-77,42,24,'#4e4c49');rect(c,-16,-74,32,14,'#d1b785');
+  for(const x of [-9,9])ellipse(c,x,-67,4,4,'#f4e3a2');
+  ellipse(c,0,-17,13,13,'#625c4c');ellipse(c,0,-17,6,6,'#e1ac62');
+}
+function steamBeetle(c,f){
+  c.translate(56,79+[0,-5,0,-2][f]);
+  for(const x of [-26,-12,12,26])line(c,x,-9,x+(x>0?8:-8),18,'#5c5b50',5);
+  ellipse(c,0,-25,34,26,'#5c756a');ellipse(c,-12,-26,20,26,'#af9570');ellipse(c,12,-26,20,26,'#987957');
+  rect(c,-8,-55,16,27,'#655249');ellipse(c,0,-54,10,7,'#d2bca0');
+  for(const x of [-8,8])ellipse(c,x,-30,3,3,'#eac782');
+  line(c,-22,-51,-32,-70,'#807159',3);line(c,22,-51,32,-70,'#807159',3);
+}
+function mechDog(c,f){
+  c.translate(56,77+[0,-3,0,-2][f]);
+  for(const x of [-25,-5,16,32])line(c,x,-8,x+1,22+(f%2?2:-2),'#374b5d',8);
+  ellipse(c,-7,-22,33,20,'#5c8199');ellipse(c,24,-34,20,18,'#496478');
+  poly(c,[[11,-47],[11,-66],[25,-48]],'#2b455e');poly(c,[[26,-48],[43,-64],[39,-37]],'#2b455e');
+  poly(c,[[31,-29],[54,-19],[41,-13]],'#8faeba');ellipse(c,34,-35,4,4,'#a5ffff');
+  line(c,-30,-22,-54,-39,'#4d637b',6);rect(c,-23,-27,25,6,'#e0c477');
+}
+function urbanSentinel(c,f){
+  c.translate(56,80+[0,-2,0,-1][f]);
+  for(const x of [-15,15])line(c,x,-2,x,22,'#333f52',11);
+  poly(c,[[-28,-49],[28,-49],[33,-5],[-32,-5]],'#486c87');rect(c,-20,-42,40,13,'#b2bfc5');
+  ellipse(c,0,-67,23,23,'#243b51');rect(c,-17,-72,34,12,'#72d0e0');
+  line(c,-29,-41,-38,-3,'#637f93',11);line(c,29,-41,38,-3,'#637f93',11);
+  rect(c,-9,-18,18,9,'#d7c48c');
+}
+function surveillanceDrone(c,f){
+  c.translate(56,63+[0,-5,0,-3][f]);
+  poly(c,[[-35,-12],[-45,-30],[-22,-43],[-8,-23]],'#718ea4');poly(c,[[35,-12],[45,-30],[22,-43],[8,-23]],'#516b87');
+  ellipse(c,0,-21,25,18,'#354f6c');ellipse(c,0,-21,16,12,'#c1d7dc');ellipse(c,0,-21,7,7,'#8ef8ef');
+  line(c,-33,-24,-43,-11,'#b6b6a4',4);line(c,33,-24,43,-11,'#b6b6a4',4);
+  for(const x of [-35,35])ellipse(c,x,-28,9,3,'#e5e3b3');
+}
+function codeBug(c,f){
+  c.translate(56,79+[0,-3,0,-1][f]);
+  for(const x of [-22,-10,10,22])line(c,x,0,x+(x<0?-16:16),18,'#65d3c8',5);
+  poly(c,[[-28,-31],[-13,-55],[14,-55],[30,-31],[27,6],[-26,6]],'#176481');
+  poly(c,[[-23,-32],[0,-47],[23,-32],[15,-10],[-14,-10]],'#38b2b2');
+  ellipse(c,-9,-25,5,5,'#e1fdf2');ellipse(c,9,-25,5,5,'#e1fdf2');
+  line(c,-11,11,11,11,'#b9e9e3',3);
+}
+function firewallCreature(c,f){
+  c.translate(56,80+[0,-2,0,-1][f]);
+  for(const x of [-15,15])line(c,x,0,x,21,'#1b455c',10);
+  poly(c,[[-32,-57],[32,-57],[32,-5],[-32,-5]],'#3b92a8');
+  for(let row=0;row<3;row++)for(let col=0;col<3;col++)rect(c,-25+col*18,-49+row*15,14,9,(row+col)%2?'#195475':'#76d7c7');
+  rect(c,-18,-70,36,10,'#b9e6e6');ellipse(c,-9,-66,3,3,'#263551');ellipse(c,9,-66,3,3,'#263551');
+}
+function digitalSpecter(c,f){
+  c.translate(56,70+[0,-6,0,-4][f]);
+  poly(c,[[-22,-45],[0,-79],[23,-45],[31,14],[12,1],[0,21],[-13,1],[-31,14]],'#3e759b');
+  poly(c,[[-15,-37],[0,-65],[15,-37],[18,-3],[0,9],[-19,-3]],'#68e6c2');
+  ellipse(c,-8,-29,4,3,'#ebffff');ellipse(c,8,-29,4,3,'#ebffff');
+  line(c,-20,-20,-36,-2,'#d19aef',4);line(c,20,-20,36,-2,'#d19aef',4);
+}
+const DRAW={
+  'rato-de-ferro':ironRat,'automato-fabril':factoryBot,'besouro-a-vapor':steamBeetle,
+  'cao-mecanico':mechDog,'sentinela-urbano':urbanSentinel,'drone-de-vigilancia':surveillanceDrone,
+  'bug-de-codigo':codeBug,'firewall-vivo':firewallCreature,'espectro-digital':digitalSpecter
+};
+function modernPlayerTexture(era,facing,frame){return `modern-${era}-player-${FACES.includes(facing)?facing:'down'}-${frame%4}`;}
+function modernCreatureTexture(era,species,left,frame){return `modern-${era}-${species}-${left?'left':'right'}-${frame%4}`;}
+function modernBossTexture(era,left,frame){return `modern-${era}-boss-${left?'left':'right'}-${frame%4}`;}
+function createModernArt(scene,era){
+  if(!MODERN_SPECIES[era])throw new Error('Era moderna inexistente');
+  for(const facing of FACES)for(let frame=0;frame<4;frame++)
+    texture(scene,modernPlayerTexture(era,facing,frame),108,124,c=>player(c,era,facing,frame));
+  for(const species of MODERN_SPECIES[era])for(const left of [false,true])for(let f=0;f<4;f++)
+    texture(scene,modernCreatureTexture(era,species,left,f),112,114,c=>{
+      if(left){c.translate(112,0);c.scale(-1,1);}DRAW[species](c,f);
+    });
+  for(const left of [false,true])for(let f=0;f<4;f++)
+    texture(scene,modernBossTexture(era,left,f),190,204,c=>{
+      c.translate(21,31);c.scale(1.32,1.30);
+      if(left){c.translate(112,0);c.scale(-1,1);}
+      const representative={industrial:'automato-fabril',contemporanea:'sentinela-urbano',digital:'firewall-vivo'}[era];
+      DRAW[representative](c,f);
+      const p=PALETTES[era];
+      ellipse(c,0,-82,33,10,p.trim);rect(c,-15,-94,30,13,p.shadow);
+      ellipse(c,0,-94,8,5,p.eye);
+    });
+}
+
+return {MODERN_SPECIES,modernPlayerTexture,modernCreatureTexture,modernBossTexture,createModernArt};
+})();
+
 // --- src/entities/Player.js ---
 const {Player} = (() => {
+
 
 
 
@@ -1791,7 +2154,7 @@ class Player {
     this.sprite=scene.add.image(x,y,this.texture('down',0)).setOrigin(.5,.83).setDepth(y+300);
     this.sprite.setScale(.85);
   }
-  texture(facing,frame){return CIVILIZATION_SPECIES[this.era]?civilizationPlayerTexture(this.era,facing,frame):this.era==='pleistoceno'?pleistocenePlayerTexture(facing,frame):playerTexture(facing,frame);}
+  texture(facing,frame){return MODERN_SPECIES[this.era]?modernPlayerTexture(this.era,facing,frame):CIVILIZATION_SPECIES[this.era]?civilizationPlayerTexture(this.era,facing,frame):this.era==='pleistoceno'?pleistocenePlayerTexture(facing,frame):playerTexture(facing,frame);}
   update(delta,direction,obstacles,map) {
     const dt=Math.min(delta,40)/1000;
     let dx=direction.x,dy=direction.y;
@@ -1827,13 +2190,14 @@ const {Creature} = (() => {
 
 
 
+
 class Creature {
   constructor(scene,x,y,id,config={}) {
     this.scene=scene;this.id=id;this.era=config.era||'cretaceo';
-    this.species=CIVILIZATION_SPECIES[this.era]?CIVILIZATION_SPECIES[this.era][id%3]:this.era==='pleistoceno'?PLEISTOCENE_SPECIES[id%PLEISTOCENE_SPECIES.length]:creaturesList[id%creaturesList.length];
+    this.species=MODERN_SPECIES[this.era]?MODERN_SPECIES[this.era][id%3]:CIVILIZATION_SPECIES[this.era]?CIVILIZATION_SPECIES[this.era][id%3]:this.era==='pleistoceno'?PLEISTOCENE_SPECIES[id%PLEISTOCENE_SPECIES.length]:creaturesList[id%creaturesList.length];
     this.x=x;this.y=y;this.radius=15;this.hp=3;
-    this.behavior=CIVILIZATION_SPECIES[this.era]?['investida','resistente','flanqueador'][(id+(['antiga','medieval','renascimento'].indexOf(this.era)))%3]:this.era==='pleistoceno'?['investida','resistente','resistente'][id%3]:behaviorForCreature(id);
-    this.baseSpeed=CIVILIZATION_SPECIES[this.era]?({antiga:[78,56,82],medieval:[85,74,61],renascimento:[74,88,71]})[this.era][id%3]:this.era==='pleistoceno'?[80,55,45][id%3]:55+(id%3)*10;
+    this.behavior=MODERN_SPECIES[this.era]?['investida','resistente','flanqueador'][(id+(['industrial','contemporanea','digital'].indexOf(this.era)))%3]:CIVILIZATION_SPECIES[this.era]?['investida','resistente','flanqueador'][(id+(['antiga','medieval','renascimento'].indexOf(this.era)))%3]:this.era==='pleistoceno'?['investida','resistente','resistente'][id%3]:behaviorForCreature(id);
+    this.baseSpeed=MODERN_SPECIES[this.era]?({industrial:[82,60,86],contemporanea:[88,75,94],digital:[96,72,103]})[this.era][id%3]:CIVILIZATION_SPECIES[this.era]?({antiga:[78,56,82],medieval:[85,74,61],renascimento:[74,88,71]})[this.era][id%3]:this.era==='pleistoceno'?[80,55,45][id%3]:55+(id%3)*10;
     this.speed=this.baseSpeed*(config.speedMultiplier||1);
     this.aggression=config.aggression||1;
     this.alive=true;
@@ -1854,7 +2218,7 @@ class Creature {
     }
   }
 
-  texture(flip,frame){return CIVILIZATION_SPECIES[this.era]?civilizationCreatureTexture(this.era,this.species,flip,frame):this.era==='pleistoceno'?pleistoceneCreatureTexture(this.species,flip,frame):creatureTexture(this.species,flip,frame);}
+  texture(flip,frame){return MODERN_SPECIES[this.era]?modernCreatureTexture(this.era,this.species,flip,frame):CIVILIZATION_SPECIES[this.era]?civilizationCreatureTexture(this.era,this.species,flip,frame):this.era==='pleistoceno'?pleistoceneCreatureTexture(this.species,flip,frame):creatureTexture(this.species,flip,frame);}
   update(delta,target,nav,creatures) {
     if(!this.alive)return;
     const dt=Math.min(delta,40)/1000;
@@ -2432,6 +2796,147 @@ class CivilizationBoss {
 return {CivilizationBoss};
 })();
 
+// --- src/entities/ModernBoss.js ---
+const {ModernBoss} = (() => {
+
+
+/** Chefes VI–VIII: IA de perseguição, três fases, ataques e avisos próprios. */
+class ModernBoss {
+  constructor(scene,x,y,era){
+    this.scene=scene;this.x=x;this.y=y;this.era=era;this.id=99600;this.isBoss=true;
+    this.config=MODERN_BOSSES[era];this.state=new ModernBossState(era);
+    this.alive=true;this.contactRadius=57;this.phase=1;this.path=[];this.pathIndex=0;this.repathAt=0;
+    this.attack=null;this.nextAttack=scene.time.now+1800;this.frame=0;this.animMs=0;this.toLeft=false;
+    this.telegraph=scene.add.graphics().setDepth(9700);
+    this.shadow=scene.add.ellipse(x,y+14,122,33,0x11211d,.39).setDepth(y+170);
+    this.sprite=scene.add.image(x,y,modernBossTexture(era,false,0)).setOrigin(.5,.83).setDepth(y+260).setScale(1.04);
+    this.nameplate=scene.add.text(x,y-140,this.config.name,{fontFamily:'Arial',fontSize:'12px',fontStyle:'bold',color:'#fff1cc',stroke:'#26302f',strokeThickness:4}).setOrigin(.5).setDepth(y+400);
+  }
+  damage(amount){
+    const previous=this.state.phase;
+    if(!this.state.takeDamage(amount))return false;
+    this.phase=this.state.phase;
+    if(this.sprite?.active)this.sprite.setTintFill(0xffffff);
+    this.scene.time.delayedCall(110,()=>this.sprite?.active&&this.sprite.clearTint());
+    if(this.alive&&previous!==this.phase){this.scene.showMessage(`${this.config.name}: FASE ${this.phase}`);this.scene.makeImpact(this.x,this.y-35,this.config.color,65);}
+    if(!this.state.alive)this.destroy();
+    return true;
+  }
+  startAttack(now,target){
+    const type=this.state.chooseAttack(Math.hypot(target.x-this.x,target.y-this.y));
+    const from={x:this.x,y:this.y},to={x:target.x,y:target.y};
+    const fireAt=now+this.state.windupMs();
+    this.attack={type,start:now,fireAt,originX:this.x,originY:this.y,
+      targetX:to.x,targetY:to.y,shapes:modernAttackPlan(this.era,type,from,to),executed:false};
+    this.nextAttack=fireAt+this.state.cooldownMs();
+    this.scene.showMessage(`${this.config.name} — ${this.config.attackNames[type]}!`);
+  }
+  move(dx,dy,nav){
+    const nx=this.x+dx,ny=this.y+dy;
+    if(nav.isOpen(nx,ny)){this.x=nx;this.y=ny;return true;}
+    if(nav.isOpen(nx,this.y)){this.x=nx;return true;}
+    if(nav.isOpen(this.x,ny)){this.y=ny;return true;}
+    return false;
+  }
+  navigate(delta,target,nav){
+    const now=this.scene.time.now;
+    if(Math.hypot(target.x-this.x,target.y-this.y)<155)return;
+    if(now>=this.repathAt||!this.path.length||this.pathIndex>=this.path.length){
+      this.path=nav.findPath(this.x,this.y,target.x,target.y);this.pathIndex=0;this.repathAt=now+620;
+    }
+    while(this.pathIndex<this.path.length&&Math.hypot(this.path[this.pathIndex].x-this.x,this.path[this.pathIndex].y-this.y)<18)this.pathIndex++;
+    const waypoint=this.path[this.pathIndex]||target;
+    const dx=waypoint.x-this.x,dy=waypoint.y-this.y,d=Math.hypot(dx,dy)||1;
+    this.toLeft=dx<0;
+    const step=Math.min(d,(this.config.speed+(this.phase-1)*12)*Math.min(delta,40)/1000);
+    if(!this.move(dx/d*step,dy/d*step,nav))this.repathAt=0;
+  }
+  warn(now){
+    const g=this.telegraph,a=this.attack;g.clear();
+    if(!a||a.executed)return;
+    const progress=Math.max(0,Math.min(1,(now-a.start)/(a.fireAt-a.start)));
+    const alpha=.48+progress*.42;
+    g.lineStyle(3+progress*2,this.config.color,alpha);
+    for(const s of a.shapes){
+      if(s.kind==='line'){
+        g.lineBetween(s.from.x,s.from.y,s.to.x,s.to.y);
+        g.strokeCircle(s.to.x,s.to.y,s.radius);
+      }else if(s.kind==='circle'){
+        g.strokeCircle(s.x,s.y,s.radius);
+        g.lineStyle(1,this.config.color,alpha*.6);
+        g.strokeCircle(s.x,s.y,Math.max(2,s.radius*(1-progress)));
+        g.lineStyle(3+progress*2,this.config.color,alpha);
+      }else if(s.kind==='ring'){
+        g.strokeCircle(s.x,s.y,s.outer);
+        g.lineStyle(2,0x8ae6c2,.75);
+        g.strokeCircle(s.x,s.y,s.inner); // zona central segura
+        g.lineStyle(3+progress*2,this.config.color,alpha);
+      }else if(s.kind==='cone'){
+        const a1=s.angle-s.halfAngle,a2=s.angle+s.halfAngle;
+        g.lineBetween(s.x,s.y,s.x+Math.cos(a1)*s.reach,s.y+Math.sin(a1)*s.reach);
+        g.lineBetween(s.x,s.y,s.x+Math.cos(a2)*s.reach,s.y+Math.sin(a2)*s.reach);
+        g.beginPath();g.arc(s.x,s.y,s.reach,a1,a2);g.strokePath();
+      }
+    }
+  }
+  execute(now,target){
+    const a=this.attack;if(!a||a.executed)return;
+    a.executed=true;
+    if(a.type==='summon'){
+      this.scene.makeImpact(this.x,this.y-20,this.config.color,70);
+      this.scene.spawnBossMinions(2);return;
+    }
+    if(a.type==='roadcharge'){
+      const dx=a.targetX-a.originX,dy=a.targetY-a.originY,d=Math.hypot(dx,dy)||1;
+      a.direction={x:dx/d,y:dy/d};a.chargeUntil=now+630;
+      this.scene.makeImpact(this.x,this.y-25,this.config.color,35);return;
+    }
+    if(a.shapes.length){
+      const first=a.shapes[0];
+      const px=first.x??a.targetX,py=first.y??a.targetY;
+      this.scene.makeImpact(px,py-12,this.config.color,first.kind==='ring'?90:40);
+    }
+    if(!modernAttackHits(a.shapes,target,10))return;
+    // A lentidão é aplicada antes do dano (que ativa proteção temporária);
+    // durante a esquiva invulnerável não se recebe nem dano nem o efeito.
+    if(a.type==='steamline')this.scene.applyCombatSlow?.(.77,1100,'VAPOR QUENTE');
+    if(a.type==='signalburst')this.scene.applyCombatSlow?.(.66,1000,'INTERFERÊNCIA');
+    if(a.type==='glitchring')this.scene.applyCombatSlow?.(.65,1050,'FALHA DIGITAL');
+    this.scene.damagePlayer(this,1);
+    if(a.type==='pressureburst'||a.type==='glitchring')this.scene.makeImpact(target.x,target.y-17,this.config.color,22);
+  }
+  update(delta,target,nav){
+    if(!this.alive)return;
+    const now=this.scene.time.now;
+    if(!this.attack&&now>=this.nextAttack)this.startAttack(now,target);
+    if(this.attack){
+      const a=this.attack;this.warn(now);
+      if(!a.executed&&now>=a.fireAt)this.execute(now,target);
+      if(a.executed&&a.type==='roadcharge'&&now<a.chargeUntil){
+        const step=(345+(this.phase-1)*42)*Math.min(delta,40)/1000;
+        if(!this.move(a.direction.x*step,a.direction.y*step,nav))a.chargeUntil=now;
+        if(Math.hypot(this.x-target.x,this.y-target.y)<this.contactRadius)this.scene.damagePlayer(this,1);
+      }
+      if(a.executed&&(a.type!=='roadcharge'||now>=a.chargeUntil)){
+        this.attack=null;this.telegraph.clear();this.repathAt=0;
+      }
+    }else this.navigate(delta,target,nav);
+    this.animMs+=delta;if(this.animMs>190){this.frame=(this.frame+1)%4;this.animMs=0;}
+    this.sprite.setTexture(modernBossTexture(this.era,this.toLeft,this.frame)).setPosition(this.x,this.y).setDepth(this.y+260);
+    this.shadow.setPosition(this.x,this.y+14).setDepth(this.y+170);
+    this.nameplate.setPosition(this.x,this.y-140).setDepth(this.y+400);
+  }
+  destroy(){
+    if(!this.alive)return;
+    this.alive=false;this.attack=null;
+    this.telegraph.clear();this.telegraph.destroy();this.nameplate.destroy();this.shadow.destroy();
+    this.scene.tweens.add({targets:this.sprite,alpha:0,scale:.1,duration:360,onComplete:()=>this.sprite.destroy()});
+  }
+}
+
+return {ModernBoss};
+})();
+
 // --- src/scenes/BootScene.js ---
 const {BootScene} = (() => {
 
@@ -2468,8 +2973,8 @@ class MenuScene extends Phaser.Scene {
     const titleSize=Math.min(98,Math.max(49,w*.095));
     this.add.text(w/2,h*.27,'ERA',{fontFamily:'Georgia,serif',fontSize:`${titleSize}px`,fontStyle:'bold',color:'#f3e3b5',stroke:'#0b241c',strokeThickness:5}).setOrigin(.5);
     this.add.text(w/2,h*.39,'E V O L U T I O N',{fontFamily:'Arial',fontSize:`${Math.min(23,Math.max(13,w*.023))}px`,fontStyle:'bold',color:'#c8dabc'}).setOrigin(.5);
-    this.add.text(w/2,h*.49,'CAPÍTULOS I–V · DA ORIGEM AO RENASCIMENTO',{fontFamily:'Arial',fontSize:'15px',fontStyle:'bold',color:'#e9c17f',letterSpacing:3}).setOrigin(.5);
-    this.add.text(w/2,h*.57,'Explore cinco épocas, evolua as armas e vença os guardiões da história.',{fontFamily:'Arial',fontSize:'13px',color:'#b6c9b2',align:'center',wordWrap:{width:Math.min(520,w*.75)}}).setOrigin(.5);
+    this.add.text(w/2,h*.49,'CAPÍTULOS I–VIII · DO CRETÁCEO AO DIGITAL',{fontFamily:'Arial',fontSize:'15px',fontStyle:'bold',color:'#e9c17f',letterSpacing:3}).setOrigin(.5);
+    this.add.text(w/2,h*.57,'Atravesse oito eras, evolua as armas e vença os guardiões de cada período.',{fontFamily:'Arial',fontSize:'13px',color:'#b6c9b2',align:'center',wordWrap:{width:Math.min(520,w*.75)}}).setOrigin(.5);
     const start=this.add.text(w/2,h*.72,'COMEÇAR EXPEDIÇÃO',{fontFamily:'Arial',fontSize:'18px',fontStyle:'bold',color:'#193329',backgroundColor:'#e6ce93',padding:{x:27,y:16}}).setOrigin(.5).setInteractive({useHandCursor:true});
     start.on('pointerover',()=>start.setStyle({backgroundColor:'#ffe1a4'}));
     start.on('pointerout',()=>start.setStyle({backgroundColor:'#e6ce93'}));
@@ -2593,14 +3098,18 @@ const {GameScene} = (() => {
 
 
 
+
+
+
+
 class GameScene extends Phaser.Scene {
   constructor() { super('GameScene'); }
 
   init(data={}){
     const params=typeof window!=='undefined'?new URLSearchParams(window.location.search):new URLSearchParams();
     const testing=Number(params.get('testeChefe')||params.get('testeEra'));
-    const debugIndex=Number.isInteger(testing)&&testing>=1&&testing<=5?testing-1:0;
-    this.eraIndex=Number.isInteger(data.eraIndex)?Math.max(0,Math.min(4,data.eraIndex)):debugIndex;
+    const debugIndex=Number.isInteger(testing)&&testing>=1&&testing<=8?testing-1:0;
+    this.eraIndex=Number.isInteger(data.eraIndex)?Math.max(0,Math.min(7,data.eraIndex)):debugIndex;
     this.era=eraAt(this.eraIndex);
     this.carryProgress=data.progress||null;
   }
@@ -2611,13 +3120,14 @@ class GameScene extends Phaser.Scene {
     this.cameras.main.setBackgroundColor('#'+this.era.theme.toString(16).padStart(6,'0'));
     createCharacterArt(this);
     if(this.eraIndex===1){createPleistoceneArt(this);createIceAgeBossArt(this);}
-    if(this.eraIndex>=2)createCivilizationArt(this,this.era.id);
+    if(this.eraIndex>=2&&this.eraIndex<=4)createCivilizationArt(this,this.era.id);
+    if(this.eraIndex>=5)createModernArt(this,this.era.id);
     createBossArt(this);
     this.projection = new IsoProjection(
       SETTINGS.tileWidth, SETTINGS.tileHeight,
       SETTINGS.mapRows * SETTINGS.tileWidth / 2, SETTINGS.tileHeight / 2
     );
-    this.world=this.eraIndex>=2?new CivilizationWorld(this,this.projection,this.era.id):this.eraIndex===1?new PleistoceneWorld(this,this.projection):new WorldGenerator(this,this.projection);
+    this.world=this.eraIndex>=5?new ModernWorld(this,this.projection,this.era.id):this.eraIndex>=2?new CivilizationWorld(this,this.projection,this.era.id):this.eraIndex===1?new PleistoceneWorld(this,this.projection):new WorldGenerator(this,this.projection);
     this.world.create(SETTINGS.mapColumns, SETTINGS.mapRows);
     this.createAtmosphere();
     this.navigation = new NavigationGrid({
@@ -2849,7 +3359,7 @@ class GameScene extends Phaser.Scene {
     this.bossHud.setVisible(true);
     this.bossHPFill.setDisplaySize(Math.max(.01,460*this.boss.state.healthRatio),13);
     this.bossHPFill.setFillStyle(this.boss.phase===3?0xef856f:this.eraIndex===1?0x7ed6ea:this.eraIndex>=2?this.era.accent:0xe6a66f);
-    const config=this.eraIndex>=2?CIVILIZATION_BOSSES[this.era.id]:this.eraIndex===1?ICE_BOSS_CONFIG:BOSS_CONFIG;
+    const config=this.eraIndex>=5?MODERN_BOSSES[this.era.id]:this.eraIndex>=2?CIVILIZATION_BOSSES[this.era.id]:this.eraIndex===1?ICE_BOSS_CONFIG:BOSS_CONFIG;
     this.bossTitle.setText(`CHEFE  •  ${config.name}  •  FASE ${this.boss.phase}`);
     this.bossHint.setText(this.eraIndex===1?'INVESTIDA · PISADA · GELO · MATILHA':this.eraIndex>=2?config.hint:'INVESTIDA · PISADA · RAJADA');
   }
@@ -3174,10 +3684,10 @@ class GameScene extends Phaser.Scene {
       // Evita encontro impossível se o mapa não tiver posição acessível.
       this.bossActive=false;this.showMessage('Não foi possível posicionar o chefe.');return;
     }
-    this.boss=this.eraIndex>=2?new CivilizationBoss(this,point.x,point.y,this.era.id):this.eraIndex===1?new PleistoceneBoss(this,point.x,point.y):new CretaceousBoss(this,point.x,point.y);
+    this.boss=this.eraIndex>=5?new ModernBoss(this,point.x,point.y,this.era.id):this.eraIndex>=2?new CivilizationBoss(this,point.x,point.y,this.era.id):this.eraIndex===1?new PleistoceneBoss(this,point.x,point.y):new CretaceousBoss(this,point.x,point.y);
     this.creatures.push(this.boss);
-    this.showMessage(`100 ELIMINAÇÕES! ${this.eraIndex>=2?CIVILIZATION_BOSSES[this.era.id].name:this.eraIndex===1?ICE_BOSS_CONFIG.name:BOSS_CONFIG.name} DESPERTOU!`);
-    this.makeImpact(point.x,point.y-35,this.eraIndex===1?0xa4e2f6:0xe9b879,100);
+    this.showMessage(`100 ELIMINAÇÕES! ${this.eraIndex>=5?MODERN_BOSSES[this.era.id].name:this.eraIndex>=2?CIVILIZATION_BOSSES[this.era.id].name:this.eraIndex===1?ICE_BOSS_CONFIG.name:BOSS_CONFIG.name} DESPERTOU!`);
+    this.makeImpact(point.x,point.y-35,this.eraIndex===1?0xa4e2f6:this.era.accent,100);
     this.cameras.main.shake(240,.003);
     this.updateBossHud();
   }
@@ -3377,12 +3887,12 @@ class EraCompleteScene extends Phaser.Scene {
     const title=this.add.text(w/2,h*.225,`ERA ${String(this.era.number).padStart(2,'0')} CONCLUÍDA`,{
       fontFamily:'Arial',fontSize:`${Math.min(16,Math.max(12,w*.021))}px`,fontStyle:'bold',color:'#f0d69d',letterSpacing:3
     }).setOrigin(.5);
-    const headline=this.add.text(w/2,h*.35,this.nextEra?'A HISTÓRIA AVANÇA':'CINCO ERAS SUPERADAS!',{
+    const headline=this.add.text(w/2,h*.35,this.nextEra?'A HISTÓRIA AVANÇA':'OITO ERAS SUPERADAS!',{
       fontFamily:'Georgia,serif',fontSize:`${fs}px`,fontStyle:'bold',color:'#f7e0b5'
     }).setOrigin(.5);
     const desc=this.nextEra?
       `O guardião da ${this.era.name} foi derrotado.\nPróximo capítulo: ${this.nextEra.name}.\nArmas, melhorias e experiência acompanham a jornada.`:
-      `Concluíste os cinco primeiros capítulos desta expedição.\nA Revolução Industrial será o próximo período a desenvolver.`;
+      `Concluíste os oito primeiros capítulos da expedição!\nPróximas eras planejadas: Espacial e Extinção.`;
     this.add.text(w/2,h*.48,desc,{fontFamily:'Arial',fontSize:`${Math.min(16,Math.max(12,w*.02))}px`,color:'#d4e2dd',align:'center',lineSpacing:6,wordWrap:{width:Math.min(w*.83,660)}}).setOrigin(.5);
     const time=`${Math.floor(this.seconds/60)}:${String(this.seconds%60).padStart(2,'0')}`;
     this.add.text(w/2,h*.62,`${this.kills} ELIMINAÇÕES  •  NÍVEL ${this.level}  •  ${time}`,{

@@ -1,42 +1,57 @@
-# ERA: Evolution — Ciclo 13 — Equilíbrio e Chefes
+# ERA: Evolution — Ciclo 14 · Revolução Industrial → Digital
 
-Roguelike isométrico em Phaser 3.90.0. Cinco eras jogáveis, publicação automática no GitHub Pages.
+Jogo roguelike de sobrevivência 2.5D em **Phaser 3.90**, com oito eras jogáveis, progressão contínua e reinício integral após a derrota.
 
-## Melhorias deste ciclo
+## Capítulos
 
-- **Chefes distintos por era (03–05):** Esfinge com leque de areia, areia movediça e raio solar; Gárgula com mergulho, chuva de runas e cone de petrificação; Autômato com anel de engrenagens com centro seguro, pistões de impacto e feixes paralelos que deixam uma faixa segura.
-- **Avisos consistentes:** as formas de aviso e as colisões dos ataques partilham a mesma geometria. Há espaço para o jogador se desviar, incluindo a esquiva manual (Espaço).
-- **Escalada equilibrada:** máximo de criaturas simultâneas por era limitado a 17, 18, 19, 20 e 21, respetivamente, com progressão a cada 10 eliminações. Três pontos de vida continuam a ser a regra para criaturas comuns.
-- **Pressão por era:** velocidade e agressividade sobem gradualmente. Os chefes têm barras de vida mais robustas e intervalos de ataque legíveis.
-- **Medição opcional de desempenho:** F4 exibe estimativa de FPS e contagem de criaturas/projéteis. Usar para comparar Eras 01 e 04, onde foram relatados engasgos; não se trata de correção completa de desempenho.
+1. Cretáceo — mundo primordial, dinossauros e Tricerátops Ancestral
+2. Pré-História — Era do Gelo e Mamute Ancestral
+3. Civilizações Antigas — templos, ruínas, Guardião da Esfinge
+4. Medieval — fortaleza, gárgulas, Gárgula Coroada
+5. Renascimento — jardins, autômatos, Autômato Magno
+6. **Revolução Industrial** — chão de fábrica, caldeiras e engrenagens, rato de ferro, autômato fabril e besouro a vapor; chefe **Titã a Vapor** (jato de vapor, explosão da caldeira e chuva de escória)
+7. **Contemporânea** — cidade, barreiras urbanas e veículos, cão mecânico, sentinela urbano e drone de vigilância; chefe **Colosso Blindado** (investida blindada, varredura de sinal e zonas de alerta)
+8. **Digital** — circuitos, servidores e barreiras eletrônicas, bug de código, firewall vivo e espectro digital; chefe **Núcleo Corrompido** (grade de dados, pulso corrompido e tempestade de pacotes)
 
-## Controles
+As Eras **09 — Espacial** e **10 — Extinção** estão planejadas, mas ainda não são jogáveis.
 
-- **WASD / setas:** mover; **Espaço:** esquiva com recarga.
-- **Q/E** ou **1–5:** alternar as armas desbloqueadas.
-- **F3:** mostrar rotas dos inimigos; **F4:** mostrar/ocultar FPS e contadores.
-- **ESC:** pausa; **R:** reinicia após a derrota.
-- Disparos são automáticos na direção de criaturas dentro do alcance.
-- A cada dez eliminações surge uma relíquia; a cada dez fragmentos abre a escolha de três melhorias.
+## Mecânicas principais
 
-## Links de teste
+- Cada era exige **100 eliminações** para enfrentar o chefe.
+- Eliminações por era recomeçam em zero; vida restante, melhorias, armas, fragmentos e total de eliminações passam à era seguinte. A transição após a Era 02 e seguintes recupera até dois pontos de vida.
+- A cada 10 eliminações, aparece uma relíquia de evolução de arma. Cada 10 fragmentos oferece três melhorias diferentes.
+- Projéteis automáticos em 360°; cinco armas com comportamentos próprios e alternância por Q/E ou teclas 1–5.
+- Inimigos têm três pontos de vida. O desafio cresce pelo número, velocidade e agressividade das criaturas, com limites para controlar a população do mapa.
+- Chefes das Eras VI–VIII possuem **três fases**, ataques sinalizados e espaços de esquiva. A fase final pode convocar apoio.
+- Dificuldade e fluidez das Eras 01 e 04 continuarão sendo aperfeiçoadas em ciclos futuros, depois da expansão de conteúdo.
 
-- Jogo normal: https://nikolascaldeira.github.io/era-evolution/
-- Chefe da Era 03: https://nikolascaldeira.github.io/era-evolution/?testeChefe=3
-- Chefe da Era 04: https://nikolascaldeira.github.io/era-evolution/?testeChefe=4
-- Chefe da Era 05: https://nikolascaldeira.github.io/era-evolution/?testeChefe=5
+## Comandos
 
-## Instalação
+| Comando | Ação |
+| --- | --- |
+| WASD ou setas | Caminhar em oito direções |
+| Espaço | Esquiva manual (com recarga) |
+| Q / E ou 1–5 | Alternar ou selecionar arma |
+| ESC | Pausar / retomar |
+| F3 | Exibir navegação das criaturas |
+| F4 | Exibir FPS, criaturas e projéteis |
+| R | Reiniciar após game over |
 
-```sh
+## Testes diretos no site
+
+- `?testeEra=6` / `?testeChefe=6`: Revolução Industrial
+- `?testeEra=7` / `?testeChefe=7`: Contemporânea
+- `?testeEra=8` / `?testeChefe=8`: Digital
+
+Os parâmetros de teste criam **partidas novas de depuração**, sem progressão permanente.
+
+## Desenvolvimento
+
+```bash
 npm install
 npm test
-npm run build
 npm run dev
+npm run build
 ```
 
-O projeto utiliza Vite com `base: './'`. O GitHub Actions realiza testes, compilação e publicação em cada alteração na branch `main`. A exportação HTML de página única pode ser gerada com `npm run export:web` (Phaser carregado via CDN).
-
-## Notas de implementação
-
-Os avisos são resolvidos com as mesmas formas usadas para calcular o dano, em `CivilizationBossSystem.js`. Os padrões são construídos em pontos do mapa no início do aviso, para que não mudem arbitrariamente antes do impacto. O movimento de esquiva e a invulnerabilidade temporária permanecem intactos. As Eras 06–10 ainda não foram desenvolvidas.
+`npm run export:web` gera uma página HTML independente que carrega Phaser via CDN (necessita de internet). O site hospedado no GitHub Pages usa a compilação Vite gerada pelo workflow `.github/workflows/deploy.yml`.

@@ -20,22 +20,26 @@ const modules=[
   'src/systems/FrostTrailSystem.js',
   'src/systems/ActiveCombatSystem.js',
   'src/systems/CivilizationBossSystem.js',
+  'src/systems/ModernBossSystem.js',
   'src/systems/RelicVisual.js',
   'src/world/IsoProjection.js',
   'src/world/NavigationGrid.js',
   'src/world/WorldGenerator.js',
   'src/world/PleistoceneWorld.js',
   'src/world/CivilizationWorld.js',
+  'src/world/ModernWorld.js',
   'src/art/CharacterArt.js',
   'src/art/PleistoceneArt.js',
   'src/art/BossArt.js',
   'src/art/IceAgeBossArt.js',
   'src/art/CivilizationArt.js',
+  'src/art/ModernArt.js',
   'src/entities/Player.js',
   'src/entities/Creature.js',
   'src/entities/CretaceousBoss.js',
   'src/entities/PleistoceneBoss.js',
   'src/entities/CivilizationBoss.js',
+  'src/entities/ModernBoss.js',
   'src/scenes/BootScene.js',
   'src/scenes/MenuScene.js',
   'src/scenes/PauseScene.js',
@@ -65,7 +69,7 @@ const html=`<!DOCTYPE html>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width,initial-scale=1" />
   <meta name="theme-color" content="#102820" />
-  <title>ERA: Evolution | Cinco Eras — Ciclo 13</title>
+  <title>ERA: Evolution | Oito Eras — Ciclo 14</title>
   <style>${css}</style>
 </head>
 <body>
@@ -87,5 +91,5 @@ const html=`<!DOCTYPE html>
 const destination=resolve(root,'publicar','index.html');
 mkdirSync(resolve(root,'publicar'),{recursive:true});
 writeFileSync(destination,html,'utf8');
-copyFileSync(destination,resolve(root,'JOGAR-ERA-Evolution-Ciclo13.html'));
+copyFileSync(destination,resolve(root,'JOGAR-ERA-Evolution-Ciclo14.html'));
 console.log(`Exportado ${destination} (${html.length} caracteres)`);

@@ -48,7 +48,7 @@ for(const [index,era] of [2,3,4].map(i=>[i,ERAS[i]])){
 }
 
 test('a sequência das eras contém cinco capítulos com três mapas novos distintos',()=>{
-  assert.deepEqual(ERAS.slice(2).map(e=>e.id),CIVILIZATION_WORLDS);
+  assert.deepEqual(ERAS.slice(2,5).map(e=>e.id),CIVILIZATION_WORLDS);
   assert.deepEqual(Object.keys(CIVILIZATION_BOSSES),CIVILIZATION_WORLDS);
   const species=Object.values(CIVILIZATION_SPECIES).flat();assert.equal(new Set(species).size,9);
 });

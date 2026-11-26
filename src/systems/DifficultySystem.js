@@ -47,7 +47,10 @@ export const ERA_BALANCE=Object.freeze([
   Object.freeze({maxAlive:18,extraAlive:1,spawnFactor:.95,speedFactor:1.065,aggressionFactor:1.09}),
   Object.freeze({maxAlive:19,extraAlive:2,spawnFactor:.91,speedFactor:1.13,aggressionFactor:1.17}),
   Object.freeze({maxAlive:20,extraAlive:3,spawnFactor:.88,speedFactor:1.18,aggressionFactor:1.26}),
-  Object.freeze({maxAlive:21,extraAlive:4,spawnFactor:.85,speedFactor:1.235,aggressionFactor:1.34})
+  Object.freeze({maxAlive:21,extraAlive:4,spawnFactor:.85,speedFactor:1.235,aggressionFactor:1.34}),
+  Object.freeze({maxAlive:22,extraAlive:5,spawnFactor:.83,speedFactor:1.28,aggressionFactor:1.42}),
+  Object.freeze({maxAlive:23,extraAlive:6,spawnFactor:.81,speedFactor:1.33,aggressionFactor:1.50}),
+  Object.freeze({maxAlive:24,extraAlive:7,spawnFactor:.80,speedFactor:1.38,aggressionFactor:1.59})
 ]);
 /** Inimigos comuns continuam com três pontos de vida. Escalada por ritmo, IA e posicionamento. */
 export function difficultyForEra(kills,eraIndex=0){

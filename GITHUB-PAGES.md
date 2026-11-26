@@ -1,9 +1,9 @@
-# GitHub Pages — ERA Evolution — Ciclo 13
+# Publicação GitHub Pages — Ciclo 14
 
-O repositório publica o projeto via GitHub Actions (`.github/workflows/deploy.yml`).
+O workflow `.github/workflows/deploy.yml` executa `npm install`, `npm test`, `npm run build` e publica o diretório `dist/` no GitHub Pages após cada push na branch `main`.
 
-- Site: https://nikolascaldeira.github.io/era-evolution/
-- Os testes e o build do Vite são executados a cada commit em `main`.
-- `?testeChefe=3`, `4` ou `5` permitem testar os três chefes sem repetir as 100 eliminações.
-- `F4` apresenta a estimativa de FPS e contagem de entidades para investigar desempenho.
-- A experiência de jogo em diferentes computadores e celulares ainda necessita de validação manual.
+URL: https://nikolascaldeira.github.io/era-evolution/
+
+Atalhos: `?testeEra=6`, `?testeChefe=6`, `?testeEra=7`, `?testeChefe=7`, `?testeEra=8`, `?testeChefe=8`.
+
+Para identificar problemas de fluidez, usa F4 e compara FPS entre eras; os efeitos gráficos poderão ser otimizados após a conclusão das dez eras.

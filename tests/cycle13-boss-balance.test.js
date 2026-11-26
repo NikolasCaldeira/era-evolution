@@ -86,7 +86,7 @@ test('reforços só aparecem na última fase e o chefe pode ser derrotado',()=>{
   }
 });
 test('crescimento de criaturas e velocidade continua progressivo, respeitando orçamento visual',()=>{
-  assert.deepEqual(ERA_BALANCE.map(x=>x.maxAlive),[17,18,19,20,21]);
+  assert.deepEqual(ERA_BALANCE.slice(0,5).map(x=>x.maxAlive),[17,18,19,20,21]);
   for(const kills of [0,10,30,60,90]){
     const values=Array.from({length:5},(_,i)=>difficultyForEra(kills,i));
     for(let i=0;i<values.length;i++){

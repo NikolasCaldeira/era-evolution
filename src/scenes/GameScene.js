@@ -27,6 +27,10 @@ import {CivilizationWorld} from '../world/CivilizationWorld.js';
 import {createCivilizationArt,CIVILIZATION_SPECIES} from '../art/CivilizationArt.js';
 import {CIVILIZATION_BOSSES} from '../systems/CivilizationBossSystem.js';
 import {CivilizationBoss} from '../entities/CivilizationBoss.js';
+import {ModernWorld} from '../world/ModernWorld.js';
+import {createModernArt} from '../art/ModernArt.js';
+import {ModernBoss} from '../entities/ModernBoss.js';
+import {MODERN_BOSSES} from '../systems/ModernBossSystem.js';
 import {FrostTrailState} from '../systems/FrostTrailSystem.js';
 import {DASH,DashState,threatForEra,threatHits} from '../systems/ActiveCombatSystem.js';
 
@@ -36,8 +40,8 @@ export class GameScene extends Phaser.Scene {
   init(data={}){
     const params=typeof window!=='undefined'?new URLSearchParams(window.location.search):new URLSearchParams();
     const testing=Number(params.get('testeChefe')||params.get('testeEra'));
-    const debugIndex=Number.isInteger(testing)&&testing>=1&&testing<=5?testing-1:0;
-    this.eraIndex=Number.isInteger(data.eraIndex)?Math.max(0,Math.min(4,data.eraIndex)):debugIndex;
+    const debugIndex=Number.isInteger(testing)&&testing>=1&&testing<=8?testing-1:0;
+    this.eraIndex=Number.isInteger(data.eraIndex)?Math.max(0,Math.min(7,data.eraIndex)):debugIndex;
     this.era=eraAt(this.eraIndex);
     this.carryProgress=data.progress||null;
   }
@@ -48,13 +52,14 @@ export class GameScene extends Phaser.Scene {
     this.cameras.main.setBackgroundColor('#'+this.era.theme.toString(16).padStart(6,'0'));
     createCharacterArt(this);
     if(this.eraIndex===1){createPleistoceneArt(this);createIceAgeBossArt(this);}
-    if(this.eraIndex>=2)createCivilizationArt(this,this.era.id);
+    if(this.eraIndex>=2&&this.eraIndex<=4)createCivilizationArt(this,this.era.id);
+    if(this.eraIndex>=5)createModernArt(this,this.era.id);
     createBossArt(this);
     this.projection = new IsoProjection(
       SETTINGS.tileWidth, SETTINGS.tileHeight,
       SETTINGS.mapRows * SETTINGS.tileWidth / 2, SETTINGS.tileHeight / 2
     );
-    this.world=this.eraIndex>=2?new CivilizationWorld(this,this.projection,this.era.id):this.eraIndex===1?new PleistoceneWorld(this,this.projection):new WorldGenerator(this,this.projection);
+    this.world=this.eraIndex>=5?new ModernWorld(this,this.projection,this.era.id):this.eraIndex>=2?new CivilizationWorld(this,this.projection,this.era.id):this.eraIndex===1?new PleistoceneWorld(this,this.projection):new WorldGenerator(this,this.projection);
     this.world.create(SETTINGS.mapColumns, SETTINGS.mapRows);
     this.createAtmosphere();
     this.navigation = new NavigationGrid({
@@ -286,7 +291,7 @@ export class GameScene extends Phaser.Scene {
     this.bossHud.setVisible(true);
     this.bossHPFill.setDisplaySize(Math.max(.01,460*this.boss.state.healthRatio),13);
     this.bossHPFill.setFillStyle(this.boss.phase===3?0xef856f:this.eraIndex===1?0x7ed6ea:this.eraIndex>=2?this.era.accent:0xe6a66f);
-    const config=this.eraIndex>=2?CIVILIZATION_BOSSES[this.era.id]:this.eraIndex===1?ICE_BOSS_CONFIG:BOSS_CONFIG;
+    const config=this.eraIndex>=5?MODERN_BOSSES[this.era.id]:this.eraIndex>=2?CIVILIZATION_BOSSES[this.era.id]:this.eraIndex===1?ICE_BOSS_CONFIG:BOSS_CONFIG;
     this.bossTitle.setText(`CHEFE  •  ${config.name}  •  FASE ${this.boss.phase}`);
     this.bossHint.setText(this.eraIndex===1?'INVESTIDA · PISADA · GELO · MATILHA':this.eraIndex>=2?config.hint:'INVESTIDA · PISADA · RAJADA');
   }
@@ -611,10 +616,10 @@ export class GameScene extends Phaser.Scene {
       // Evita encontro impossível se o mapa não tiver posição acessível.
       this.bossActive=false;this.showMessage('Não foi possível posicionar o chefe.');return;
     }
-    this.boss=this.eraIndex>=2?new CivilizationBoss(this,point.x,point.y,this.era.id):this.eraIndex===1?new PleistoceneBoss(this,point.x,point.y):new CretaceousBoss(this,point.x,point.y);
+    this.boss=this.eraIndex>=5?new ModernBoss(this,point.x,point.y,this.era.id):this.eraIndex>=2?new CivilizationBoss(this,point.x,point.y,this.era.id):this.eraIndex===1?new PleistoceneBoss(this,point.x,point.y):new CretaceousBoss(this,point.x,point.y);
     this.creatures.push(this.boss);
-    this.showMessage(`100 ELIMINAÇÕES! ${this.eraIndex>=2?CIVILIZATION_BOSSES[this.era.id].name:this.eraIndex===1?ICE_BOSS_CONFIG.name:BOSS_CONFIG.name} DESPERTOU!`);
-    this.makeImpact(point.x,point.y-35,this.eraIndex===1?0xa4e2f6:0xe9b879,100);
+    this.showMessage(`100 ELIMINAÇÕES! ${this.eraIndex>=5?MODERN_BOSSES[this.era.id].name:this.eraIndex>=2?CIVILIZATION_BOSSES[this.era.id].name:this.eraIndex===1?ICE_BOSS_CONFIG.name:BOSS_CONFIG.name} DESPERTOU!`);
+    this.makeImpact(point.x,point.y-35,this.eraIndex===1?0xa4e2f6:this.era.accent,100);
     this.cameras.main.shake(240,.003);
     this.updateBossHud();
   }
