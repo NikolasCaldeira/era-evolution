@@ -22,6 +22,9 @@ const modules=[
   'src/systems/CivilizationBossSystem.js',
   'src/systems/ModernBossSystem.js',
   'src/systems/RelicVisual.js',
+  'src/systems/ProjectilePhysics.js',
+  'src/systems/HudCache.js',
+  'src/systems/StaticTerrainCache.js',
   'src/world/IsoProjection.js',
   'src/world/NavigationGrid.js',
   'src/world/WorldGenerator.js',
@@ -72,7 +75,7 @@ const html=`<!DOCTYPE html>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width,initial-scale=1" />
   <meta name="theme-color" content="#102820" />
-  <title>ERA: Evolution | Dez Eras — Ciclo 16</title>
+  <title>ERA: Evolution | Dez Eras — Ciclo 17</title>
   <style>${css}</style>
 </head>
 <body>
@@ -94,5 +97,5 @@ const html=`<!DOCTYPE html>
 const destination=resolve(root,'publicar','index.html');
 mkdirSync(resolve(root,'publicar'),{recursive:true});
 writeFileSync(destination,html,'utf8');
-copyFileSync(destination,resolve(root,'JOGAR-ERA-Evolution-Ciclo16.html'));
+copyFileSync(destination,resolve(root,'JOGAR-ERA-Evolution-Ciclo17.html'));
 console.log(`Exportado ${destination} (${html.length} caracteres)`);

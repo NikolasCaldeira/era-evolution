@@ -82,7 +82,8 @@ export class Creature {
     }
     this.animTime+=delta;
     if(this.animTime>145){this.animTime=0;this.frame=(this.frame+1)%4;}
-    this.sprite.setTexture(this.texture(this.toLeft,this.frame));
+    const nextTexture=this.texture(this.toLeft,this.frame);
+    if(this.sprite.texture?.key!==nextTexture)this.sprite.setTexture(nextTexture);
     this.sprite.setPosition(this.x,this.y).setDepth(this.y+200);
     this.shadow.setPosition(this.x,this.y+10).setDepth(this.y+180);
     this.lifeDots.forEach((dot,i)=>dot.setPosition(this.x-10+i*10,this.y-49).setDepth(this.y+310));

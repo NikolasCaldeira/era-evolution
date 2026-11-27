@@ -1,4 +1,12 @@
-# ERA: Evolution — Ciclo 16 · Era da Extinção
+# ERA: Evolution — Ciclo 17 · Primeira Consolidação
+
+As **dez eras** continuam jogáveis. Este ciclo corrige a colisão e o alcance dos projéteis em FPS baixo, reduz o custo do HUD e do terreno estático e melhora a posição do título da transição.
+
+- **F4:** mostra FPS, criaturas, projéteis e total de acertos/tiros disparados.
+- **F3:** rotas dos inimigos (apenas enquanto ativado).
+- Veja `docs/CONSOLIDACAO-CICLO17.md` para diagnóstico e roteiro de teste.
+
+# ERA: Evolution — Ciclo 17 · Era da Extinção
 
 Jogo roguelike de sobrevivência 2.5D em **Phaser 3.90**, com dez eras jogáveis, progressão contínua e reinício integral após a derrota.
 

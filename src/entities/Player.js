@@ -30,7 +30,8 @@ export class Player {
       this.facing=FACING[Math.round(((angle+2*Math.PI)%(2*Math.PI))/(Math.PI/4))%8];
       this.elapsed+=delta;if(this.elapsed>125){this.elapsed=0;this.frame=(this.frame+1)%4;}
     }else{this.elapsed=0;this.frame=0;}
-    this.sprite.setTexture(this.texture(this.facing,this.frame));
+    const nextTexture=this.texture(this.facing,this.frame);
+    if(this.sprite.texture?.key!==nextTexture)this.sprite.setTexture(nextTexture);
     this.shadow.setPosition(this.x,this.y+12).setDepth(this.y+180);
     this.sprite.setPosition(this.x,this.y).setDepth(this.y+300);
   }

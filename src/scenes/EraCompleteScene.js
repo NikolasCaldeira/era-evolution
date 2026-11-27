@@ -27,7 +27,8 @@ export class EraCompleteScene extends Phaser.Scene {
     this.tweens.add({targets:middle,alpha:.1,scaleX:1.8,yoyo:true,repeat:-1,duration:1550});
     this.add.rectangle(w/2,h*.5,Math.min(w*.94,850),Math.min(h*.81,515),0x0a1b23,.9).setStrokeStyle(2,0xb8c6bc,.67);
     const fs=Math.min(48,Math.max(24,w*.052));
-    const title=this.add.text(w/2,h*.255,`ERA ${String(this.era.number).padStart(2,'0')} CONCLUÍDA`,{
+    const panelTop=h/2-Math.min(h*.81,515)/2;
+    const title=this.add.text(w/2,panelTop+Math.min(52,Math.min(h*.81,515)*.11),`ERA ${String(this.era.number).padStart(2,'0')} CONCLUÍDA`,{
       fontFamily:'Arial',fontSize:`${Math.min(16,Math.max(12,w*.021))}px`,fontStyle:'bold',color:'#f0d69d',letterSpacing:3
     }).setOrigin(.5);
     const headline=this.add.text(w/2,h*.35,this.nextEra?'A HISTÓRIA AVANÇA':'DEZ ERAS SUPERADAS!',{

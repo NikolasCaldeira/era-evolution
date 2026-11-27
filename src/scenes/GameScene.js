@@ -35,6 +35,9 @@ import {ModernBoss} from '../entities/ModernBoss.js';
 import {MODERN_BOSSES} from '../systems/ModernBossSystem.js';
 import {FrostTrailState} from '../systems/FrostTrailSystem.js';
 import {DASH,DashState,threatForEra,threatHits} from '../systems/ActiveCombatSystem.js';
+import { advanceShot, projectileHitsCreature, splashHitsCreature, getAimPoint } from '../systems/ProjectilePhysics.js';
+import {cacheTerrainGraphics} from '../systems/StaticTerrainCache.js';
+import {setChangedText,setChangedColor,setChangedFontSize} from '../systems/HudCache.js';
 
 export class GameScene extends Phaser.Scene {
   constructor() { super('GameScene'); }
@@ -63,6 +66,9 @@ export class GameScene extends Phaser.Scene {
     );
     this.world=this.eraIndex===9?new ExtinctionWorld(this,this.projection):this.eraIndex===8?new SpaceWorld(this,this.projection):this.eraIndex>=5?new ModernWorld(this,this.projection,this.era.id):this.eraIndex>=2?new CivilizationWorld(this,this.projection,this.era.id):this.eraIndex===1?new PleistoceneWorld(this,this.projection):new WorldGenerator(this,this.projection);
     this.world.create(SETTINGS.mapColumns, SETTINGS.mapRows);
+    // O terreno não muda durante a partida: converter o Graphics de milhares de
+    // polígonos numa única textura reduz o trabalho repetido do renderizador.
+    this.terrainCacheKey=cacheTerrainGraphics(this,`era-terreno-${this.era.id}`,SETTINGS);
     this.createAtmosphere();
     this.navigation = new NavigationGrid({
       projection:this.projection, columns:SETTINGS.mapColumns,
@@ -109,7 +115,7 @@ export class GameScene extends Phaser.Scene {
     this.performanceVisible=false;
     this.performanceTime=0;
     this.performanceFrames=0;
-    this.performanceLabel=this.add.text(0,0,'FPS -- | Criaturas -- | Projéteis --',{
+    this.performanceLabel=this.add.text(0,0,'FPS -- | Criaturas -- | Projéteis -- | Acertos --',{
       fontFamily:'monospace',fontSize:'12px',color:'#e2e7d3',backgroundColor:'#142320',
       padding:{x:8,y:6}
     }).setOrigin(1,0).setDepth(13000).setVisible(false);
@@ -129,6 +135,7 @@ export class GameScene extends Phaser.Scene {
     this.bossActive=false;
     this.fragments=[];
     this.projectiles=[];
+    this.totalShots=0;this.totalHits=0;
     this.weaponPickups=[];
     this.weapons=new WeaponState();
     this.upgrades=new UpgradeState();
@@ -180,6 +187,8 @@ export class GameScene extends Phaser.Scene {
       this.input.keyboard.off('keydown-ESC',this.onPauseKey);
       this.input.keyboard.off('keydown-SPACE',this.onDashKey);
       this.clearThreats();
+      if(this.terrainCacheImage?.active)this.terrainCacheImage.destroy();
+      if(this.terrainCacheKey&&this.textures.exists(this.terrainCacheKey))this.textures.remove(this.terrainCacheKey);
       this.scale.off('resize',this.onResize);
     });
     // ?testeChefe=N: encontro de depuração da era N, sem modificar uma partida normal.
@@ -294,33 +303,33 @@ export class GameScene extends Phaser.Scene {
     this.bossHPFill.setDisplaySize(Math.max(.01,460*this.boss.state.healthRatio),13);
     this.bossHPFill.setFillStyle(this.boss.phase===3?0xef856f:this.eraIndex===1?0x7ed6ea:this.eraIndex>=2?this.era.accent:0xe6a66f);
     const config=this.eraIndex>=5?MODERN_BOSSES[this.era.id]:this.eraIndex>=2?CIVILIZATION_BOSSES[this.era.id]:this.eraIndex===1?ICE_BOSS_CONFIG:BOSS_CONFIG;
-    this.bossTitle.setText(`CHEFE  •  ${config.name}  •  FASE ${this.boss.phase}`);
-    this.bossHint.setText(this.eraIndex===1?'INVESTIDA · PISADA · GELO · MATILHA':this.eraIndex>=2?config.hint:'INVESTIDA · PISADA · RAJADA');
+    setChangedText(this.bossTitle,`CHEFE  •  ${config.name}  •  FASE ${this.boss.phase}`);
+    setChangedText(this.bossHint,this.eraIndex===1?'INVESTIDA · PISADA · GELO · MATILHA':this.eraIndex>=2?config.hint:'INVESTIDA · PISADA · RAJADA');
   }
   updateHud(){
     if(!this.survival||!this.stats)return;
     const health=this.survival.health;
-    this.healthText.setText('♥ '.repeat(health)+'♡ '.repeat(this.survival.maxHealth-health));
+    setChangedText(this.healthText,'♥ '.repeat(health)+'♡ '.repeat(this.survival.maxHealth-health));
     this.healthFill.setDisplaySize(Math.max(.01,(this.hudWidth-34)*health/this.survival.maxHealth),8);
     this.healthFill.setFillStyle(health<=2?0xe66f6e:0xef9d7d);
-    this.stats.setText(`Era: ${Math.min(this.kills,SETTINGS.eraKillGoal)}/${SETTINGS.eraKillGoal}   •   Total: ${this.totalKills}   •   Fragmentos: ${this.fragmentCount}/${SETTINGS.fragmentGoal}`);
-    this.weaponText.setText(`Nível ${this.level}  •  ${this.weapons.current.label} Nv.${this.weapons.tier}  •  Poder ${this.power}`);
-    this.weaponText.setColor('#'+this.weapons.current.color.toString(16).padStart(6,'0'));
-    this.inventoryText.setText(`${this.weapons.unlocked.length} armas  •  Q/E alternar  •  Ímã ${magnetRadius(this.upgrades.pickupRadius)} px`);
-    this.threatText.setText(this.time.now<this.coldUntil?`CONGELAMENTO • ${(Math.max(0,this.coldUntil-this.time.now)/1000).toFixed(1)} s · Movimento reduzido`:`PRESSÃO ${String(this.difficulty.stage+1).padStart(2,'0')}  •  ${this.difficulty.maxAlive} criaturas  •  ${(this.difficulty.spawnIntervalMs/1000).toFixed(1)} s`);
-    if(this.time.now<this.combatSlowUntil)this.threatText.setText(`${this.combatSlowLabel} • ${(Math.max(0,this.combatSlowUntil-this.time.now)/1000).toFixed(1)} s`);
-    this.threatText.setColor(this.time.now<this.coldUntil?'#b0ebff':this.time.now<this.combatSlowUntil?'#efca9b':'#e5c17c');
+    setChangedText(this.stats,`Era: ${Math.min(this.kills,SETTINGS.eraKillGoal)}/${SETTINGS.eraKillGoal}   •   Total: ${this.totalKills}   •   Fragmentos: ${this.fragmentCount}/${SETTINGS.fragmentGoal}`);
+    setChangedText(this.weaponText,`Nível ${this.level}  •  ${this.weapons.current.label} Nv.${this.weapons.tier}  •  Poder ${this.power}`);
+    setChangedColor(this.weaponText,'#'+this.weapons.current.color.toString(16).padStart(6,'0'));
+    setChangedText(this.inventoryText,`${this.weapons.unlocked.length} armas  •  Q/E alternar  •  Ímã ${magnetRadius(this.upgrades.pickupRadius)} px`);
+    setChangedText(this.threatText,this.time.now<this.coldUntil?`CONGELAMENTO • ${(Math.max(0,this.coldUntil-this.time.now)/1000).toFixed(1)} s · Movimento reduzido`:`PRESSÃO ${String(this.difficulty.stage+1).padStart(2,'0')}  •  ${this.difficulty.maxAlive} criaturas  •  ${(this.difficulty.spawnIntervalMs/1000).toFixed(1)} s`);
+    if(this.time.now<this.combatSlowUntil)setChangedText(this.threatText,`${this.combatSlowLabel} • ${(Math.max(0,this.combatSlowUntil-this.time.now)/1000).toFixed(1)} s`);
+    setChangedColor(this.threatText,this.time.now<this.coldUntil?'#b0ebff':this.time.now<this.combatSlowUntil?'#efca9b':'#e5c17c');
     const frostPhase=this.frost?.phase(this.time.now);
-    this.dodgeText.setText(frostPhase==='stun'?'GELO: PARALISADO!':frostPhase==='recuperando'?`GELO: RECUPERANDO MOVIMENTO · ${(this.frost.remaining(this.time.now)/1000).toFixed(1)} s`:
+    setChangedText(this.dodgeText,frostPhase==='stun'?'GELO: PARALISADO!':frostPhase==='recuperando'?`GELO: RECUPERANDO MOVIMENTO · ${(this.frost.remaining(this.time.now)/1000).toFixed(1)} s`:
       this.dash.remaining(this.time.now)>0?`ESPAÇO: ESQUIVA · ${(this.dash.remaining(this.time.now)/1000).toFixed(1)} s de recarga`:'ESPAÇO: ESQUIVA · PRONTO');
-    this.dodgeText.setColor(frostPhase!=='livre'?'#b0e9fb':'#9acfd6');
+    setChangedColor(this.dodgeText,frostPhase!=='livre'?'#b0e9fb':'#9acfd6');
     this.eraFill.setDisplaySize(Math.max(.01,(this.hudWidth-34)*Math.min(1,this.kills/SETTINGS.eraKillGoal)),4);
     const compact=this.scale.width<470;
-    this.stats.setFontSize(compact?10:12);
-    this.weaponText.setFontSize(compact?9:11);
-    this.inventoryText.setFontSize(compact?9:10);
-    this.threatText.setFontSize(compact?9:10);
-    this.dodgeText.setFontSize(compact?8:10);
+    setChangedFontSize(this.stats,compact?10:12);
+    setChangedFontSize(this.weaponText,compact?9:11);
+    setChangedFontSize(this.inventoryText,compact?9:10);
+    setChangedFontSize(this.threatText,compact?9:10);
+    setChangedFontSize(this.dodgeText,compact?8:10);
   }
   showMessage(message){
     if(this.message?.active)this.message.destroy();
@@ -343,7 +352,7 @@ export class GameScene extends Phaser.Scene {
       this.performanceTime+=delta;this.performanceFrames++;
       if(this.performanceTime>=950){
         const fps=Math.round(1000*this.performanceFrames/this.performanceTime);
-        this.performanceLabel.setText(`FPS ${fps} | Criaturas ${this.creatures.filter(c=>c.alive).length} | Projéteis ${this.projectiles.length}`);
+        this.performanceLabel.setText(`FPS ${fps} | Criaturas ${this.creatures.filter(c=>c.alive).length} | Projéteis ${this.projectiles.length} | Acertos ${this.totalHits}/${this.totalShots}`);
         this.performanceTime=0;this.performanceFrames=0;
       }
     }
@@ -369,7 +378,7 @@ export class GameScene extends Phaser.Scene {
     if(this.ended)return;
     // Piscar comunica invulnerabilidade temporária sem impedir movimento ou disparos.
     this.player.sprite.setAlpha(this.survival.isInvulnerable(this.time.now)?(Math.floor(this.time.now/115)%2?.43:1):1);
-    this.renderRouteDebug();
+    if(this.debugRoutes)this.renderRouteDebug();
     this.autoShoot();
     this.updateProjectiles(delta);
     this.collectWeaponPickups();
@@ -524,14 +533,25 @@ export class GameScene extends Phaser.Scene {
     if(now-this.lastAttack<attackCooldown(this.weapons.active,this.weapons.tier,this.upgrades.levels.cadencia))return;
     const w=this.weapons.current;
     const range=w.range*this.upgrades.rangeMultiplier*(1+.12*(this.weapons.tier-1));
-    const target=this.creatures.filter(c=>c.alive&&Math.hypot(c.x-this.player.x,c.y-this.player.y)<range+(c.isBoss?34:0))
-      .sort((a,b)=>Math.hypot(a.x-this.player.x,a.y-this.player.y)-Math.hypot(b.x-this.player.x,b.y-this.player.y))[0];
+    // O alcance da arma é avaliado até à silhueta da criatura (não só aos pés).
+    // Escolher o alvo mais próximo sem gerar arrays e ordenar a cada disparo.
+    let target=null,nearest=Infinity;
+    for(const candidate of this.creatures){
+      if(!candidate.alive)continue;
+      const aim=getAimPoint(candidate);
+      const distance=Math.hypot(aim.x-this.player.x,aim.y-(this.player.y-18));
+      if(distance<range+(candidate.isBoss?18:0)&&distance<nearest){target=candidate;nearest=distance;}
+    }
     if(!target)return;
     this.lastAttack=now;
     const shots=createSalvo({weaponId:this.weapons.active,tier:this.weapons.tier,power:this.power,
-      from:{x:this.player.x,y:this.player.y-18},target:{x:target.x,y:target.y-8}});
+      from:{x:this.player.x,y:this.player.y-18},target:getAimPoint(target)});
     for(const spec of shots){
-      spec.life+=spec.range*(this.upgrades.rangeMultiplier-1)/Math.hypot(spec.vx,spec.vy)*1000;
+      // O alcance mostrado e o alcance real devem coincidir mesmo a FPS baixo.
+      const speed=Math.hypot(spec.vx,spec.vy);
+      const effectiveRange=spec.range*this.upgrades.rangeMultiplier;
+      spec.life=(effectiveRange/speed)*1000;
+      spec.remainingDistance=effectiveRange;
       let bolt;
       if(spec.type==='lanca')bolt=this.add.rectangle(spec.x,spec.y,29,8,spec.color).setStrokeStyle(2,0xfff7c2).setRotation(spec.angle);
       else if(spec.type==='orbe')bolt=this.add.circle(spec.x,spec.y,11,spec.color).setStrokeStyle(2,0xffedbd);
@@ -540,36 +560,53 @@ export class GameScene extends Phaser.Scene {
       bolt.setDepth(spec.y+350);
       const glow=this.add.circle(spec.x,spec.y,spec.type==='orbe'?21:16,spec.color,.23).setDepth(spec.y+349);
       this.projectiles.push({...spec,bolt,glow,hitsRemaining:spec.maxHits,hitCreatures:new Set()});
+      this.totalShots++;
     }
   }
   updateProjectiles(delta){
-    const dt=Math.min(delta,40)/1000;
+    // Simular toda a duração do frame com pequenas etapas, em vez de mover
+    // apenas 40 ms e descontar 55+ ms de vida quando o FPS cai.
+    const frameMs=Math.min(Math.max(0,delta),120);
     this.projectiles=this.projectiles.filter(p=>{
-      p.x+=p.vx*dt;p.y+=p.vy*dt;p.life-=delta;
-      p.bolt.setPosition(p.x,p.y).setDepth(p.y+350);
-      if(p.type!=='lanca')p.bolt.rotation+=dt*7;
-      p.glow.setPosition(p.x,p.y).setDepth(p.y+349);
-      const target=this.creatures.find(c=>c.alive&&!p.hitCreatures.has(c)&&Math.hypot(c.x-p.x,c.y-8-p.y)<p.hitRadius+(c.isBoss?42:7));
-      if(target){
-        if(p.splashRadius){
-          this.makeImpact(p.x,p.y,p.color,p.splashRadius*.55);
-          for(const creature of this.creatures){
-            if(creature.alive&&Math.hypot(creature.x-p.x,creature.y-p.y)<p.splashRadius+(creature.isBoss?27:0)){
-              this.damageCreature(creature,p.damage,p.color);p.hitCreatures.add(creature);
+      let remaining=frameMs,remove=false;
+      while(remaining>0 && !remove){
+        const stepMs=Math.min(remaining,24,p.life);
+        if(stepMs<=0){remove=true;break;}
+        remaining-=stepMs;
+        const previous={x:p.x,y:p.y};
+        const movement=advanceShot(p,stepMs);
+        p.x=movement.x;p.y=movement.y;
+        p.life=Math.max(0,p.life-stepMs);
+        p.remainingDistance=Math.max(0,p.remainingDistance-movement.distance);
+        // Colisão contínua com a silhueta, para não atravessar monstros entre frames.
+        const target=this.creatures.find(c=>c.alive&&!p.hitCreatures.has(c)&&projectileHitsCreature(previous,p,p.hitRadius,c));
+        if(target){
+          if(p.splashRadius){
+            this.makeImpact(p.x,p.y,p.color,p.splashRadius*.55);
+            for(const creature of this.creatures){
+              if(creature.alive&&splashHitsCreature(p,creature,p.splashRadius)){
+                this.damageCreature(creature,p.damage,p.color);p.hitCreatures.add(creature);
+              }
             }
+          }else{
+            this.damageCreature(target,p.damage,p.color);p.hitCreatures.add(target);
+            this.makeImpact(p.x,p.y,p.color,p.type==='lanca'?18:11);
           }
-        }else{
-          this.damageCreature(target,p.damage,p.color);p.hitCreatures.add(target);
-          this.makeImpact(p.x,p.y,p.color,p.type==='lanca'?18:11);
+          p.hitsRemaining--;
+          if(p.hitsRemaining<=0)remove=true;
         }
-        p.hitsRemaining--;
+        if(p.life<=0||p.remainingDistance<=0)remove=true;
       }
-      if((target&&p.hitsRemaining<=0)||p.life<=0){p.bolt.destroy();p.glow.destroy();return false;}
+      if(remove){p.bolt.destroy();p.glow.destroy();return false;}
+      p.bolt.setPosition(p.x,p.y).setDepth(p.y+350);
+      if(p.type!=='lanca')p.bolt.rotation+=Math.min(frameMs,120)/1000*7;
+      p.glow.setPosition(p.x,p.y).setDepth(p.y+349);
       return true;
     });
   }
   damageCreature(target,damage,color){
     if(!target.alive)return;
+    this.totalHits++;
     target.damage(damage);
     if(target.isBoss){
       this.addFloatingNumber(target.x,target.y-115,String(damage),'#'+color.toString(16).padStart(6,'0'));
