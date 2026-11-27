@@ -8,9 +8,11 @@ export const ERAS = Object.freeze([
   Object.freeze({id:'industrial',number:6,name:'REVOLUÇÃO INDUSTRIAL',subtitle:'FÁBRICAS, FUMAÇA E ENGENHOS A VAPOR',theme:0x45382f,accent:0xe5b37e,goal:100}),
   Object.freeze({id:'contemporanea',number:7,name:'ERA CONTEMPORÂNEA',subtitle:'CIDADES, MÁQUINAS E NOVOS PERIGOS',theme:0x293c4c,accent:0xb5dfe6,goal:100}),
   Object.freeze({id:'digital',number:8,name:'ERA DIGITAL',subtitle:'CIRCUITOS, SISTEMAS E DADOS CORROMPIDOS',theme:0x193349,accent:0x80e5d3,goal:100}),
-  Object.freeze({id:'espacial',number:9,name:'ERA ESPACIAL',subtitle:'BASE LUNAR · SENTINELAS E TEMPESTADES CÓSMICAS',theme:0x19253f,accent:0x9bdef0,goal:100})
+  Object.freeze({id:'espacial',number:9,name:'ERA ESPACIAL',subtitle:'BASE LUNAR · SENTINELAS E TEMPESTADES CÓSMICAS',theme:0x19253f,accent:0x9bdef0,goal:100}),
+  Object.freeze({id:'extincao',number:10,name:'ERA DA EXTINÇÃO',subtitle:'TERRA PARTIDA · O ÚLTIMO HORIZONTE',theme:0x302835,accent:0xf1a89b,goal:100})
 ]);
 export function eraAt(index=0){return ERAS[index]||ERAS[0];}
+export function isFinalEra(index){return Number.isInteger(index)&&index===ERAS.length-1;}
 /** Congela somente os dados de uma partida. A transição não reinicia a jornada. */
 export function snapshotRun(game){
   return {
@@ -47,9 +49,9 @@ export function pleistoceneRewardForKills(kills){
   return {milestone:`era02-${kills}`,id:ids[index%ids.length],tier:index<5?3:4,kind:'evolucao'};
 }
 
-/** Compatibilidade com capítulos anteriores; agora nove eras jogáveis. */
+/** Compatibilidade com capítulos anteriores; agora dez eras jogáveis. */
 export const NEXT_ERA_PREVIEW=Object.freeze({number:3,name:'CIVILIZAÇÕES ANTIGAS',status:'jogável'});
-export const FUTURE_ERA_PREVIEW=Object.freeze([{number:10,name:'ERA DA EXTINÇÃO'}]);
+export const FUTURE_ERA_PREVIEW=Object.freeze([]);
 /** Bônus da vitória da Era 02, sem alterar o snapshot original. */
 export function prepareNextEraProgress(progress,maxHealth=5,nextEra=3){
   if(!progress)return null;

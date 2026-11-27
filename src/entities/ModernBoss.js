@@ -9,6 +9,7 @@ export class ModernBoss {
     this.alive=true;this.contactRadius=57;this.phase=1;this.path=[];this.pathIndex=0;this.repathAt=0;
     this.attack=null;this.nextAttack=scene.time.now+1800;this.frame=0;this.animMs=0;this.toLeft=false;
     this.telegraph=scene.add.graphics().setDepth(9700);
+    this.ashZones=[];
     this.shadow=scene.add.ellipse(x,y+14,122,33,0x11211d,.39).setDepth(y+170);
     this.sprite=scene.add.image(x,y,modernBossTexture(era,false,0)).setOrigin(.5,.83).setDepth(y+260).setScale(1.04);
     this.nameplate=scene.add.text(x,y-140,this.config.name,{fontFamily:'Arial',fontSize:'12px',fontStyle:'bold',color:'#fff1cc',stroke:'#26302f',strokeThickness:4}).setOrigin(.5).setDepth(y+400);
@@ -87,6 +88,14 @@ export class ModernBoss {
       this.scene.makeImpact(this.x,this.y-20,this.config.color,70);
       this.scene.spawnBossMinions(2);return;
     }
+    if(a.type==='ashfall'){
+      // As cinzas persistem brevemente: não basta esquivar apenas no instante do impacto.
+      for(const shape of a.shapes){
+        const disc=this.scene.add.circle(shape.x,shape.y,shape.radius,0xce7883,.22)
+          .setStrokeStyle(2,0xf3b6a3,.65).setDepth(shape.y+28);
+        this.ashZones.push({shape,disc,expiresAt:now+2400,nextTick:now+400});
+      }
+    }
     if(a.type==='roadcharge'){
       const dx=a.targetX-a.originX,dy=a.targetY-a.originY,d=Math.hypot(dx,dy)||1;
       a.direction={x:dx/d,y:dy/d};a.chargeUntil=now+630;
@@ -110,6 +119,15 @@ export class ModernBoss {
   update(delta,target,nav){
     if(!this.alive)return;
     const now=this.scene.time.now;
+    this.ashZones=this.ashZones.filter(zone=>{
+      if(now>=zone.expiresAt){zone.disc.destroy();return false;}
+      const remaining=(zone.expiresAt-now)/2400;zone.disc.setAlpha(.1+.16*remaining);
+      if(now>=zone.nextTick){
+        zone.nextTick=now+440;
+        if(modernAttackHits([zone.shape],target,9))this.scene.damagePlayer(this,1);
+      }
+      return true;
+    });
     if(!this.attack&&now>=this.nextAttack)this.startAttack(now,target);
     if(this.attack){
       const a=this.attack;this.warn(now);
@@ -131,6 +149,7 @@ export class ModernBoss {
   destroy(){
     if(!this.alive)return;
     this.alive=false;this.attack=null;
+    for(const zone of this.ashZones)zone.disc.destroy();this.ashZones=[];
     this.telegraph.clear();this.telegraph.destroy();this.nameplate.destroy();this.shadow.destroy();
     this.scene.tweens.add({targets:this.sprite,alpha:0,scale:.1,duration:360,onComplete:()=>this.sprite.destroy()});
   }

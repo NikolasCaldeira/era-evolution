@@ -23,6 +23,12 @@ export const MODERN_BOSSES=Object.freeze({
     attacks:['orbitalbeam','gravitywell','meteorstorm','plasmaring'],
     attackNames:{orbitalbeam:'FEIXES ORBITAIS',gravitywell:'POÇO GRAVITACIONAL',meteorstorm:'TEMPESTADE DE METEOROS',plasmaring:'ANEL DE PLASMA',summon:'REFORÇOS CÓSMICOS'},
     hint:'FEIXES · GRAVIDADE · METEOROS · PLASMA · APOIO'
+  }),
+  extincao:Object.freeze({
+    name:'CORAÇÃO DA EXTINÇÃO',health:690,speed:122,color:0xf1a49a,
+    attacks:['fissurecross','ashfall','entropyfan','voidring'],
+    attackNames:{fissurecross:'FISSURAS DO FIM',ashfall:'CHUVA DE CINZAS',entropyfan:'LEQUE DA ENTROPIA',voidring:'ONDA DO VAZIO',summon:'FRAGMENTOS VIVOS'},
+    hint:'FISSURAS · CINZAS · ENTROPIA · VAZIO · REFORÇOS'
   })
 });
 const point=(x,y)=>({x,y});
@@ -53,6 +59,10 @@ export function modernAttackPlan(era,type,from,target){
     case 'gravitywell':return [circle(target.x,target.y,67)];
     case 'meteorstorm':return [-1,0,1].map(i=>circle(target.x+side.x*i*96+dir.x*(i===0?40:0),target.y+side.y*i*96+dir.y*(i===0?40:0),42));
     case 'plasmaring':return [{kind:'ring',x:from.x,y:from.y,inner:92,outer:208}];
+    case 'fissurecross':return [line(0,510,28),line(-84,470,18),line(84,470,18)];
+    case 'ashfall':return [-1,0,1].map(i=>circle(target.x+side.x*i*100+dir.x*(i===0?30:0),target.y+side.y*i*100+dir.y*(i===0?30:0),40));
+    case 'entropyfan':return [-.52,0,.52].map(angle=>({kind:'cone',x:from.x,y:from.y-10,angle:Math.atan2(dy,dx)+angle,reach:320,halfAngle:.17}));
+    case 'voidring':return [{kind:'ring',x:from.x,y:from.y,inner:94,outer:222}];
     default:throw new Error(`Ataque moderno inexistente: ${type}`);
   }
 }

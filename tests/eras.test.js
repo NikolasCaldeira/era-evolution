@@ -22,8 +22,8 @@ function makeEraWorld(){
 }
 function makeGame(){return {totalKills:100,level:15,power:4,elapsedMs:490000,fragmentCount:7,survival:new SurvivalState(),weapons:new WeaponState(),upgrades:new UpgradeState()};}
 
-test('as nove eras preservam os cinco capítulos já validados e não misturam dinossauros com Pleistoceno',()=>{
- assert.equal(ERAS.length,9);assert.equal(eraAt(0).id,'cretaceo');assert.equal(eraAt(1).id,'pleistoceno');
+test('as dez eras preservam os cinco capítulos já validados e não misturam dinossauros com Pleistoceno',()=>{
+ assert.equal(ERAS.length,10);assert.equal(eraAt(0).id,'cretaceo');assert.equal(eraAt(1).id,'pleistoceno');
  assert.deepEqual(ERAS.slice(2,5).map(e=>e.id),['antiga','medieval','renascimento']);
  assert.deepEqual(PLEISTOCENE_SPECIES,['smilodonte','rinoceronte-lanoso','mamute-jovem']);
  assert.equal(eraAt(1).goal,100);

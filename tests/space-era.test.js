@@ -13,12 +13,12 @@ function graphics(){const g={active:true};for(const name of ['setDepth','setOrig
 function scene(){return {add:{graphics,image:graphics,ellipse:graphics,circle:graphics,text:graphics},time:{now:0,delayedCall(){}},tweens:{add(){}},showMessage(){},makeImpact(){},damagePlayer(){},applyCombatSlow(){},spawnBossMinions(){}};}
 function world(){const sc=scene(),proj=new IsoProjection(96,48,28*48,24),map=new SpaceWorld(sc,proj);map.create(34,28);const nav=new NavigationGrid({projection:proj,columns:34,rows:28,obstacles:map.obstacles});return {sc,proj,map,nav};}
 
-test('a nona era é jogável e a décima permanece como capítulo futuro',()=>{
-  assert.equal(ERAS.length,9);
+test('a nona e a décima eras são jogáveis e completam a linha do tempo',()=>{
+  assert.equal(ERAS.length,10);
   assert.equal(ERAS[8].id,'espacial');
   assert.equal(ERAS[8].number,9);
   assert.equal(ERAS[8].goal,100);
-  assert.deepEqual(FUTURE_ERA_PREVIEW.map(x=>x.number),[10]);
+  assert.deepEqual(FUTURE_ERA_PREVIEW.map(x=>x.number),[]);
 });
 
 test('escala de pressão da Era 09 respeita a dificuldade progressiva',()=>{
@@ -123,8 +123,8 @@ test('chefe espacial tem três fases, quatro ataques com avisos coerentes e vuln
   state.takeDamage(config.health);assert.equal(state.alive,false);
 });
 
-test('transição para a Era da Extinção ainda não abre fase inexistente',()=>{
+test('transição para a Era da Extinção abre a décima fase',()=>{
   const state={health:3,totalKills:900,level:42};
   const next=prepareNextEraProgress(state,5,10);
-  assert.equal(next.health,5);assert.equal(next.nextEra,10);assert.equal(ERAS[9],undefined);
+  assert.equal(next.health,5);assert.equal(next.nextEra,10);assert.equal(ERAS[9].id,'extincao');
 });

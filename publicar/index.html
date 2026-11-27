@@ -4,7 +4,7 @@
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width,initial-scale=1" />
   <meta name="theme-color" content="#102820" />
-  <title>ERA: Evolution | Nove Eras — Ciclo 15</title>
+  <title>ERA: Evolution | Dez Eras — Ciclo 16</title>
   <style>:root { color-scheme: dark; font-family: Inter, ui-sans-serif, system-ui, sans-serif; background:#0b1415; color:#edf2df; }
 * { box-sizing:border-box; }
 html,body { margin:0; width:100%; height:100%; overflow:hidden; background:#0b1415; }
@@ -113,7 +113,7 @@ return {screenAnchor};
 })();
 
 // --- src/systems/EraSystem.js ---
-const {ERAS,eraAt,snapshotRun,restoreRun,pleistoceneRewardForKills,NEXT_ERA_PREVIEW,FUTURE_ERA_PREVIEW,prepareNextEraProgress,rewardForEraKills} = (() => {
+const {ERAS,eraAt,isFinalEra,snapshotRun,restoreRun,pleistoceneRewardForKills,NEXT_ERA_PREVIEW,FUTURE_ERA_PREVIEW,prepareNextEraProgress,rewardForEraKills} = (() => {
 /** Eras em ordem histórica; Cretáceo é fantasia temporal, não coexistência de humanos e dinossauros. */
 const ERAS = Object.freeze([
   Object.freeze({id:'cretaceo',number:1,name:'CRETÁCEO',subtitle:'SOBREVIVA AO MUNDO PRIMORDIAL',theme:0x193b30,accent:0xd7bd7f,goal:100}),
@@ -124,9 +124,11 @@ const ERAS = Object.freeze([
   Object.freeze({id:'industrial',number:6,name:'REVOLUÇÃO INDUSTRIAL',subtitle:'FÁBRICAS, FUMAÇA E ENGENHOS A VAPOR',theme:0x45382f,accent:0xe5b37e,goal:100}),
   Object.freeze({id:'contemporanea',number:7,name:'ERA CONTEMPORÂNEA',subtitle:'CIDADES, MÁQUINAS E NOVOS PERIGOS',theme:0x293c4c,accent:0xb5dfe6,goal:100}),
   Object.freeze({id:'digital',number:8,name:'ERA DIGITAL',subtitle:'CIRCUITOS, SISTEMAS E DADOS CORROMPIDOS',theme:0x193349,accent:0x80e5d3,goal:100}),
-  Object.freeze({id:'espacial',number:9,name:'ERA ESPACIAL',subtitle:'BASE LUNAR · SENTINELAS E TEMPESTADES CÓSMICAS',theme:0x19253f,accent:0x9bdef0,goal:100})
+  Object.freeze({id:'espacial',number:9,name:'ERA ESPACIAL',subtitle:'BASE LUNAR · SENTINELAS E TEMPESTADES CÓSMICAS',theme:0x19253f,accent:0x9bdef0,goal:100}),
+  Object.freeze({id:'extincao',number:10,name:'ERA DA EXTINÇÃO',subtitle:'TERRA PARTIDA · O ÚLTIMO HORIZONTE',theme:0x302835,accent:0xf1a89b,goal:100})
 ]);
 function eraAt(index=0){return ERAS[index]||ERAS[0];}
+function isFinalEra(index){return Number.isInteger(index)&&index===ERAS.length-1;}
 /** Congela somente os dados de uma partida. A transição não reinicia a jornada. */
 function snapshotRun(game){
   return {
@@ -163,9 +165,9 @@ function pleistoceneRewardForKills(kills){
   return {milestone:`era02-${kills}`,id:ids[index%ids.length],tier:index<5?3:4,kind:'evolucao'};
 }
 
-/** Compatibilidade com capítulos anteriores; agora nove eras jogáveis. */
+/** Compatibilidade com capítulos anteriores; agora dez eras jogáveis. */
 const NEXT_ERA_PREVIEW=Object.freeze({number:3,name:'CIVILIZAÇÕES ANTIGAS',status:'jogável'});
-const FUTURE_ERA_PREVIEW=Object.freeze([{number:10,name:'ERA DA EXTINÇÃO'}]);
+const FUTURE_ERA_PREVIEW=Object.freeze([]);
 /** Bônus da vitória da Era 02, sem alterar o snapshot original. */
 function prepareNextEraProgress(progress,maxHealth=5,nextEra=3){
   if(!progress)return null;
@@ -187,7 +189,7 @@ function rewardForEraKills(index,kills){
   return {milestone:`era${String(index+1).padStart(2,'0')}-${kills}`,id:ids[i%5],tier:2*index+1+(i>=5?1:0),kind:'evolucao'};
 }
 
-return {ERAS,eraAt,snapshotRun,restoreRun,pleistoceneRewardForKills,NEXT_ERA_PREVIEW,FUTURE_ERA_PREVIEW,prepareNextEraProgress,rewardForEraKills};
+return {ERAS,eraAt,isFinalEra,snapshotRun,restoreRun,pleistoceneRewardForKills,NEXT_ERA_PREVIEW,FUTURE_ERA_PREVIEW,prepareNextEraProgress,rewardForEraKills};
 })();
 
 // --- src/systems/WeaponSystem.js ---
@@ -361,7 +363,8 @@ const ERA_BALANCE=Object.freeze([
   Object.freeze({maxAlive:22,extraAlive:5,spawnFactor:.83,speedFactor:1.28,aggressionFactor:1.42}),
   Object.freeze({maxAlive:23,extraAlive:6,spawnFactor:.81,speedFactor:1.33,aggressionFactor:1.50}),
   Object.freeze({maxAlive:24,extraAlive:7,spawnFactor:.80,speedFactor:1.38,aggressionFactor:1.59}),
-  Object.freeze({maxAlive:25,extraAlive:8,spawnFactor:.78,speedFactor:1.43,aggressionFactor:1.67})
+  Object.freeze({maxAlive:25,extraAlive:8,spawnFactor:.78,speedFactor:1.43,aggressionFactor:1.67}),
+  Object.freeze({maxAlive:26,extraAlive:9,spawnFactor:.76,speedFactor:1.48,aggressionFactor:1.76})
 ]);
 /** Inimigos comuns continuam com três pontos de vida. Escalada por ritmo, IA e posicionamento. */
 function difficultyForEra(kills,eraIndex=0){
@@ -700,6 +703,12 @@ const MODERN_BOSSES=Object.freeze({
     attacks:['orbitalbeam','gravitywell','meteorstorm','plasmaring'],
     attackNames:{orbitalbeam:'FEIXES ORBITAIS',gravitywell:'POÇO GRAVITACIONAL',meteorstorm:'TEMPESTADE DE METEOROS',plasmaring:'ANEL DE PLASMA',summon:'REFORÇOS CÓSMICOS'},
     hint:'FEIXES · GRAVIDADE · METEOROS · PLASMA · APOIO'
+  }),
+  extincao:Object.freeze({
+    name:'CORAÇÃO DA EXTINÇÃO',health:690,speed:122,color:0xf1a49a,
+    attacks:['fissurecross','ashfall','entropyfan','voidring'],
+    attackNames:{fissurecross:'FISSURAS DO FIM',ashfall:'CHUVA DE CINZAS',entropyfan:'LEQUE DA ENTROPIA',voidring:'ONDA DO VAZIO',summon:'FRAGMENTOS VIVOS'},
+    hint:'FISSURAS · CINZAS · ENTROPIA · VAZIO · REFORÇOS'
   })
 });
 const point=(x,y)=>({x,y});
@@ -730,6 +739,10 @@ function modernAttackPlan(era,type,from,target){
     case 'gravitywell':return [circle(target.x,target.y,67)];
     case 'meteorstorm':return [-1,0,1].map(i=>circle(target.x+side.x*i*96+dir.x*(i===0?40:0),target.y+side.y*i*96+dir.y*(i===0?40:0),42));
     case 'plasmaring':return [{kind:'ring',x:from.x,y:from.y,inner:92,outer:208}];
+    case 'fissurecross':return [line(0,510,28),line(-84,470,18),line(84,470,18)];
+    case 'ashfall':return [-1,0,1].map(i=>circle(target.x+side.x*i*100+dir.x*(i===0?30:0),target.y+side.y*i*100+dir.y*(i===0?30:0),40));
+    case 'entropyfan':return [-.52,0,.52].map(angle=>({kind:'cone',x:from.x,y:from.y-10,angle:Math.atan2(dy,dx)+angle,reach:320,halfAngle:.17}));
+    case 'voidring':return [{kind:'ring',x:from.x,y:from.y,inner:94,outer:222}];
     default:throw new Error(`Ataque moderno inexistente: ${type}`);
   }
 }
@@ -1575,6 +1588,94 @@ class SpaceWorld {
 return {SPACE_OBSTACLES,SpaceWorld};
 })();
 
+// --- src/world/ExtinctionWorld.js ---
+const {EXTINCTION_OBSTACLES,ExtinctionWorld} = (() => {
+/** Décima era: o solo colapsado de uma Terra futura e fictícia. */
+const EXTINCTION_OBSTACLES=Object.freeze({
+  spire:[32,29],ruin:[43,27],witheredTree:[31,26],riftPylon:[28,25],
+  craterWall:[42,24],fallenMachine:[45,27]
+});
+
+class ExtinctionWorld {
+  constructor(scene,projection){this.scene=scene;this.projection=projection;this.obstacles=[];}
+  create(columns,rows){
+    const g=this.scene.add.graphics().setDepth(-1000);
+    const shades=[0x493e4d,0x57434d,0x403a4c,0x5c4b51,0x493e43,0x383744];
+    for(let y=0;y<rows;y++)for(let x=0;x<columns;x++){
+      const p=this.projection.toScreen(x,y),seed=(x*109+y*83+x*y*7)%127;
+      g.fillStyle(shades[(seed+x+y*3)%shades.length]);
+      g.lineStyle(.65,0xbe8a93,.2);
+      g.beginPath();g.moveTo(p.x,p.y-24);g.lineTo(p.x+48,p.y);g.lineTo(p.x,p.y+24);g.lineTo(p.x-48,p.y);g.closePath();g.fillPath();g.strokePath();
+      if(seed%9===0){
+        g.lineStyle(1.2,0xd17781,.42);
+        g.lineBetween(p.x-18,p.y+5,p.x-1,p.y-3);
+        g.lineBetween(p.x-1,p.y-3,p.x+11,p.y+8);
+        g.fillStyle(0xe58285,.22);g.fillEllipse(p.x,p.y+4,15,5);
+      }
+      if(seed%17===0){
+        g.fillStyle(0xaaa0a0,.36);
+        for(let i=0;i<4;i++)g.fillCircle(p.x-15+(i*13)%30,p.y-4+(i*7)%13,1.2+i%2);
+      }
+      if(seed%29===0){
+        g.lineStyle(2,0xecab7b,.42);g.strokeEllipse(p.x-4,p.y,26,8);
+      }
+    }
+    // A barreira física coincide com o contorno isométrico, sem cercar a área central.
+    const edge=['spire','ruin','witheredTree','craterWall','riftPylon','fallenMachine'];
+    for(let y=0;y<rows;y++)for(let x=0;x<columns;x++){
+      if(x!==0&&y!==0&&x!==columns-1&&y!==rows-1)continue;
+      const p=this.projection.toScreen(x,y);
+      this.addObstacle(p.x,p.y,edge[(x*5+y*7)%edge.length],true);
+    }
+    const interior=[
+      ['ruin',8,7],['spire',25,6],['witheredTree',23,18],['craterWall',7,19],
+      ['riftPylon',27,15],['fallenMachine',14,6],['ruin',21,10],['spire',13,22],
+      ['craterWall',26,9],['witheredTree',9,13]
+    ];
+    for(const [type,x,y] of interior){const p=this.projection.toScreen(x,y);this.addObstacle(p.x,p.y,type);}
+  }
+  addObstacle(x,y,type,perimeter=false){
+    const [rx,ry]=EXTINCTION_OBSTACLES[type];
+    const g=this.scene.add.graphics().setDepth(y+220);
+    g.fillStyle(0x1b141d,.42);g.fillEllipse(x+3,y+16,rx*2.7,19);
+    if(type==='spire'){
+      g.fillStyle(0x302c3a);g.fillPoints([{x:x-rx,y:y+9},{x:x-19,y:y-45},{x:x+2,y:y-113},{x:x+rx,y:y+7}],true);
+      g.fillStyle(0x736172);g.fillTriangle(x-19,y-45,x+2,y-113,x+9,y-30);
+      g.lineStyle(3,0xe68d99,.85);g.lineBetween(x+2,y-93,x-1,y-59);g.lineBetween(x-1,y-59,x+13,y-28);
+    }else if(type==='ruin'){
+      g.fillStyle(0x393a43);g.fillRoundedRect(x-38,y-48,76,62,3);
+      g.fillStyle(0x7b7376);g.fillPoints([{x:x-41,y:y-48},{x:x-23,y:y-77},{x:x+5,y:y-59},{x:x+31,y:y-85},{x:x+43,y:y-43}],true);
+      g.fillStyle(0x272731);for(let i=0;i<3;i++)g.fillRect(x-27+i*23,y-31,12,20);
+      g.lineStyle(2,0xd9888a,.58);g.lineBetween(x+5,y-48,x-3,y-8);
+    }else if(type==='witheredTree'){
+      g.lineStyle(12,0x493c43);g.lineBetween(x,y+11,x-2,y-82);
+      g.lineStyle(6,0x65525a);g.lineBetween(x,y-57,x-33,y-93);g.lineBetween(x-2,y-43,x+30,y-82);
+      g.lineBetween(x-14,y-70,x-38,y-78);g.lineBetween(x+24,y-72,x+41,y-85);
+      g.fillStyle(0x8c5a61,.7);g.fillCircle(x-2,y-80,5);
+    }else if(type==='riftPylon'){
+      g.fillStyle(0x333047);g.fillRoundedRect(x-19,y-55,38,66,6);
+      g.fillStyle(0x77576f);g.fillTriangle(x-23,y-56,x,y-95,x+23,y-56);
+      g.fillStyle(0xd66fba,.65);g.fillEllipse(x,y-52,13,47);
+      g.lineStyle(3,0xf9b8d8,.7);g.lineBetween(x,y-83,x,y-30);
+    }else if(type==='craterWall'){
+      g.fillStyle(0x262732);g.fillEllipse(x,y+4,rx*2,ry*1.3);
+      g.lineStyle(7,0x746269,.96);g.strokeEllipse(x,y+3,rx*2,ry);
+      g.fillStyle(0xe58a74,.45);g.fillEllipse(x,y+4,rx*.9,ry*.4);
+      g.fillStyle(0x59515b);g.fillTriangle(x-rx,y+6,x-rx*.4,y-27,x,y-5);
+    }else{
+      g.fillStyle(0x38353e);g.fillRoundedRect(x-44,y-36,88,49,4);
+      g.fillStyle(0x70626d);g.fillRoundedRect(x-35,y-40,69,29,4);
+      g.fillStyle(0x302c37);g.fillRoundedRect(x-30,y-31,59,14,3);
+      g.lineStyle(2.5,0xe1a47f,.82);for(let i=0;i<4;i++)g.lineBetween(x-23+i*15,y-31,x-23+i*15,y-18);
+      g.fillStyle(0x27252d);g.fillCircle(x-30,y+12,9);g.fillCircle(x+30,y+12,9);
+    }
+    this.obstacles.push({x,y,rx,ry,type,perimeter});
+  }
+}
+
+return {EXTINCTION_OBSTACLES,ExtinctionWorld};
+})();
+
 // --- src/art/CharacterArt.js ---
 const {createCharacterArt,playerTexture,creatureTexture,creaturesList} = (() => {
 /** Arte original em Canvas. Sem dependências de imagens externas ou sprites de terceiros.
@@ -2096,14 +2197,16 @@ const MODERN_SPECIES=Object.freeze({
   industrial:['rato-de-ferro','automato-fabril','besouro-a-vapor'],
   contemporanea:['cao-mecanico','sentinela-urbano','drone-de-vigilancia'],
   digital:['bug-de-codigo','firewall-vivo','espectro-digital'],
-  espacial:['rover-corrompido','sentinela-astral','raia-nebulosa']
+  espacial:['rover-corrompido','sentinela-astral','raia-nebulosa'],
+  extincao:['rastejante-de-cinzas','espectro-de-fenda','guardiao-obsidiana']
 });
 const FACES=['right','down-right','down','down-left','left','up-left','up','up-right'];
 const PALETTES={
   industrial:{body:'#9c7751',light:'#e5b98a',shadow:'#493b34',trim:'#d5bc78',eye:'#f6db91'},
   contemporanea:{body:'#506e8b',light:'#a8c6d5',shadow:'#293c50',trim:'#e3cd80',eye:'#98e4ea'},
   digital:{body:'#2f789b',light:'#65dec9',shadow:'#143456',trim:'#d99bec',eye:'#c9fff6'},
-  espacial:{body:'#b3c6d6',light:'#e8f3fa',shadow:'#465e83',trim:'#6fe1e7',eye:'#aaf5f2'}
+  espacial:{body:'#b3c6d6',light:'#e8f3fa',shadow:'#465e83',trim:'#6fe1e7',eye:'#aaf5f2'},
+  extincao:{body:'#5e5969',light:'#ca9da0',shadow:'#302b39',trim:'#efa58a',eye:'#ffcaca'}
 };
 function ellipse(c,x,y,rx,ry,color){c.fillStyle=color;c.beginPath();c.ellipse(x,y,rx,ry,0,0,Math.PI*2);c.fill();}
 function poly(c,p,color){c.fillStyle=color;c.beginPath();c.moveTo(...p[0]);for(const v of p.slice(1))c.lineTo(...v);c.closePath();c.fill();}
@@ -2128,6 +2231,13 @@ function player(c,era,facing,frame){
     ellipse(c,0,-51,23,24,'#e4edf4');ellipse(c,0,-53,19,18,'#456987');
     ellipse(c,-6,-59,10,5,'#8ed9e7');rect(c,-16,-34,32,6,'#6ae1e1');
     rect(c,-14,-7,29,5,'#263a56');ellipse(c,2,-5,4,4,p.trim);
+  }else if(era==='extincao'){
+    // Armadura improvisada para sobreviver ao colapso do planeta.
+    rect(c,-20,-41,40,43,'#554451');rect(c,-16,-34,30,27,'#8b7680');
+    poly(c,[[-20,-61],[-15,-81],[0,-85],[17,-80],[22,-61]],'#4b3748');
+    rect(c,-18,-66,36,12,'#e8ac9b');rect(c,-12,-64,24,7,'#503a4c');
+    rect(c,-24,-32,9,23,'#b28082');rect(c,15,-32,9,23,'#b28082');
+    line(c,-17,6,19,6,p.trim,3);
   }else if(era==='industrial'){
     poly(c,[[-21,-60],[21,-60],[15,-67],[-15,-67]],'#56453a');
     rect(c,-16,-82,32,18,'#674d3d');rect(c,-11,-85,22,4,p.trim);
@@ -2280,11 +2390,60 @@ function orbitalGuardian(c,f,left){
   for(let i=0;i<4;i++)rect(c,-15+i*10,8,6,5,'#f1c98e');
 }
 
+// Era X — criaturas pós-apocalípticas com movimentos e silhuetas próprios.
+function ashCrawler(c,f){
+  c.translate(56,79+[0,-3,0,-2][f]);
+  for(const x of [-31,-16,14,30])line(c,x,-13,x+(x<0?-9:9),19+(f%2?3:-3),'#5e4b55',7);
+  poly(c,[[-35,-24],[-9,-51],[26,-44],[41,-17],[24,6],[-32,1]],'#67535f');
+  poly(c,[[-14,-46],[11,-65],[30,-42],[9,-29]],'#9a6b75');
+  line(c,-28,-28,-42,-52,'#bf8286',7);line(c,32,-29,45,-56,'#bf8286',7);
+  ellipse(c,27,-32,5,5,'#ffe0b7');ellipse(c,29,-33,2,2,'#ffe6ef');
+  for(let i=0;i<5;i++)line(c,-20+i*12,-24,-16+i*12,-31,'#e4a38f',2);
+}
+function riftWraith(c,f){
+  c.translate(56,69+[0,-7,0,-4][f]);
+  poly(c,[[-23,-44],[0,-86],[23,-43],[37,4],[12,-2],[0,19],[-13,-4],[-37,5]],'#413b61');
+  poly(c,[[-17,-40],[0,-67],[17,-40],[19,-2],[0,10],[-19,-1]],'#a75c9a');
+  ellipse(c,0,-38,15,23,'#d78ca4');ellipse(c,-7,-39,4,4,'#fff5d6');ellipse(c,7,-39,4,4,'#fff5d6');
+  line(c,-24,-31,-42,-12,'#e99ea5',5);line(c,24,-31,42,-12,'#e99ea5',5);
+  line(c,-16,5,-25,24,'#705779',3);line(c,16,5,25,24,'#705779',3);
+}
+function obsidianGuardian(c,f){
+  c.translate(56,81+[0,-3,0,-2][f]);
+  for(const x of [-18,18]){line(c,x,-5,x+2*(f%2?1:-1),22,'#393543',12);ellipse(c,x,23,12,5,'#292632');}
+  poly(c,[[-30,-51],[30,-51],[37,-9],[20,2],[-19,2],[-38,-13]],'#564858');
+  poly(c,[[-23,-43],[0,-66],[24,-43],[15,-20],[-17,-20]],'#95707d');
+  poly(c,[[-22,-70],[0,-86],[21,-72],[18,-55],[-17,-55]],'#383646');
+  rect(c,-17,-68,35,8,'#df9b95');ellipse(c,-9,-65,3,3,'#f7d7bc');ellipse(c,9,-65,3,3,'#f7d7bc');
+  line(c,-31,-47,-43,-5,'#806878',11);line(c,32,-47,43,-5,'#806878',11);
+  line(c,0,-29,0,-8,'#edb398',4);ellipse(c,0,-29,6,6,'#f4bb9f');
+}
+function extinctionHeart(c,f,left){
+  c.translate(95,112+[0,-6,0,-3][f]);if(left)c.scale(-1,1);
+  // Núcleo instável suspenso entre estilhaços — nunca se confunde com os chefes anteriores.
+  for(const side of [-1,1]){
+    poly(c,[[side*24,-40],[side*78,-84],[side*73,-32],[side*88,6],[side*33,7]],side<0?'#554158':'#5e4859');
+    poly(c,[[side*40,-39],[side*62,-57],[side*70,-11],[side*33,-4]],'#92717d');
+    line(c,side*29,-47,side*73,-26,'#f0a795',3);
+    poly(c,[[side*20,13],[side*42,31],[side*24,52],[side*11,10]],'#46374a');
+  }
+  ellipse(c,0,-39,47,47,'#4d3c54');ellipse(c,0,-39,35,39,'#a5687c');
+  ellipse(c,0,-43,25,28,'#e0a18d');ellipse(c,0,-43,15,18,'#ebccd0');
+  ellipse(c,0,-43,7,10,'#fff0d8');
+  for(let i=0;i<8;i++){
+    const a=i*Math.PI/4+f*.08;
+    const x=Math.cos(a)*57,y=-42+Math.sin(a)*57;
+    poly(c,[[x-6,y+3],[x,y-12],[x+10,y+7]],i%2?'#b47f8c':'#6e576d');
+  }
+  for(let i=0;i<4;i++)line(c,-21+i*14,0,-18+i*14,10,'#f3c1aa',3);
+}
+
 const DRAW={
   'rato-de-ferro':ironRat,'automato-fabril':factoryBot,'besouro-a-vapor':steamBeetle,
   'cao-mecanico':mechDog,'sentinela-urbano':urbanSentinel,'drone-de-vigilancia':surveillanceDrone,
   'bug-de-codigo':codeBug,'firewall-vivo':firewallCreature,'espectro-digital':digitalSpecter,
-  'rover-corrompido':lunarRover,'sentinela-astral':cosmicSentinel,'raia-nebulosa':nebulaManta
+  'rover-corrompido':lunarRover,'sentinela-astral':cosmicSentinel,'raia-nebulosa':nebulaManta,
+  'rastejante-de-cinzas':ashCrawler,'espectro-de-fenda':riftWraith,'guardiao-obsidiana':obsidianGuardian
 };
 function modernPlayerTexture(era,facing,frame){return `modern-${era}-player-${FACES.includes(facing)?facing:'down'}-${frame%4}`;}
 function modernCreatureTexture(era,species,left,frame){return `modern-${era}-${species}-${left?'left':'right'}-${frame%4}`;}
@@ -2300,6 +2459,7 @@ function createModernArt(scene,era){
   for(const left of [false,true])for(let f=0;f<4;f++)
     texture(scene,modernBossTexture(era,left,f),190,204,c=>{
       if(era==='espacial'){orbitalGuardian(c,f,left);return;}
+      if(era==='extincao'){extinctionHeart(c,f,left);return;}
       c.translate(21,31);c.scale(1.32,1.30);
       if(left){c.translate(112,0);c.scale(-1,1);}
       const representative={industrial:'automato-fabril',contemporanea:'sentinela-urbano',digital:'firewall-vivo'}[era];
@@ -2372,8 +2532,8 @@ class Creature {
     this.scene=scene;this.id=id;this.era=config.era||'cretaceo';
     this.species=MODERN_SPECIES[this.era]?MODERN_SPECIES[this.era][id%3]:CIVILIZATION_SPECIES[this.era]?CIVILIZATION_SPECIES[this.era][id%3]:this.era==='pleistoceno'?PLEISTOCENE_SPECIES[id%PLEISTOCENE_SPECIES.length]:creaturesList[id%creaturesList.length];
     this.x=x;this.y=y;this.radius=15;this.hp=3;
-    this.behavior=MODERN_SPECIES[this.era]?['investida','resistente','flanqueador'][(id+(['industrial','contemporanea','digital','espacial'].indexOf(this.era)))%3]:CIVILIZATION_SPECIES[this.era]?['investida','resistente','flanqueador'][(id+(['antiga','medieval','renascimento'].indexOf(this.era)))%3]:this.era==='pleistoceno'?['investida','resistente','resistente'][id%3]:behaviorForCreature(id);
-    this.baseSpeed=MODERN_SPECIES[this.era]?({industrial:[82,60,86],contemporanea:[88,75,94],digital:[96,72,103],espacial:[92,85,108]})[this.era][id%3]:CIVILIZATION_SPECIES[this.era]?({antiga:[78,56,82],medieval:[85,74,61],renascimento:[74,88,71]})[this.era][id%3]:this.era==='pleistoceno'?[80,55,45][id%3]:55+(id%3)*10;
+    this.behavior=MODERN_SPECIES[this.era]?['investida','resistente','flanqueador'][(id+(['industrial','contemporanea','digital','espacial','extincao'].indexOf(this.era)))%3]:CIVILIZATION_SPECIES[this.era]?['investida','resistente','flanqueador'][(id+(['antiga','medieval','renascimento'].indexOf(this.era)))%3]:this.era==='pleistoceno'?['investida','resistente','resistente'][id%3]:behaviorForCreature(id);
+    this.baseSpeed=MODERN_SPECIES[this.era]?({industrial:[82,60,86],contemporanea:[88,75,94],digital:[96,72,103],espacial:[92,85,108],extincao:[98,92,116]})[this.era][id%3]:CIVILIZATION_SPECIES[this.era]?({antiga:[78,56,82],medieval:[85,74,61],renascimento:[74,88,71]})[this.era][id%3]:this.era==='pleistoceno'?[80,55,45][id%3]:55+(id%3)*10;
     this.speed=this.baseSpeed*(config.speedMultiplier||1);
     this.aggression=config.aggression||1;
     this.alive=true;
@@ -2984,6 +3144,7 @@ class ModernBoss {
     this.alive=true;this.contactRadius=57;this.phase=1;this.path=[];this.pathIndex=0;this.repathAt=0;
     this.attack=null;this.nextAttack=scene.time.now+1800;this.frame=0;this.animMs=0;this.toLeft=false;
     this.telegraph=scene.add.graphics().setDepth(9700);
+    this.ashZones=[];
     this.shadow=scene.add.ellipse(x,y+14,122,33,0x11211d,.39).setDepth(y+170);
     this.sprite=scene.add.image(x,y,modernBossTexture(era,false,0)).setOrigin(.5,.83).setDepth(y+260).setScale(1.04);
     this.nameplate=scene.add.text(x,y-140,this.config.name,{fontFamily:'Arial',fontSize:'12px',fontStyle:'bold',color:'#fff1cc',stroke:'#26302f',strokeThickness:4}).setOrigin(.5).setDepth(y+400);
@@ -3062,6 +3223,14 @@ class ModernBoss {
       this.scene.makeImpact(this.x,this.y-20,this.config.color,70);
       this.scene.spawnBossMinions(2);return;
     }
+    if(a.type==='ashfall'){
+      // As cinzas persistem brevemente: não basta esquivar apenas no instante do impacto.
+      for(const shape of a.shapes){
+        const disc=this.scene.add.circle(shape.x,shape.y,shape.radius,0xce7883,.22)
+          .setStrokeStyle(2,0xf3b6a3,.65).setDepth(shape.y+28);
+        this.ashZones.push({shape,disc,expiresAt:now+2400,nextTick:now+400});
+      }
+    }
     if(a.type==='roadcharge'){
       const dx=a.targetX-a.originX,dy=a.targetY-a.originY,d=Math.hypot(dx,dy)||1;
       a.direction={x:dx/d,y:dy/d};a.chargeUntil=now+630;
@@ -3085,6 +3254,15 @@ class ModernBoss {
   update(delta,target,nav){
     if(!this.alive)return;
     const now=this.scene.time.now;
+    this.ashZones=this.ashZones.filter(zone=>{
+      if(now>=zone.expiresAt){zone.disc.destroy();return false;}
+      const remaining=(zone.expiresAt-now)/2400;zone.disc.setAlpha(.1+.16*remaining);
+      if(now>=zone.nextTick){
+        zone.nextTick=now+440;
+        if(modernAttackHits([zone.shape],target,9))this.scene.damagePlayer(this,1);
+      }
+      return true;
+    });
     if(!this.attack&&now>=this.nextAttack)this.startAttack(now,target);
     if(this.attack){
       const a=this.attack;this.warn(now);
@@ -3106,6 +3284,7 @@ class ModernBoss {
   destroy(){
     if(!this.alive)return;
     this.alive=false;this.attack=null;
+    for(const zone of this.ashZones)zone.disc.destroy();this.ashZones=[];
     this.telegraph.clear();this.telegraph.destroy();this.nameplate.destroy();this.shadow.destroy();
     this.scene.tweens.add({targets:this.sprite,alpha:0,scale:.1,duration:360,onComplete:()=>this.sprite.destroy()});
   }
@@ -3150,8 +3329,8 @@ class MenuScene extends Phaser.Scene {
     const titleSize=Math.min(98,Math.max(49,w*.095));
     this.add.text(w/2,h*.27,'ERA',{fontFamily:'Georgia,serif',fontSize:`${titleSize}px`,fontStyle:'bold',color:'#f3e3b5',stroke:'#0b241c',strokeThickness:5}).setOrigin(.5);
     this.add.text(w/2,h*.39,'E V O L U T I O N',{fontFamily:'Arial',fontSize:`${Math.min(23,Math.max(13,w*.023))}px`,fontStyle:'bold',color:'#c8dabc'}).setOrigin(.5);
-    this.add.text(w/2,h*.49,'CAPÍTULOS I–IX · DO CRETÁCEO À ERA ESPACIAL',{fontFamily:'Arial',fontSize:'15px',fontStyle:'bold',color:'#e9c17f',letterSpacing:3}).setOrigin(.5);
-    this.add.text(w/2,h*.57,'Atravesse nove eras, evolua as armas e vença os guardiões de cada período.',{fontFamily:'Arial',fontSize:'13px',color:'#b6c9b2',align:'center',wordWrap:{width:Math.min(520,w*.75)}}).setOrigin(.5);
+    this.add.text(w/2,h*.49,'CAPÍTULOS I–X · DO CRETÁCEO À EXTINÇÃO',{fontFamily:'Arial',fontSize:'15px',fontStyle:'bold',color:'#e9c17f',letterSpacing:3}).setOrigin(.5);
+    this.add.text(w/2,h*.57,'Atravesse dez eras, evolua as armas e vença o último guardião da Terra.',{fontFamily:'Arial',fontSize:'13px',color:'#b6c9b2',align:'center',wordWrap:{width:Math.min(520,w*.75)}}).setOrigin(.5);
     const start=this.add.text(w/2,h*.72,'COMEÇAR EXPEDIÇÃO',{fontFamily:'Arial',fontSize:'18px',fontStyle:'bold',color:'#193329',backgroundColor:'#e6ce93',padding:{x:27,y:16}}).setOrigin(.5).setInteractive({useHandCursor:true});
     start.on('pointerover',()=>start.setStyle({backgroundColor:'#ffe1a4'}));
     start.on('pointerout',()=>start.setStyle({backgroundColor:'#e6ce93'}));
@@ -3280,14 +3459,15 @@ const {GameScene} = (() => {
 
 
 
+
 class GameScene extends Phaser.Scene {
   constructor() { super('GameScene'); }
 
   init(data={}){
     const params=typeof window!=='undefined'?new URLSearchParams(window.location.search):new URLSearchParams();
     const testing=Number(params.get('testeChefe')||params.get('testeEra'));
-    const debugIndex=Number.isInteger(testing)&&testing>=1&&testing<=9?testing-1:0;
-    this.eraIndex=Number.isInteger(data.eraIndex)?Math.max(0,Math.min(8,data.eraIndex)):debugIndex;
+    const debugIndex=Number.isInteger(testing)&&testing>=1&&testing<=ERAS.length?testing-1:0;
+    this.eraIndex=Number.isInteger(data.eraIndex)?Math.max(0,Math.min(ERAS.length-1,data.eraIndex)):debugIndex;
     this.era=eraAt(this.eraIndex);
     this.carryProgress=data.progress||null;
   }
@@ -3305,7 +3485,7 @@ class GameScene extends Phaser.Scene {
       SETTINGS.tileWidth, SETTINGS.tileHeight,
       SETTINGS.mapRows * SETTINGS.tileWidth / 2, SETTINGS.tileHeight / 2
     );
-    this.world=this.eraIndex===8?new SpaceWorld(this,this.projection):this.eraIndex>=5?new ModernWorld(this,this.projection,this.era.id):this.eraIndex>=2?new CivilizationWorld(this,this.projection,this.era.id):this.eraIndex===1?new PleistoceneWorld(this,this.projection):new WorldGenerator(this,this.projection);
+    this.world=this.eraIndex===9?new ExtinctionWorld(this,this.projection):this.eraIndex===8?new SpaceWorld(this,this.projection):this.eraIndex>=5?new ModernWorld(this,this.projection,this.era.id):this.eraIndex>=2?new CivilizationWorld(this,this.projection,this.era.id):this.eraIndex===1?new PleistoceneWorld(this,this.projection):new WorldGenerator(this,this.projection);
     this.world.create(SETTINGS.mapColumns, SETTINGS.mapRows);
     this.createAtmosphere();
     this.navigation = new NavigationGrid({
@@ -3466,7 +3646,7 @@ class GameScene extends Phaser.Scene {
     for(let i=0;i<24;i++){
       const tileX=2+(i*17%29),tileY=2+(i*11%23);
       const p=this.projection.toScreen(tileX,tileY);
-      const mote=this.add.circle(p.x+(i*13)%38,p.y-24,1.4+i%2,this.eraIndex===1?0xeaf8fc:this.eraIndex===8?0x8fcfe6:0xd4dca0,.17+i%3*.06).setDepth(p.y+40);
+      const mote=this.add.circle(p.x+(i*13)%38,p.y-24,1.4+i%2,this.eraIndex===1?0xeaf8fc:this.eraIndex===8?0x8fcfe6:this.eraIndex===9?0xe4a8ac:0xd4dca0,.17+i%3*.06).setDepth(p.y+40);
       this.tweens.add({targets:mote,y:p.y-44-(i%4)*6,alpha:.08,yoyo:true,repeat:-1,duration:1400+(i*97)%1700});
       this.ambientMotes.push(mote);
     }
@@ -3876,7 +4056,7 @@ class GameScene extends Phaser.Scene {
     this.bossHud.setVisible(false);
     this.scene.pause();
     const progress=snapshotRun(this);
-    this.scene.launch('EraCompleteScene',{
+    this.scene.launch(isFinalEra(this.eraIndex)?'FinalVictoryScene':'EraCompleteScene',{
       eraIndex:this.eraIndex,kills:this.kills,totalKills:this.totalKills,level:this.level,
       seconds:Math.floor(this.elapsedMs/1000),
       progress:this.eraIndex>=1?prepareNextEraProgress(progress,this.survival.maxHealth,this.eraIndex+2):progress
@@ -4062,15 +4242,15 @@ class EraCompleteScene extends Phaser.Scene {
     this.tweens.add({targets:middle,alpha:.1,scaleX:1.8,yoyo:true,repeat:-1,duration:1550});
     this.add.rectangle(w/2,h*.5,Math.min(w*.94,850),Math.min(h*.81,515),0x0a1b23,.9).setStrokeStyle(2,0xb8c6bc,.67);
     const fs=Math.min(48,Math.max(24,w*.052));
-    const title=this.add.text(w/2,h*.225,`ERA ${String(this.era.number).padStart(2,'0')} CONCLUÍDA`,{
+    const title=this.add.text(w/2,h*.255,`ERA ${String(this.era.number).padStart(2,'0')} CONCLUÍDA`,{
       fontFamily:'Arial',fontSize:`${Math.min(16,Math.max(12,w*.021))}px`,fontStyle:'bold',color:'#f0d69d',letterSpacing:3
     }).setOrigin(.5);
-    const headline=this.add.text(w/2,h*.35,this.nextEra?'A HISTÓRIA AVANÇA':'NOVE ERAS SUPERADAS!',{
+    const headline=this.add.text(w/2,h*.35,this.nextEra?'A HISTÓRIA AVANÇA':'DEZ ERAS SUPERADAS!',{
       fontFamily:'Georgia,serif',fontSize:`${fs}px`,fontStyle:'bold',color:'#f7e0b5'
     }).setOrigin(.5);
     const desc=this.nextEra?
       `O guardião da ${this.era.name} foi derrotado.\nPróximo capítulo: ${this.nextEra.name}.\nArmas, melhorias e experiência acompanham a jornada.`:
-      `Concluíste os nove primeiros capítulos da expedição!\nPróximo desafio em desenvolvimento: Era da Extinção.`;
+      `Concluíste os dez capítulos da expedição!`;
     this.add.text(w/2,h*.48,desc,{fontFamily:'Arial',fontSize:`${Math.min(16,Math.max(12,w*.02))}px`,color:'#d4e2dd',align:'center',lineSpacing:6,wordWrap:{width:Math.min(w*.83,660)}}).setOrigin(.5);
     const time=`${Math.floor(this.seconds/60)}:${String(this.seconds%60).padStart(2,'0')}`;
     this.add.text(w/2,h*.62,`${this.kills} ELIMINAÇÕES  •  NÍVEL ${this.level}  •  ${time}`,{
@@ -4111,8 +4291,88 @@ class EraCompleteScene extends Phaser.Scene {
 return {EraCompleteScene};
 })();
 
+// --- src/scenes/FinalVictoryScene.js ---
+const {FinalVictoryScene} = (() => {
+
+
+/** Vitória definitiva depois do décimo chefe: nunca inicia uma era inexistente. */
+class FinalVictoryScene extends Phaser.Scene {
+  constructor(){super('FinalVictoryScene');}
+  init(data={}){
+    this.totalKills=Math.max(0,data.totalKills||1000);
+    this.level=Math.max(1,data.level||1);
+    this.seconds=Math.max(0,data.seconds||0);
+    this.changing=false;
+  }
+  create(){
+    const {width:w,height:h}=this.scale;
+    this.cameras.main.setBackgroundColor('#101623');
+    const g=this.add.graphics();
+    g.fillStyle(0x222439);g.fillRect(0,0,w,h);
+    // O céu da Terra devastada clareia quando o último guardião é derrotado.
+    g.fillStyle(0x67505e,.7);g.fillRect(w/2,0,w/2,h);
+    g.fillStyle(0xcea58f,.15);g.fillEllipse(w*.5,h*.75,w*.8,h*.65);
+    for(let i=0;i<20;i++){
+      const x=w*(i+.5)/20, y=h*(.68+Math.sin(i*1.8)*.08);
+      g.fillStyle(i%3?0x403944:0x78616b,.65);
+      g.fillTriangle(x-65,y+30,x,y-78,x+65,y+30);
+      g.fillStyle(0xf0b3a3,.45);g.fillCircle(x+Math.sin(i*6)*13,h*.22+(i*31)%(h*.45),2);
+    }
+    const panelWidth=Math.min(w*.9,910),panelHeight=Math.min(h*.82,575);
+    const top=h/2-panelHeight/2;
+    this.add.rectangle(w/2,h/2,panelWidth,panelHeight,0x111e28,.92)
+      .setStrokeStyle(2,0xd4b99e,.82);
+    const captionY=top+Math.min(54,panelHeight*.11);
+    this.add.text(w/2,captionY,'ERA 10 CONCLUÍDA  ·  LINHA DO TEMPO RESTAURADA',{
+      fontFamily:'Arial',fontSize:`${Math.max(11,Math.min(16,w*.016))}px`,
+      fontStyle:'bold',letterSpacing:1.6,color:'#f4c9ad'
+    }).setOrigin(.5);
+    const titleSize=Math.max(27,Math.min(53,w*.051));
+    this.add.text(w/2,top+panelHeight*.32,'DEZ ERAS SUPERADAS!',{
+      fontFamily:'Georgia,serif',fontSize:`${titleSize}px`,fontStyle:'bold',color:'#ffe8c4',
+      align:'center',wordWrap:{width:panelWidth-40}
+    }).setOrigin(.5);
+    this.add.text(w/2,top+panelHeight*.49,
+      'O Coração da Extinção foi derrotado.\nA expedição atravessou todas as dez eras.\nO tempo pode recomeçar.',{
+        fontFamily:'Arial',fontSize:`${Math.max(12,Math.min(17,w*.019))}px`,color:'#d4dfdb',
+        align:'center',lineSpacing:6,wordWrap:{width:panelWidth-40}
+      }).setOrigin(.5);
+    const elapsed=`${Math.floor(this.seconds/60)}:${String(this.seconds%60).padStart(2,'0')}`;
+    const stat=`${ERAS.length} ERAS  •  ${this.totalKills} ELIMINAÇÕES  •  NÍVEL ${this.level}  •  ${elapsed}`;
+    this.add.text(w/2,top+panelHeight*.67,stat,{
+      fontFamily:'Arial',fontSize:`${Math.max(10,Math.min(14,w*.016))}px`,
+      color:'#f7d3ad',align:'center',wordWrap:{width:panelWidth-35}
+    }).setOrigin(.5);
+    const restart=this.add.text(w/2,top+panelHeight*.80,'REINICIAR A EXPEDIÇÃO  ↻',{
+      fontFamily:'Arial',fontSize:`${Math.max(12,Math.min(18,w*.018))}px`,
+      fontStyle:'bold',color:'#23303a',backgroundColor:'#e8c9ac',padding:{x:20,y:13}
+    }).setOrigin(.5).setInteractive({useHandCursor:true});
+    restart.on('pointerover',()=>restart.setStyle({backgroundColor:'#ffebd1'}));
+    restart.on('pointerout',()=>restart.setStyle({backgroundColor:'#e8c9ac'}));
+    restart.on('pointerdown',()=>this.restart());
+    this.add.text(w/2,top+panelHeight*.94,'R / ENTER: REINICIAR  •  ESC: MENU',{
+      fontFamily:'Arial',fontSize:'11px',color:'#a9bdc2'
+    }).setOrigin(.5);
+    this.onRestart=()=>this.restart();this.onMenu=()=>this.menu();
+    this.input.keyboard.on('keydown-R',this.onRestart);
+    this.input.keyboard.on('keydown-ENTER',this.onRestart);
+    this.input.keyboard.on('keydown-ESC',this.onMenu);
+    this.events.once(Phaser.Scenes.Events.SHUTDOWN,()=>{
+      this.input.keyboard.off('keydown-R',this.onRestart);
+      this.input.keyboard.off('keydown-ENTER',this.onRestart);
+      this.input.keyboard.off('keydown-ESC',this.onMenu);
+    });
+  }
+  restart(){if(this.changing)return;this.changing=true;this.scene.stop('GameScene');this.scene.start('GameScene',{eraIndex:0});}
+  menu(){if(this.changing)return;this.changing=true;this.scene.stop('GameScene');this.scene.start('MenuScene');}
+}
+
+return {FinalVictoryScene};
+})();
+
 // --- src/main.js ---
 (() => {
+
 
 
 
@@ -4127,7 +4387,7 @@ const config = {
   backgroundColor: '#172522',
   scale: { mode: Phaser.Scale.RESIZE, autoCenter: Phaser.Scale.CENTER_BOTH, width: 1280, height: 720 },
   render: { antialias: true, pixelArt: false },
-  scene: [BootScene, MenuScene, GameScene, PauseScene, UpgradeScene, GameOverScene, EraCompleteScene]
+  scene: [BootScene, MenuScene, GameScene, PauseScene, UpgradeScene, GameOverScene, EraCompleteScene, FinalVictoryScene]
 };
 
 window.addEventListener('load', () => {

@@ -3,14 +3,16 @@ export const MODERN_SPECIES=Object.freeze({
   industrial:['rato-de-ferro','automato-fabril','besouro-a-vapor'],
   contemporanea:['cao-mecanico','sentinela-urbano','drone-de-vigilancia'],
   digital:['bug-de-codigo','firewall-vivo','espectro-digital'],
-  espacial:['rover-corrompido','sentinela-astral','raia-nebulosa']
+  espacial:['rover-corrompido','sentinela-astral','raia-nebulosa'],
+  extincao:['rastejante-de-cinzas','espectro-de-fenda','guardiao-obsidiana']
 });
 const FACES=['right','down-right','down','down-left','left','up-left','up','up-right'];
 const PALETTES={
   industrial:{body:'#9c7751',light:'#e5b98a',shadow:'#493b34',trim:'#d5bc78',eye:'#f6db91'},
   contemporanea:{body:'#506e8b',light:'#a8c6d5',shadow:'#293c50',trim:'#e3cd80',eye:'#98e4ea'},
   digital:{body:'#2f789b',light:'#65dec9',shadow:'#143456',trim:'#d99bec',eye:'#c9fff6'},
-  espacial:{body:'#b3c6d6',light:'#e8f3fa',shadow:'#465e83',trim:'#6fe1e7',eye:'#aaf5f2'}
+  espacial:{body:'#b3c6d6',light:'#e8f3fa',shadow:'#465e83',trim:'#6fe1e7',eye:'#aaf5f2'},
+  extincao:{body:'#5e5969',light:'#ca9da0',shadow:'#302b39',trim:'#efa58a',eye:'#ffcaca'}
 };
 function ellipse(c,x,y,rx,ry,color){c.fillStyle=color;c.beginPath();c.ellipse(x,y,rx,ry,0,0,Math.PI*2);c.fill();}
 function poly(c,p,color){c.fillStyle=color;c.beginPath();c.moveTo(...p[0]);for(const v of p.slice(1))c.lineTo(...v);c.closePath();c.fill();}
@@ -35,6 +37,13 @@ function player(c,era,facing,frame){
     ellipse(c,0,-51,23,24,'#e4edf4');ellipse(c,0,-53,19,18,'#456987');
     ellipse(c,-6,-59,10,5,'#8ed9e7');rect(c,-16,-34,32,6,'#6ae1e1');
     rect(c,-14,-7,29,5,'#263a56');ellipse(c,2,-5,4,4,p.trim);
+  }else if(era==='extincao'){
+    // Armadura improvisada para sobreviver ao colapso do planeta.
+    rect(c,-20,-41,40,43,'#554451');rect(c,-16,-34,30,27,'#8b7680');
+    poly(c,[[-20,-61],[-15,-81],[0,-85],[17,-80],[22,-61]],'#4b3748');
+    rect(c,-18,-66,36,12,'#e8ac9b');rect(c,-12,-64,24,7,'#503a4c');
+    rect(c,-24,-32,9,23,'#b28082');rect(c,15,-32,9,23,'#b28082');
+    line(c,-17,6,19,6,p.trim,3);
   }else if(era==='industrial'){
     poly(c,[[-21,-60],[21,-60],[15,-67],[-15,-67]],'#56453a');
     rect(c,-16,-82,32,18,'#674d3d');rect(c,-11,-85,22,4,p.trim);
@@ -187,11 +196,60 @@ function orbitalGuardian(c,f,left){
   for(let i=0;i<4;i++)rect(c,-15+i*10,8,6,5,'#f1c98e');
 }
 
+// Era X — criaturas pós-apocalípticas com movimentos e silhuetas próprios.
+function ashCrawler(c,f){
+  c.translate(56,79+[0,-3,0,-2][f]);
+  for(const x of [-31,-16,14,30])line(c,x,-13,x+(x<0?-9:9),19+(f%2?3:-3),'#5e4b55',7);
+  poly(c,[[-35,-24],[-9,-51],[26,-44],[41,-17],[24,6],[-32,1]],'#67535f');
+  poly(c,[[-14,-46],[11,-65],[30,-42],[9,-29]],'#9a6b75');
+  line(c,-28,-28,-42,-52,'#bf8286',7);line(c,32,-29,45,-56,'#bf8286',7);
+  ellipse(c,27,-32,5,5,'#ffe0b7');ellipse(c,29,-33,2,2,'#ffe6ef');
+  for(let i=0;i<5;i++)line(c,-20+i*12,-24,-16+i*12,-31,'#e4a38f',2);
+}
+function riftWraith(c,f){
+  c.translate(56,69+[0,-7,0,-4][f]);
+  poly(c,[[-23,-44],[0,-86],[23,-43],[37,4],[12,-2],[0,19],[-13,-4],[-37,5]],'#413b61');
+  poly(c,[[-17,-40],[0,-67],[17,-40],[19,-2],[0,10],[-19,-1]],'#a75c9a');
+  ellipse(c,0,-38,15,23,'#d78ca4');ellipse(c,-7,-39,4,4,'#fff5d6');ellipse(c,7,-39,4,4,'#fff5d6');
+  line(c,-24,-31,-42,-12,'#e99ea5',5);line(c,24,-31,42,-12,'#e99ea5',5);
+  line(c,-16,5,-25,24,'#705779',3);line(c,16,5,25,24,'#705779',3);
+}
+function obsidianGuardian(c,f){
+  c.translate(56,81+[0,-3,0,-2][f]);
+  for(const x of [-18,18]){line(c,x,-5,x+2*(f%2?1:-1),22,'#393543',12);ellipse(c,x,23,12,5,'#292632');}
+  poly(c,[[-30,-51],[30,-51],[37,-9],[20,2],[-19,2],[-38,-13]],'#564858');
+  poly(c,[[-23,-43],[0,-66],[24,-43],[15,-20],[-17,-20]],'#95707d');
+  poly(c,[[-22,-70],[0,-86],[21,-72],[18,-55],[-17,-55]],'#383646');
+  rect(c,-17,-68,35,8,'#df9b95');ellipse(c,-9,-65,3,3,'#f7d7bc');ellipse(c,9,-65,3,3,'#f7d7bc');
+  line(c,-31,-47,-43,-5,'#806878',11);line(c,32,-47,43,-5,'#806878',11);
+  line(c,0,-29,0,-8,'#edb398',4);ellipse(c,0,-29,6,6,'#f4bb9f');
+}
+function extinctionHeart(c,f,left){
+  c.translate(95,112+[0,-6,0,-3][f]);if(left)c.scale(-1,1);
+  // Núcleo instável suspenso entre estilhaços — nunca se confunde com os chefes anteriores.
+  for(const side of [-1,1]){
+    poly(c,[[side*24,-40],[side*78,-84],[side*73,-32],[side*88,6],[side*33,7]],side<0?'#554158':'#5e4859');
+    poly(c,[[side*40,-39],[side*62,-57],[side*70,-11],[side*33,-4]],'#92717d');
+    line(c,side*29,-47,side*73,-26,'#f0a795',3);
+    poly(c,[[side*20,13],[side*42,31],[side*24,52],[side*11,10]],'#46374a');
+  }
+  ellipse(c,0,-39,47,47,'#4d3c54');ellipse(c,0,-39,35,39,'#a5687c');
+  ellipse(c,0,-43,25,28,'#e0a18d');ellipse(c,0,-43,15,18,'#ebccd0');
+  ellipse(c,0,-43,7,10,'#fff0d8');
+  for(let i=0;i<8;i++){
+    const a=i*Math.PI/4+f*.08;
+    const x=Math.cos(a)*57,y=-42+Math.sin(a)*57;
+    poly(c,[[x-6,y+3],[x,y-12],[x+10,y+7]],i%2?'#b47f8c':'#6e576d');
+  }
+  for(let i=0;i<4;i++)line(c,-21+i*14,0,-18+i*14,10,'#f3c1aa',3);
+}
+
 const DRAW={
   'rato-de-ferro':ironRat,'automato-fabril':factoryBot,'besouro-a-vapor':steamBeetle,
   'cao-mecanico':mechDog,'sentinela-urbano':urbanSentinel,'drone-de-vigilancia':surveillanceDrone,
   'bug-de-codigo':codeBug,'firewall-vivo':firewallCreature,'espectro-digital':digitalSpecter,
-  'rover-corrompido':lunarRover,'sentinela-astral':cosmicSentinel,'raia-nebulosa':nebulaManta
+  'rover-corrompido':lunarRover,'sentinela-astral':cosmicSentinel,'raia-nebulosa':nebulaManta,
+  'rastejante-de-cinzas':ashCrawler,'espectro-de-fenda':riftWraith,'guardiao-obsidiana':obsidianGuardian
 };
 export function modernPlayerTexture(era,facing,frame){return `modern-${era}-player-${FACES.includes(facing)?facing:'down'}-${frame%4}`;}
 export function modernCreatureTexture(era,species,left,frame){return `modern-${era}-${species}-${left?'left':'right'}-${frame%4}`;}
@@ -207,6 +265,7 @@ export function createModernArt(scene,era){
   for(const left of [false,true])for(let f=0;f<4;f++)
     texture(scene,modernBossTexture(era,left,f),190,204,c=>{
       if(era==='espacial'){orbitalGuardian(c,f,left);return;}
+      if(era==='extincao'){extinctionHeart(c,f,left);return;}
       c.translate(21,31);c.scale(1.32,1.30);
       if(left){c.translate(112,0);c.scale(-1,1);}
       const representative={industrial:'automato-fabril',contemporanea:'sentinela-urbano',digital:'firewall-vivo'}[era];

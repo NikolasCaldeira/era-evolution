@@ -6,6 +6,7 @@ import { PauseScene } from './scenes/PauseScene.js';
 import { UpgradeScene } from './scenes/UpgradeScene.js';
 import { GameOverScene } from './scenes/GameOverScene.js';
 import { EraCompleteScene } from './scenes/EraCompleteScene.js';
+import { FinalVictoryScene } from './scenes/FinalVictoryScene.js';
 
 const config = {
   type: Phaser.AUTO,
@@ -13,7 +14,7 @@ const config = {
   backgroundColor: '#172522',
   scale: { mode: Phaser.Scale.RESIZE, autoCenter: Phaser.Scale.CENTER_BOTH, width: 1280, height: 720 },
   render: { antialias: true, pixelArt: false },
-  scene: [BootScene, MenuScene, GameScene, PauseScene, UpgradeScene, GameOverScene, EraCompleteScene]
+  scene: [BootScene, MenuScene, GameScene, PauseScene, UpgradeScene, GameOverScene, EraCompleteScene, FinalVictoryScene]
 };
 
 window.addEventListener('load', () => {

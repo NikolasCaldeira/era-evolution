@@ -8,8 +8,8 @@ export class Creature {
     this.scene=scene;this.id=id;this.era=config.era||'cretaceo';
     this.species=MODERN_SPECIES[this.era]?MODERN_SPECIES[this.era][id%3]:CIVILIZATION_SPECIES[this.era]?CIVILIZATION_SPECIES[this.era][id%3]:this.era==='pleistoceno'?PLEISTOCENE_SPECIES[id%PLEISTOCENE_SPECIES.length]:creaturesList[id%creaturesList.length];
     this.x=x;this.y=y;this.radius=15;this.hp=3;
-    this.behavior=MODERN_SPECIES[this.era]?['investida','resistente','flanqueador'][(id+(['industrial','contemporanea','digital','espacial'].indexOf(this.era)))%3]:CIVILIZATION_SPECIES[this.era]?['investida','resistente','flanqueador'][(id+(['antiga','medieval','renascimento'].indexOf(this.era)))%3]:this.era==='pleistoceno'?['investida','resistente','resistente'][id%3]:behaviorForCreature(id);
-    this.baseSpeed=MODERN_SPECIES[this.era]?({industrial:[82,60,86],contemporanea:[88,75,94],digital:[96,72,103],espacial:[92,85,108]})[this.era][id%3]:CIVILIZATION_SPECIES[this.era]?({antiga:[78,56,82],medieval:[85,74,61],renascimento:[74,88,71]})[this.era][id%3]:this.era==='pleistoceno'?[80,55,45][id%3]:55+(id%3)*10;
+    this.behavior=MODERN_SPECIES[this.era]?['investida','resistente','flanqueador'][(id+(['industrial','contemporanea','digital','espacial','extincao'].indexOf(this.era)))%3]:CIVILIZATION_SPECIES[this.era]?['investida','resistente','flanqueador'][(id+(['antiga','medieval','renascimento'].indexOf(this.era)))%3]:this.era==='pleistoceno'?['investida','resistente','resistente'][id%3]:behaviorForCreature(id);
+    this.baseSpeed=MODERN_SPECIES[this.era]?({industrial:[82,60,86],contemporanea:[88,75,94],digital:[96,72,103],espacial:[92,85,108],extincao:[98,92,116]})[this.era][id%3]:CIVILIZATION_SPECIES[this.era]?({antiga:[78,56,82],medieval:[85,74,61],renascimento:[74,88,71]})[this.era][id%3]:this.era==='pleistoceno'?[80,55,45][id%3]:55+(id%3)*10;
     this.speed=this.baseSpeed*(config.speedMultiplier||1);
     this.aggression=config.aggression||1;
     this.alive=true;

@@ -1,4 +1,4 @@
-# GitHub Pages — Ciclo 15
+# GitHub Pages — Ciclo 16
 
 O workflow publica automaticamente `dist/` após `npm test` e `npm run build` na branch `main`.
 

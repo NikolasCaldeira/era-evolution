@@ -14,18 +14,18 @@ function graphics(){const o={active:true};for(const f of ['setDepth','setPositio
 function mockScene(){return {add:{graphics,ellipse:graphics,image:graphics,circle:graphics,text:graphics},time:{now:0,delayedCall(){}},tweens:{add(){}},showMessage(){},makeImpact(){},damagePlayer(){},applyCombatSlow(){},spawnBossMinions(){return 2;}};}
 function mapFor(era){const s=mockScene(),proj=new IsoProjection(96,48,28*48,24),world=new ModernWorld(s,proj,era);world.create(34,28);const nav=new NavigationGrid({projection:proj,columns:34,rows:28,obstacles:world.obstacles});return {s,proj,world,nav};}
 
-test('ordem cronológica contém nove eras jogáveis e deixa Extinção como planejamento',()=>{
-  assert.equal(ERAS.length,9);
+test('ordem cronológica contém dez eras e inclui a Extinção após o espaço',()=>{
+  assert.equal(ERAS.length,10);
   assert.deepEqual(ERAS.slice(5,8).map(e=>e.id),MODERN_WORLDS);
-  assert.deepEqual(ERAS.slice(5).map(e=>e.number),[6,7,8,9]);
-  assert.deepEqual(FUTURE_ERA_PREVIEW.map(e=>e.number),[10]);
+  assert.deepEqual(ERAS.slice(5).map(e=>e.number),[6,7,8,9,10]);
+  assert.deepEqual(FUTURE_ERA_PREVIEW.map(e=>e.number),[]);
   assert.ok(ERAS.every(e=>e.goal===100));
 });
 
 test('balanceamento aumenta entre eras, preservando teto de criaturas e 3 hits por criatura',()=>{
-  assert.deepEqual(ERA_BALANCE.slice(5).map(b=>b.maxAlive),[22,23,24,25]);
+  assert.deepEqual(ERA_BALANCE.slice(5).map(b=>b.maxAlive),[22,23,24,25,26]);
   for(const kills of [0,10,40,90]){
-    const d=Array.from({length:9},(_,i)=>difficultyForEra(kills,i));
+    const d=Array.from({length:10},(_,i)=>difficultyForEra(kills,i));
     for(let i=1;i<d.length;i++){
       assert.ok(d[i].speedMultiplier>d[i-1].speedMultiplier);
       assert.ok(d[i].aggression>d[i-1].aggression);
@@ -36,13 +36,13 @@ test('balanceamento aumenta entre eras, preservando teto de criaturas e 3 hits p
 
 test('recompensas das Eras VI–VIII não colidem entre si nem com capítulos anteriores',()=>{
   const ids=new Set();
-  for(let era=0;era<9;era++)for(let kill=10;kill<=90;kill+=10){
+  for(let era=0;era<10;era++)for(let kill=10;kill<=90;kill+=10){
     const reward=rewardForEraKills(era,kill);
     assert.ok(reward);
     assert.ok(!ids.has(String(reward.milestone)));
     ids.add(String(reward.milestone));
   }
-  assert.equal(ids.size,81);
+  assert.equal(ids.size,90);
   const progress={health:2,totalKills:680,weapons:{active:'orbe'},level:35};
   const next=prepareNextEraProgress(progress,5,8);
   assert.equal(next.health,4);assert.equal(next.totalKills,680);assert.equal(progress.health,2);

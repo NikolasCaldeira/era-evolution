@@ -1,6 +1,6 @@
-# ERA: Evolution — Ciclo 15 · Era Espacial
+# ERA: Evolution — Ciclo 16 · Era da Extinção
 
-Jogo roguelike de sobrevivência 2.5D em **Phaser 3.90**, com nove eras jogáveis, progressão contínua e reinício integral após a derrota.
+Jogo roguelike de sobrevivência 2.5D em **Phaser 3.90**, com dez eras jogáveis, progressão contínua e reinício integral após a derrota.
 
 ## Capítulos
 
@@ -13,9 +13,10 @@ Jogo roguelike de sobrevivência 2.5D em **Phaser 3.90**, com nove eras jogávei
 7. **Contemporânea** — cidade, barreiras urbanas e veículos, cão mecânico, sentinela urbano e drone de vigilância; chefe **Colosso Blindado** (investida blindada, varredura de sinal e zonas de alerta)
 8. **Digital** — circuitos, servidores e barreiras eletrônicas, bug de código, firewall vivo e espectro digital; chefe **Núcleo Corrompido** (grade de dados, pulso corrompido e tempestade de pacotes)
 
-**Era 09 — Espacial** é jogável. A **Era 10 — Extinção** permanece em desenvolvimento.
+**Era 09 — Espacial** e **Era 10 — Extinção** são jogáveis.
 
-9. **Espacial** — posto lunar, domos científicos, antenas, painéis solares e rochas espaciais; rover corrompido, sentinela astral e raia nebulosa; chefe **Sentinela Orbital** (feixes orbitais, poço gravitacional, meteoros e anel de plasma)
+9. **Espacial** — posto lunar, domos científicos e antenas; rover corrompido, sentinela astral e raia nebulosa; chefe **Sentinela Orbital**.
+10. **Extinção** — Terra pós-colapso com fissuras, ruínas e máquinas quebradas; rastejante de cinzas, espectro de fenda e guardião de obsidiana; chefe final **Coração da Extinção**, com fissuras, chuva de cinzas persistente, leque de entropia e onda do vazio.
 
 ## Mecânicas principais
 
@@ -24,7 +25,7 @@ Jogo roguelike de sobrevivência 2.5D em **Phaser 3.90**, com nove eras jogávei
 - A cada 10 eliminações, aparece uma relíquia de evolução de arma. Cada 10 fragmentos oferece três melhorias diferentes.
 - Projéteis automáticos em 360°; cinco armas com comportamentos próprios e alternância por Q/E ou teclas 1–5.
 - Inimigos têm três pontos de vida. O desafio cresce pelo número, velocidade e agressividade das criaturas, com limites para controlar a população do mapa.
-- Chefes das Eras VI–IX possuem **três fases**, ataques sinalizados e espaços de esquiva. A fase final pode convocar apoio.
+- Chefes das Eras VI–X possuem **três fases**, ataques sinalizados e espaços de esquiva. A fase final pode convocar apoio.
 - Dificuldade e fluidez das Eras 01 e 04 continuarão sendo aperfeiçoadas em ciclos futuros, depois da expansão de conteúdo.
 
 ## Comandos
@@ -45,6 +46,7 @@ Jogo roguelike de sobrevivência 2.5D em **Phaser 3.90**, com nove eras jogávei
 - `?testeEra=7` / `?testeChefe=7`: Contemporânea
 - `?testeEra=8` / `?testeChefe=8`: Digital
 - `?testeEra=9` / `?testeChefe=9`: Espacial
+- `?testeEra=10` / `?testeChefe=10`: Extinção; vencer o chefe abre a vitória definitiva, sem era posterior
 
 Os parâmetros de teste criam **partidas novas de depuração**, sem progressão permanente.
 

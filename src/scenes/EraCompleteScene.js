@@ -27,15 +27,15 @@ export class EraCompleteScene extends Phaser.Scene {
     this.tweens.add({targets:middle,alpha:.1,scaleX:1.8,yoyo:true,repeat:-1,duration:1550});
     this.add.rectangle(w/2,h*.5,Math.min(w*.94,850),Math.min(h*.81,515),0x0a1b23,.9).setStrokeStyle(2,0xb8c6bc,.67);
     const fs=Math.min(48,Math.max(24,w*.052));
-    const title=this.add.text(w/2,h*.225,`ERA ${String(this.era.number).padStart(2,'0')} CONCLUÍDA`,{
+    const title=this.add.text(w/2,h*.255,`ERA ${String(this.era.number).padStart(2,'0')} CONCLUÍDA`,{
       fontFamily:'Arial',fontSize:`${Math.min(16,Math.max(12,w*.021))}px`,fontStyle:'bold',color:'#f0d69d',letterSpacing:3
     }).setOrigin(.5);
-    const headline=this.add.text(w/2,h*.35,this.nextEra?'A HISTÓRIA AVANÇA':'NOVE ERAS SUPERADAS!',{
+    const headline=this.add.text(w/2,h*.35,this.nextEra?'A HISTÓRIA AVANÇA':'DEZ ERAS SUPERADAS!',{
       fontFamily:'Georgia,serif',fontSize:`${fs}px`,fontStyle:'bold',color:'#f7e0b5'
     }).setOrigin(.5);
     const desc=this.nextEra?
       `O guardião da ${this.era.name} foi derrotado.\nPróximo capítulo: ${this.nextEra.name}.\nArmas, melhorias e experiência acompanham a jornada.`:
-      `Concluíste os nove primeiros capítulos da expedição!\nPróximo desafio em desenvolvimento: Era da Extinção.`;
+      `Concluíste os dez capítulos da expedição!`;
     this.add.text(w/2,h*.48,desc,{fontFamily:'Arial',fontSize:`${Math.min(16,Math.max(12,w*.02))}px`,color:'#d4e2dd',align:'center',lineSpacing:6,wordWrap:{width:Math.min(w*.83,660)}}).setOrigin(.5);
     const time=`${Math.floor(this.seconds/60)}:${String(this.seconds%60).padStart(2,'0')}`;
     this.add.text(w/2,h*.62,`${this.kills} ELIMINAÇÕES  •  NÍVEL ${this.level}  •  ${time}`,{

@@ -15,7 +15,7 @@ import { magnetRadius, advanceFragment } from '../systems/MagnetSystem.js';
 import { BOSS_CONFIG } from '../systems/BossSystem.js';
 import { createBossArt } from '../art/BossArt.js';
 import { CretaceousBoss } from '../entities/CretaceousBoss.js';
-import {eraAt,snapshotRun,restoreRun,pleistoceneRewardForKills,rewardForEraKills} from '../systems/EraSystem.js';
+import {eraAt,snapshotRun,restoreRun,pleistoceneRewardForKills,rewardForEraKills,isFinalEra,ERAS} from '../systems/EraSystem.js';
 import { PleistoceneWorld } from '../world/PleistoceneWorld.js';
 import { createPleistoceneArt } from '../art/PleistoceneArt.js';
 import { ICE_BOSS_CONFIG } from '../systems/IceAgeBossSystem.js';
@@ -29,6 +29,7 @@ import {CIVILIZATION_BOSSES} from '../systems/CivilizationBossSystem.js';
 import {CivilizationBoss} from '../entities/CivilizationBoss.js';
 import {ModernWorld} from '../world/ModernWorld.js';
 import {SpaceWorld} from '../world/SpaceWorld.js';
+import {ExtinctionWorld} from '../world/ExtinctionWorld.js';
 import {createModernArt} from '../art/ModernArt.js';
 import {ModernBoss} from '../entities/ModernBoss.js';
 import {MODERN_BOSSES} from '../systems/ModernBossSystem.js';
@@ -41,8 +42,8 @@ export class GameScene extends Phaser.Scene {
   init(data={}){
     const params=typeof window!=='undefined'?new URLSearchParams(window.location.search):new URLSearchParams();
     const testing=Number(params.get('testeChefe')||params.get('testeEra'));
-    const debugIndex=Number.isInteger(testing)&&testing>=1&&testing<=9?testing-1:0;
-    this.eraIndex=Number.isInteger(data.eraIndex)?Math.max(0,Math.min(8,data.eraIndex)):debugIndex;
+    const debugIndex=Number.isInteger(testing)&&testing>=1&&testing<=ERAS.length?testing-1:0;
+    this.eraIndex=Number.isInteger(data.eraIndex)?Math.max(0,Math.min(ERAS.length-1,data.eraIndex)):debugIndex;
     this.era=eraAt(this.eraIndex);
     this.carryProgress=data.progress||null;
   }
@@ -60,7 +61,7 @@ export class GameScene extends Phaser.Scene {
       SETTINGS.tileWidth, SETTINGS.tileHeight,
       SETTINGS.mapRows * SETTINGS.tileWidth / 2, SETTINGS.tileHeight / 2
     );
-    this.world=this.eraIndex===8?new SpaceWorld(this,this.projection):this.eraIndex>=5?new ModernWorld(this,this.projection,this.era.id):this.eraIndex>=2?new CivilizationWorld(this,this.projection,this.era.id):this.eraIndex===1?new PleistoceneWorld(this,this.projection):new WorldGenerator(this,this.projection);
+    this.world=this.eraIndex===9?new ExtinctionWorld(this,this.projection):this.eraIndex===8?new SpaceWorld(this,this.projection):this.eraIndex>=5?new ModernWorld(this,this.projection,this.era.id):this.eraIndex>=2?new CivilizationWorld(this,this.projection,this.era.id):this.eraIndex===1?new PleistoceneWorld(this,this.projection):new WorldGenerator(this,this.projection);
     this.world.create(SETTINGS.mapColumns, SETTINGS.mapRows);
     this.createAtmosphere();
     this.navigation = new NavigationGrid({
@@ -221,7 +222,7 @@ export class GameScene extends Phaser.Scene {
     for(let i=0;i<24;i++){
       const tileX=2+(i*17%29),tileY=2+(i*11%23);
       const p=this.projection.toScreen(tileX,tileY);
-      const mote=this.add.circle(p.x+(i*13)%38,p.y-24,1.4+i%2,this.eraIndex===1?0xeaf8fc:this.eraIndex===8?0x8fcfe6:0xd4dca0,.17+i%3*.06).setDepth(p.y+40);
+      const mote=this.add.circle(p.x+(i*13)%38,p.y-24,1.4+i%2,this.eraIndex===1?0xeaf8fc:this.eraIndex===8?0x8fcfe6:this.eraIndex===9?0xe4a8ac:0xd4dca0,.17+i%3*.06).setDepth(p.y+40);
       this.tweens.add({targets:mote,y:p.y-44-(i%4)*6,alpha:.08,yoyo:true,repeat:-1,duration:1400+(i*97)%1700});
       this.ambientMotes.push(mote);
     }
@@ -631,7 +632,7 @@ export class GameScene extends Phaser.Scene {
     this.bossHud.setVisible(false);
     this.scene.pause();
     const progress=snapshotRun(this);
-    this.scene.launch('EraCompleteScene',{
+    this.scene.launch(isFinalEra(this.eraIndex)?'FinalVictoryScene':'EraCompleteScene',{
       eraIndex:this.eraIndex,kills:this.kills,totalKills:this.totalKills,level:this.level,
       seconds:Math.floor(this.elapsedMs/1000),
       progress:this.eraIndex>=1?prepareNextEraProgress(progress,this.survival.maxHealth,this.eraIndex+2):progress
