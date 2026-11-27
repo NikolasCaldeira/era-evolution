@@ -1,14 +1,16 @@
-/** Desenho procedural de personagens e criaturas para as Eras VI–VIII. */
+/** Desenho procedural de personagens e criaturas para as Eras VI–IX. */
 export const MODERN_SPECIES=Object.freeze({
   industrial:['rato-de-ferro','automato-fabril','besouro-a-vapor'],
   contemporanea:['cao-mecanico','sentinela-urbano','drone-de-vigilancia'],
-  digital:['bug-de-codigo','firewall-vivo','espectro-digital']
+  digital:['bug-de-codigo','firewall-vivo','espectro-digital'],
+  espacial:['rover-corrompido','sentinela-astral','raia-nebulosa']
 });
 const FACES=['right','down-right','down','down-left','left','up-left','up','up-right'];
 const PALETTES={
   industrial:{body:'#9c7751',light:'#e5b98a',shadow:'#493b34',trim:'#d5bc78',eye:'#f6db91'},
   contemporanea:{body:'#506e8b',light:'#a8c6d5',shadow:'#293c50',trim:'#e3cd80',eye:'#98e4ea'},
-  digital:{body:'#2f789b',light:'#65dec9',shadow:'#143456',trim:'#d99bec',eye:'#c9fff6'}
+  digital:{body:'#2f789b',light:'#65dec9',shadow:'#143456',trim:'#d99bec',eye:'#c9fff6'},
+  espacial:{body:'#b3c6d6',light:'#e8f3fa',shadow:'#465e83',trim:'#6fe1e7',eye:'#aaf5f2'}
 };
 function ellipse(c,x,y,rx,ry,color){c.fillStyle=color;c.beginPath();c.ellipse(x,y,rx,ry,0,0,Math.PI*2);c.fill();}
 function poly(c,p,color){c.fillStyle=color;c.beginPath();c.moveTo(...p[0]);for(const v of p.slice(1))c.lineTo(...v);c.closePath();c.fill();}
@@ -26,7 +28,14 @@ function player(c,era,facing,frame){
   line(c,-18,-31,-26,-5+stride*.4,p.light,8);line(c,19,-31,27,-6-stride*.4,p.light,8);
   rect(c,-20,-5,42,5,p.trim);ellipse(c,3,-3,4,4,p.eye);
   ellipse(c,0,-53,16,19,'#d2a483');
-  if(era==='industrial'){
+  if(era==='espacial'){
+    // Macacão pressurizado, mochila de oxigênio e capacete panorâmico.
+    rect(c,-23,-41,45,42,'#7a97b3');rect(c,-15,-36,30,26,'#cad7e4');
+    rect(c,-27,-27,10,22,p.shadow);rect(c,17,-27,10,22,p.shadow);
+    ellipse(c,0,-51,23,24,'#e4edf4');ellipse(c,0,-53,19,18,'#456987');
+    ellipse(c,-6,-59,10,5,'#8ed9e7');rect(c,-16,-34,32,6,'#6ae1e1');
+    rect(c,-14,-7,29,5,'#263a56');ellipse(c,2,-5,4,4,p.trim);
+  }else if(era==='industrial'){
     poly(c,[[-21,-60],[21,-60],[15,-67],[-15,-67]],'#56453a');
     rect(c,-16,-82,32,18,'#674d3d');rect(c,-11,-85,22,4,p.trim);
     line(c,-12,-43,12,-43,p.trim,3);
@@ -41,6 +50,12 @@ function player(c,era,facing,frame){
   }
   if(back)ellipse(c,0,-55,12,11,p.shadow);else{
     ellipse(c,6,-55,2,2,'#2a3037');if(!facing.includes('right')&&!left)ellipse(c,-7,-55,2,2,'#2a3037');
+  }
+  if(era==='espacial'){
+    ellipse(c,0,-54,23,25,'#e1ebf4');ellipse(c,0,-55,19,19,'#3e6b8a');
+    ellipse(c,-7,-63,10,5,'#9de4e9');rect(c,-17,-38,34,5,'#6c8aab');
+    rect(c,-22,-27,8,15,'#7b96ad');rect(c,15,-27,8,15,'#7b96ad');
+    if(back)rect(c,-18,-53,36,24,'#829fb6');
   }
   ellipse(c,30,-11,8,8,p.trim);ellipse(c,30,-11,3,3,'#ecfff2');
 }
@@ -115,10 +130,68 @@ function digitalSpecter(c,f){
   ellipse(c,-8,-29,4,3,'#ebffff');ellipse(c,8,-29,4,3,'#ebffff');
   line(c,-20,-20,-36,-2,'#d19aef',4);line(c,20,-20,36,-2,'#d19aef',4);
 }
+
+// Eras IX: três silhuetas e animações próprias da base lunar.
+function lunarRover(c,f){
+  c.translate(56,79+[0,-2,0,-1][f]);
+  for(const x of [-32,-13,16,34]){
+    line(c,x,-5,x+(f%2?2:-2),18,'#48617b',9);
+    ellipse(c,x,19,10,7,'#243a55');ellipse(c,x,19,4,3,'#9ac8da');
+  }
+  poly(c,[[-39,-39],[-22,-52],[25,-52],[39,-35],[34,1],[-34,1]],'#899aad');
+  poly(c,[[-28,-45],[19,-45],[27,-22],[-28,-22]],'#41627e');
+  ellipse(c,8,-35,12,7,'#73e4dc');ellipse(c,8,-35,5,4,'#e2ffff');
+  line(c,-2,-50,-3,-66,'#bfcdd4',5);ellipse(c,-3,-68,6,6,'#ebc992');
+  for(let i=0;i<3;i++)rect(c,-24+i*19,-9,13,4,'#e4d6a7');
+}
+function cosmicSentinel(c,f){
+  c.translate(56,81+[0,-3,0,-2][f]);
+  for(const x of [-18,18]){line(c,x,-6,x+3*(f%2?1:-1),20,'#4d6188',12);ellipse(c,x,22,11,5,'#263b57');}
+  poly(c,[[-27,-56],[27,-56],[34,-18],[18,2],[-18,2],[-34,-18]],'#637fa8');
+  poly(c,[[-21,-47],[21,-47],[14,-23],[-14,-23]],'#9bd5e2');
+  ellipse(c,0,-33,9,9,'#6de4e8');ellipse(c,0,-33,4,4,'#eaffef');
+  line(c,-26,-47,-37,-10,'#839db5',10);line(c,26,-47,37,-10,'#839db5',10);
+  ellipse(c,0,-70,23,18,'#dae8ec');rect(c,-18,-74,36,10,'#467b9a');
+  for(const x of [-10,10])ellipse(c,x,-69,3.3,3.3,'#cafff8');
+}
+function nebulaManta(c,f){
+  c.translate(56,69+[0,-6,0,-3][f]);
+  const wing=[0,7,0,-5][f];
+  poly(c,[[-13,-25],[-50,-61+wing],[-41,-12],[-9,5]],'#6387b4');
+  poly(c,[[13,-25],[50,-61-wing],[41,-12],[9,5]],'#845cab');
+  poly(c,[[-38,-38],[-9,-10],[-6,-28]],'#8dd1dd');
+  poly(c,[[38,-38],[9,-10],[6,-28]],'#b5a5e2');
+  ellipse(c,0,-20,21,29,'#a5afd4');ellipse(c,0,-27,12,14,'#6edee4');
+  ellipse(c,-8,-30,3,3,'#f3ffff');ellipse(c,8,-30,3,3,'#f3ffff');
+  line(c,-6,0,-17,27,'#86d1d8',4);line(c,6,0,17,27,'#ad96e0',4);
+}
+function orbitalGuardian(c,f,left){
+  c.translate(95,114+[0,-3,0,-2][f]);
+  if(left)c.scale(-1,1);
+  // Corpo em forma de estação de defesa orbital: anel, asas solares, núcleo e sensores.
+  for(const side of [-1,1]){
+    poly(c,[[side*23,-34],[side*78,-52],[side*86,-5],[side*30,14]],side<0?'#456fa0':'#657aa9');
+    poly(c,[[side*34,-29],[side*74,-39],[side*73,-5],[side*36,3]],'#2d426e');
+    for(let k=0;k<3;k++)line(c,side*(43+k*12),-32,side*(47+k*11),-1,'#7ed4e7',2);
+  }
+  ellipse(c,0,-25,39,43,'#496587');ellipse(c,0,-25,29,31,'#afc7d8');
+  ellipse(c,0,-28,21,21,'#426c95');ellipse(c,0,-28,13,13,'#70f1de');
+  ellipse(c,0,-28,6,6,'#f2eac4');
+  for(const side of [-1,1]){
+    line(c,side*17,-62,side*26,-85,'#9fbcd4',5);
+    ellipse(c,side*26,-87,9,7,'#edca9a');
+    line(c,side*16,4,side*22,29,'#9bbad0',9);
+    ellipse(c,side*22,33,15,7,'#3c527e');
+  }
+  ellipse(c,0,-78,36,10,'#6f8faf');ellipse(c,0,-82,18,6,'#bbf1ed');
+  for(let i=0;i<4;i++)rect(c,-15+i*10,8,6,5,'#f1c98e');
+}
+
 const DRAW={
   'rato-de-ferro':ironRat,'automato-fabril':factoryBot,'besouro-a-vapor':steamBeetle,
   'cao-mecanico':mechDog,'sentinela-urbano':urbanSentinel,'drone-de-vigilancia':surveillanceDrone,
-  'bug-de-codigo':codeBug,'firewall-vivo':firewallCreature,'espectro-digital':digitalSpecter
+  'bug-de-codigo':codeBug,'firewall-vivo':firewallCreature,'espectro-digital':digitalSpecter,
+  'rover-corrompido':lunarRover,'sentinela-astral':cosmicSentinel,'raia-nebulosa':nebulaManta
 };
 export function modernPlayerTexture(era,facing,frame){return `modern-${era}-player-${FACES.includes(facing)?facing:'down'}-${frame%4}`;}
 export function modernCreatureTexture(era,species,left,frame){return `modern-${era}-${species}-${left?'left':'right'}-${frame%4}`;}
@@ -133,6 +206,7 @@ export function createModernArt(scene,era){
     });
   for(const left of [false,true])for(let f=0;f<4;f++)
     texture(scene,modernBossTexture(era,left,f),190,204,c=>{
+      if(era==='espacial'){orbitalGuardian(c,f,left);return;}
       c.translate(21,31);c.scale(1.32,1.30);
       if(left){c.translate(112,0);c.scale(-1,1);}
       const representative={industrial:'automato-fabril',contemporanea:'sentinela-urbano',digital:'firewall-vivo'}[era];

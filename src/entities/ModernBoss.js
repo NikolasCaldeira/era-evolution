@@ -1,7 +1,7 @@
 import {MODERN_BOSSES,ModernBossState,modernAttackPlan,modernAttackHits} from '../systems/ModernBossSystem.js';
 import {modernBossTexture} from '../art/ModernArt.js';
 
-/** Chefes VI–VIII: IA de perseguição, três fases, ataques e avisos próprios. */
+/** Chefes VI–IX: IA de perseguição, três fases, ataques e avisos próprios. */
 export class ModernBoss {
   constructor(scene,x,y,era){
     this.scene=scene;this.x=x;this.y=y;this.era=era;this.id=99600;this.isBoss=true;
@@ -103,6 +103,7 @@ export class ModernBoss {
     if(a.type==='steamline')this.scene.applyCombatSlow?.(.77,1100,'VAPOR QUENTE');
     if(a.type==='signalburst')this.scene.applyCombatSlow?.(.66,1000,'INTERFERÊNCIA');
     if(a.type==='glitchring')this.scene.applyCombatSlow?.(.65,1050,'FALHA DIGITAL');
+    if(a.type==='gravitywell')this.scene.applyCombatSlow?.(.57,1400,'CAMPO GRAVITACIONAL');
     this.scene.damagePlayer(this,1);
     if(a.type==='pressureburst'||a.type==='glitchring')this.scene.makeImpact(target.x,target.y-17,this.config.color,22);
   }

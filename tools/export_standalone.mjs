@@ -28,6 +28,7 @@ const modules=[
   'src/world/PleistoceneWorld.js',
   'src/world/CivilizationWorld.js',
   'src/world/ModernWorld.js',
+  'src/world/SpaceWorld.js',
   'src/art/CharacterArt.js',
   'src/art/PleistoceneArt.js',
   'src/art/BossArt.js',
@@ -69,7 +70,7 @@ const html=`<!DOCTYPE html>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width,initial-scale=1" />
   <meta name="theme-color" content="#102820" />
-  <title>ERA: Evolution | Oito Eras — Ciclo 14</title>
+  <title>ERA: Evolution | Nove Eras — Ciclo 15</title>
   <style>${css}</style>
 </head>
 <body>
@@ -91,5 +92,5 @@ const html=`<!DOCTYPE html>
 const destination=resolve(root,'publicar','index.html');
 mkdirSync(resolve(root,'publicar'),{recursive:true});
 writeFileSync(destination,html,'utf8');
-copyFileSync(destination,resolve(root,'JOGAR-ERA-Evolution-Ciclo14.html'));
+copyFileSync(destination,resolve(root,'JOGAR-ERA-Evolution-Ciclo15.html'));
 console.log(`Exportado ${destination} (${html.length} caracteres)`);

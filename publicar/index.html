@@ -4,7 +4,7 @@
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width,initial-scale=1" />
   <meta name="theme-color" content="#102820" />
-  <title>ERA: Evolution | Oito Eras — Ciclo 14</title>
+  <title>ERA: Evolution | Nove Eras — Ciclo 15</title>
   <style>:root { color-scheme: dark; font-family: Inter, ui-sans-serif, system-ui, sans-serif; background:#0b1415; color:#edf2df; }
 * { box-sizing:border-box; }
 html,body { margin:0; width:100%; height:100%; overflow:hidden; background:#0b1415; }
@@ -123,7 +123,8 @@ const ERAS = Object.freeze([
   Object.freeze({id:'renascimento',number:5,name:'RENASCIMENTO',subtitle:'ENGENHOS, ARTE E ALQUIMIA',theme:0x374c45,accent:0xe5b879,goal:100}),
   Object.freeze({id:'industrial',number:6,name:'REVOLUÇÃO INDUSTRIAL',subtitle:'FÁBRICAS, FUMAÇA E ENGENHOS A VAPOR',theme:0x45382f,accent:0xe5b37e,goal:100}),
   Object.freeze({id:'contemporanea',number:7,name:'ERA CONTEMPORÂNEA',subtitle:'CIDADES, MÁQUINAS E NOVOS PERIGOS',theme:0x293c4c,accent:0xb5dfe6,goal:100}),
-  Object.freeze({id:'digital',number:8,name:'ERA DIGITAL',subtitle:'CIRCUITOS, SISTEMAS E DADOS CORROMPIDOS',theme:0x193349,accent:0x80e5d3,goal:100})
+  Object.freeze({id:'digital',number:8,name:'ERA DIGITAL',subtitle:'CIRCUITOS, SISTEMAS E DADOS CORROMPIDOS',theme:0x193349,accent:0x80e5d3,goal:100}),
+  Object.freeze({id:'espacial',number:9,name:'ERA ESPACIAL',subtitle:'BASE LUNAR · SENTINELAS E TEMPESTADES CÓSMICAS',theme:0x19253f,accent:0x9bdef0,goal:100})
 ]);
 function eraAt(index=0){return ERAS[index]||ERAS[0];}
 /** Congela somente os dados de uma partida. A transição não reinicia a jornada. */
@@ -162,9 +163,9 @@ function pleistoceneRewardForKills(kills){
   return {milestone:`era02-${kills}`,id:ids[index%ids.length],tier:index<5?3:4,kind:'evolucao'};
 }
 
-/** Compatibilidade com os capítulos anteriores, agora jogáveis até a Era 08. */
+/** Compatibilidade com capítulos anteriores; agora nove eras jogáveis. */
 const NEXT_ERA_PREVIEW=Object.freeze({number:3,name:'CIVILIZAÇÕES ANTIGAS',status:'jogável'});
-const FUTURE_ERA_PREVIEW=Object.freeze([{number:9,name:'ERA ESPACIAL'},{number:10,name:'ERA DA EXTINÇÃO'}]);
+const FUTURE_ERA_PREVIEW=Object.freeze([{number:10,name:'ERA DA EXTINÇÃO'}]);
 /** Bônus da vitória da Era 02, sem alterar o snapshot original. */
 function prepareNextEraProgress(progress,maxHealth=5,nextEra=3){
   if(!progress)return null;
@@ -359,7 +360,8 @@ const ERA_BALANCE=Object.freeze([
   Object.freeze({maxAlive:21,extraAlive:4,spawnFactor:.85,speedFactor:1.235,aggressionFactor:1.34}),
   Object.freeze({maxAlive:22,extraAlive:5,spawnFactor:.83,speedFactor:1.28,aggressionFactor:1.42}),
   Object.freeze({maxAlive:23,extraAlive:6,spawnFactor:.81,speedFactor:1.33,aggressionFactor:1.50}),
-  Object.freeze({maxAlive:24,extraAlive:7,spawnFactor:.80,speedFactor:1.38,aggressionFactor:1.59})
+  Object.freeze({maxAlive:24,extraAlive:7,spawnFactor:.80,speedFactor:1.38,aggressionFactor:1.59}),
+  Object.freeze({maxAlive:25,extraAlive:8,spawnFactor:.78,speedFactor:1.43,aggressionFactor:1.67})
 ]);
 /** Inimigos comuns continuam com três pontos de vida. Escalada por ritmo, IA e posicionamento. */
 function difficultyForEra(kills,eraIndex=0){
@@ -673,7 +675,7 @@ return {CIVILIZATION_BOSSES,makeBossAttackPlan,withinBossBeam,bossShapeHits,boss
 
 // --- src/systems/ModernBossSystem.js ---
 const {MODERN_BOSSES,modernAttackPlan,modernShapeHits,modernAttackHits,ModernBossState} = (() => {
-/** Chefes das Eras VI–VIII: três conjuntos de ataques e avisos geométricos. */
+/** Chefes das Eras VI–IX: três conjuntos de ataques e avisos geométricos. */
 const MODERN_BOSSES=Object.freeze({
   industrial:Object.freeze({
     name:'TITÃ A VAPOR',health:390,speed:80,color:0xf2bd7a,
@@ -692,6 +694,12 @@ const MODERN_BOSSES=Object.freeze({
     attacks:['datagrid','glitchring','packetstorm','datagrid'],
     attackNames:{datagrid:'GRADE DE DADOS',glitchring:'PULSO CORROMPIDO',packetstorm:'TEMPESTADE DE PACOTES',summon:'CÓPIAS DIGITAIS'},
     hint:'GRADE · PULSO · PACOTES · CÓPIAS'
+  }),
+  espacial:Object.freeze({
+    name:'SENTINELA ORBITAL',health:575,speed:112,color:0xa2dcf9,
+    attacks:['orbitalbeam','gravitywell','meteorstorm','plasmaring'],
+    attackNames:{orbitalbeam:'FEIXES ORBITAIS',gravitywell:'POÇO GRAVITACIONAL',meteorstorm:'TEMPESTADE DE METEOROS',plasmaring:'ANEL DE PLASMA',summon:'REFORÇOS CÓSMICOS'},
+    hint:'FEIXES · GRAVIDADE · METEOROS · PLASMA · APOIO'
   })
 });
 const point=(x,y)=>({x,y});
@@ -718,6 +726,10 @@ function modernAttackPlan(era,type,from,target){
     case 'datagrid':return [-85,0,85].map(offset=>line(offset,485,17));
     case 'glitchring':return [{kind:'ring',x:from.x,y:from.y,inner:83,outer:197}];
     case 'packetstorm':return [-1,0,1].map(i=>circle(target.x+side.x*i*100+dir.x*55*(i%2),target.y+side.y*i*100+dir.y*55*(i%2),39));
+    case 'orbitalbeam':return [-78,0,78].map(offset=>line(offset,510,22));
+    case 'gravitywell':return [circle(target.x,target.y,67)];
+    case 'meteorstorm':return [-1,0,1].map(i=>circle(target.x+side.x*i*96+dir.x*(i===0?40:0),target.y+side.y*i*96+dir.y*(i===0?40:0),42));
+    case 'plasmaring':return [{kind:'ring',x:from.x,y:from.y,inner:92,outer:208}];
     default:throw new Error(`Ataque moderno inexistente: ${type}`);
   }
 }
@@ -1473,6 +1485,96 @@ class ModernWorld {
 return {MODERN_WORLDS,ModernWorld};
 })();
 
+// --- src/world/SpaceWorld.js ---
+const {SPACE_OBSTACLES,SpaceWorld} = (() => {
+/** Era IX: posto científico numa lua fictícia, com obstáculos isométricos próprios.
+ * Somente a base física das instalações bloqueia passagem; detalhes da arte não colidem.
+ */
+const SPACE_OBSTACLES=Object.freeze({
+  dome:[44,32],antenna:[27,23],lunarRock:[37,25],solarPanel:[46,23],
+  roverStation:[39,27],beacon:[25,22]
+});
+
+class SpaceWorld {
+  constructor(scene,projection){this.scene=scene;this.projection=projection;this.obstacles=[];}
+  create(columns,rows){
+    const g=this.scene.add.graphics().setDepth(-1000);
+    const shades=[0x454c62,0x505b6b,0x404b5d,0x606a78,0x4c5669,0x424860];
+    for(let y=0;y<rows;y++)for(let x=0;x<columns;x++){
+      const p=this.projection.toScreen(x,y),seed=(x*131+y*83+x*y*11)%113;
+      g.fillStyle(shades[(seed+x+2*y)%shades.length]);g.lineStyle(.65,0x839cbd,.22);
+      g.beginPath();g.moveTo(p.x,p.y-24);g.lineTo(p.x+48,p.y);g.lineTo(p.x,p.y+24);g.lineTo(p.x-48,p.y);g.closePath();g.fillPath();g.strokePath();
+      if(seed%14===0){
+        g.lineStyle(1.2,0xaab0c3,.3);g.strokeEllipse(p.x-4,p.y,25+seed%13,8);
+        g.fillStyle(0x27314a,.35);g.fillEllipse(p.x-4,p.y+1,19,6);
+      }
+      if(seed%19===0){
+        g.fillStyle(0x9db7c7,.38);
+        for(let i=0;i<4;i++)g.fillCircle(p.x-15+(i*13)%29,p.y-4+(i*7)%13,1.3+(i%2));
+      }
+      // Cabos e marcas de plataformas científicas, integrados aos tiles.
+      if(seed%23===0){
+        g.lineStyle(1.5,0x73cbd9,.42);g.lineBetween(p.x-23,p.y+7,p.x+12,p.y-10);
+        g.fillStyle(0xb4eff3,.5);g.fillRect(p.x+9,p.y-12,5,4);
+      }
+    }
+    const edge=['lunarRock','antenna','solarPanel','lunarRock','beacon','dome'];
+    for(let y=0;y<rows;y++)for(let x=0;x<columns;x++){
+      if(x!==0&&y!==0&&x!==columns-1&&y!==rows-1)continue;
+      const p=this.projection.toScreen(x,y);
+      this.addObstacle(p.x,p.y,edge[(x*5+y*3)%edge.length],true);
+    }
+    const center=[
+      ['dome',8,7],['lunarRock',25,6],['antenna',22,19],['solarPanel',7,19],
+      ['roverStation',27,15],['beacon',14,6],['dome',21,10],['lunarRock',13,22],['solarPanel',26,9]
+    ];
+    for(const [type,x,y] of center){const p=this.projection.toScreen(x,y);this.addObstacle(p.x,p.y,type,false);}
+  }
+  addObstacle(x,y,type,perimeter=false){
+    const g=this.scene.add.graphics().setDepth(y+220);
+    const [rx,ry]=SPACE_OBSTACLES[type];
+    g.fillStyle(0x11182c,.44);g.fillEllipse(x+4,y+15,rx*2.6,18);
+    if(type==='lunarRock'){
+      g.fillStyle(0x667188);g.fillPoints([{x:x-rx,y:y+5},{x:x-rx*.78,y:y-ry},{x:x+rx*.17,y:y-ry*1.7},{x:x+rx,y:y+2},{x:x+rx*.32,y:y+ry*.65}],true);
+      g.fillStyle(0xa5b0c3);g.fillTriangle(x-rx*.73,y-ry*.9,x+rx*.16,y-ry*1.7,x+rx*.21,y-ry*.2);
+      g.fillStyle(0x424e6b);g.fillTriangle(x+rx*.22,y-ry*.2,x+rx,y+2,x+rx*.32,y+ry*.65);
+      g.fillStyle(0xc3d3e6,.35);g.fillCircle(x-7,y-8,4);
+    }else if(type==='dome'){
+      g.fillStyle(0x303d58);g.fillRoundedRect(x-42,y-20,84,32,4);
+      g.fillStyle(0x9bb8ca);g.fillEllipse(x,y-26,82,68);g.fillStyle(0x4d738a);g.fillEllipse(x-1,y-32,67,49);
+      g.fillStyle(0xa3eff0,.7);g.fillEllipse(x-12,y-45,30,13);
+      g.lineStyle(4,0xe0ded9,.78);g.lineBetween(x-37,y-22,x+37,y-22);
+      g.fillStyle(0xdac789);g.fillRoundedRect(x-12,y-11,24,19,3);
+    }else if(type==='antenna'){
+      g.fillStyle(0x394b62);g.fillRoundedRect(x-12,y-63,24,76,3);
+      g.fillStyle(0xa3bcd4);g.fillRoundedRect(x-7,y-67,12,71,3);
+      g.lineStyle(3,0x87dbe4);g.lineBetween(x,y-68,x+12,y-102);
+      g.fillStyle(0x72b3d3);g.fillEllipse(x+15,y-100,49,15);g.fillStyle(0xbce4ec);g.fillEllipse(x+13,y-105,33,8);
+      g.fillStyle(0xebc6a1);g.fillCircle(x+12,y-111,5);
+    }else if(type==='solarPanel'){
+      g.fillStyle(0x8c9eb1);g.fillRect(x-5,y-31,10,44);
+      g.fillStyle(0x263e6b);g.fillPoints([{x:x-48,y:y-47},{x:x+39,y:y-50},{x:x+48,y:y-20},{x:x-38,y:y-16}],true);
+      g.lineStyle(2,0x72d1e8,.75);
+      for(let i=-3;i<=3;i++)g.lineBetween(x+i*11,y-45,x+i*11+8,y-19);
+      g.lineBetween(x-43,y-32,x+43,y-35);
+    }else if(type==='roverStation'){
+      g.fillStyle(0x303a52);g.fillRoundedRect(x-39,y-45,78,56,6);
+      g.fillStyle(0x8496aa);g.fillRoundedRect(x-33,y-52,66,45,5);
+      g.fillStyle(0x456688);g.fillRoundedRect(x-25,y-43,50,23,3);
+      g.fillStyle(0x85f1e9);for(let i=0;i<4;i++)g.fillRect(x-18+i*13,y-36,8,6);
+      g.fillStyle(0x21283e);for(const wheelX of [-29,29])g.fillCircle(x+wheelX,y+7,10);
+    }else{ // beacon: baliza de navegação
+      g.fillStyle(0x34445f);g.fillRoundedRect(x-10,y-62,20,72,4);
+      g.fillStyle(0x9fb5c9);g.fillRoundedRect(x-6,y-59,12,61,3);
+      g.fillStyle(0x7cece9,.75);g.fillCircle(x,y-67,15);g.lineStyle(3,0xa1f8ef,.8);g.strokeCircle(x,y-67,22);
+    }
+    this.obstacles.push({x,y,rx,ry,type,perimeter});
+  }
+}
+
+return {SPACE_OBSTACLES,SpaceWorld};
+})();
+
 // --- src/art/CharacterArt.js ---
 const {createCharacterArt,playerTexture,creatureTexture,creaturesList} = (() => {
 /** Arte original em Canvas. Sem dependências de imagens externas ou sprites de terceiros.
@@ -1989,17 +2091,19 @@ return {CIVILIZATION_SPECIES,civilizationPlayerTexture,civilizationCreatureTextu
 
 // --- src/art/ModernArt.js ---
 const {MODERN_SPECIES,modernPlayerTexture,modernCreatureTexture,modernBossTexture,createModernArt} = (() => {
-/** Desenho procedural de personagens e criaturas para as Eras VI–VIII. */
+/** Desenho procedural de personagens e criaturas para as Eras VI–IX. */
 const MODERN_SPECIES=Object.freeze({
   industrial:['rato-de-ferro','automato-fabril','besouro-a-vapor'],
   contemporanea:['cao-mecanico','sentinela-urbano','drone-de-vigilancia'],
-  digital:['bug-de-codigo','firewall-vivo','espectro-digital']
+  digital:['bug-de-codigo','firewall-vivo','espectro-digital'],
+  espacial:['rover-corrompido','sentinela-astral','raia-nebulosa']
 });
 const FACES=['right','down-right','down','down-left','left','up-left','up','up-right'];
 const PALETTES={
   industrial:{body:'#9c7751',light:'#e5b98a',shadow:'#493b34',trim:'#d5bc78',eye:'#f6db91'},
   contemporanea:{body:'#506e8b',light:'#a8c6d5',shadow:'#293c50',trim:'#e3cd80',eye:'#98e4ea'},
-  digital:{body:'#2f789b',light:'#65dec9',shadow:'#143456',trim:'#d99bec',eye:'#c9fff6'}
+  digital:{body:'#2f789b',light:'#65dec9',shadow:'#143456',trim:'#d99bec',eye:'#c9fff6'},
+  espacial:{body:'#b3c6d6',light:'#e8f3fa',shadow:'#465e83',trim:'#6fe1e7',eye:'#aaf5f2'}
 };
 function ellipse(c,x,y,rx,ry,color){c.fillStyle=color;c.beginPath();c.ellipse(x,y,rx,ry,0,0,Math.PI*2);c.fill();}
 function poly(c,p,color){c.fillStyle=color;c.beginPath();c.moveTo(...p[0]);for(const v of p.slice(1))c.lineTo(...v);c.closePath();c.fill();}
@@ -2017,7 +2121,14 @@ function player(c,era,facing,frame){
   line(c,-18,-31,-26,-5+stride*.4,p.light,8);line(c,19,-31,27,-6-stride*.4,p.light,8);
   rect(c,-20,-5,42,5,p.trim);ellipse(c,3,-3,4,4,p.eye);
   ellipse(c,0,-53,16,19,'#d2a483');
-  if(era==='industrial'){
+  if(era==='espacial'){
+    // Macacão pressurizado, mochila de oxigênio e capacete panorâmico.
+    rect(c,-23,-41,45,42,'#7a97b3');rect(c,-15,-36,30,26,'#cad7e4');
+    rect(c,-27,-27,10,22,p.shadow);rect(c,17,-27,10,22,p.shadow);
+    ellipse(c,0,-51,23,24,'#e4edf4');ellipse(c,0,-53,19,18,'#456987');
+    ellipse(c,-6,-59,10,5,'#8ed9e7');rect(c,-16,-34,32,6,'#6ae1e1');
+    rect(c,-14,-7,29,5,'#263a56');ellipse(c,2,-5,4,4,p.trim);
+  }else if(era==='industrial'){
     poly(c,[[-21,-60],[21,-60],[15,-67],[-15,-67]],'#56453a');
     rect(c,-16,-82,32,18,'#674d3d');rect(c,-11,-85,22,4,p.trim);
     line(c,-12,-43,12,-43,p.trim,3);
@@ -2032,6 +2143,12 @@ function player(c,era,facing,frame){
   }
   if(back)ellipse(c,0,-55,12,11,p.shadow);else{
     ellipse(c,6,-55,2,2,'#2a3037');if(!facing.includes('right')&&!left)ellipse(c,-7,-55,2,2,'#2a3037');
+  }
+  if(era==='espacial'){
+    ellipse(c,0,-54,23,25,'#e1ebf4');ellipse(c,0,-55,19,19,'#3e6b8a');
+    ellipse(c,-7,-63,10,5,'#9de4e9');rect(c,-17,-38,34,5,'#6c8aab');
+    rect(c,-22,-27,8,15,'#7b96ad');rect(c,15,-27,8,15,'#7b96ad');
+    if(back)rect(c,-18,-53,36,24,'#829fb6');
   }
   ellipse(c,30,-11,8,8,p.trim);ellipse(c,30,-11,3,3,'#ecfff2');
 }
@@ -2106,10 +2223,68 @@ function digitalSpecter(c,f){
   ellipse(c,-8,-29,4,3,'#ebffff');ellipse(c,8,-29,4,3,'#ebffff');
   line(c,-20,-20,-36,-2,'#d19aef',4);line(c,20,-20,36,-2,'#d19aef',4);
 }
+
+// Eras IX: três silhuetas e animações próprias da base lunar.
+function lunarRover(c,f){
+  c.translate(56,79+[0,-2,0,-1][f]);
+  for(const x of [-32,-13,16,34]){
+    line(c,x,-5,x+(f%2?2:-2),18,'#48617b',9);
+    ellipse(c,x,19,10,7,'#243a55');ellipse(c,x,19,4,3,'#9ac8da');
+  }
+  poly(c,[[-39,-39],[-22,-52],[25,-52],[39,-35],[34,1],[-34,1]],'#899aad');
+  poly(c,[[-28,-45],[19,-45],[27,-22],[-28,-22]],'#41627e');
+  ellipse(c,8,-35,12,7,'#73e4dc');ellipse(c,8,-35,5,4,'#e2ffff');
+  line(c,-2,-50,-3,-66,'#bfcdd4',5);ellipse(c,-3,-68,6,6,'#ebc992');
+  for(let i=0;i<3;i++)rect(c,-24+i*19,-9,13,4,'#e4d6a7');
+}
+function cosmicSentinel(c,f){
+  c.translate(56,81+[0,-3,0,-2][f]);
+  for(const x of [-18,18]){line(c,x,-6,x+3*(f%2?1:-1),20,'#4d6188',12);ellipse(c,x,22,11,5,'#263b57');}
+  poly(c,[[-27,-56],[27,-56],[34,-18],[18,2],[-18,2],[-34,-18]],'#637fa8');
+  poly(c,[[-21,-47],[21,-47],[14,-23],[-14,-23]],'#9bd5e2');
+  ellipse(c,0,-33,9,9,'#6de4e8');ellipse(c,0,-33,4,4,'#eaffef');
+  line(c,-26,-47,-37,-10,'#839db5',10);line(c,26,-47,37,-10,'#839db5',10);
+  ellipse(c,0,-70,23,18,'#dae8ec');rect(c,-18,-74,36,10,'#467b9a');
+  for(const x of [-10,10])ellipse(c,x,-69,3.3,3.3,'#cafff8');
+}
+function nebulaManta(c,f){
+  c.translate(56,69+[0,-6,0,-3][f]);
+  const wing=[0,7,0,-5][f];
+  poly(c,[[-13,-25],[-50,-61+wing],[-41,-12],[-9,5]],'#6387b4');
+  poly(c,[[13,-25],[50,-61-wing],[41,-12],[9,5]],'#845cab');
+  poly(c,[[-38,-38],[-9,-10],[-6,-28]],'#8dd1dd');
+  poly(c,[[38,-38],[9,-10],[6,-28]],'#b5a5e2');
+  ellipse(c,0,-20,21,29,'#a5afd4');ellipse(c,0,-27,12,14,'#6edee4');
+  ellipse(c,-8,-30,3,3,'#f3ffff');ellipse(c,8,-30,3,3,'#f3ffff');
+  line(c,-6,0,-17,27,'#86d1d8',4);line(c,6,0,17,27,'#ad96e0',4);
+}
+function orbitalGuardian(c,f,left){
+  c.translate(95,114+[0,-3,0,-2][f]);
+  if(left)c.scale(-1,1);
+  // Corpo em forma de estação de defesa orbital: anel, asas solares, núcleo e sensores.
+  for(const side of [-1,1]){
+    poly(c,[[side*23,-34],[side*78,-52],[side*86,-5],[side*30,14]],side<0?'#456fa0':'#657aa9');
+    poly(c,[[side*34,-29],[side*74,-39],[side*73,-5],[side*36,3]],'#2d426e');
+    for(let k=0;k<3;k++)line(c,side*(43+k*12),-32,side*(47+k*11),-1,'#7ed4e7',2);
+  }
+  ellipse(c,0,-25,39,43,'#496587');ellipse(c,0,-25,29,31,'#afc7d8');
+  ellipse(c,0,-28,21,21,'#426c95');ellipse(c,0,-28,13,13,'#70f1de');
+  ellipse(c,0,-28,6,6,'#f2eac4');
+  for(const side of [-1,1]){
+    line(c,side*17,-62,side*26,-85,'#9fbcd4',5);
+    ellipse(c,side*26,-87,9,7,'#edca9a');
+    line(c,side*16,4,side*22,29,'#9bbad0',9);
+    ellipse(c,side*22,33,15,7,'#3c527e');
+  }
+  ellipse(c,0,-78,36,10,'#6f8faf');ellipse(c,0,-82,18,6,'#bbf1ed');
+  for(let i=0;i<4;i++)rect(c,-15+i*10,8,6,5,'#f1c98e');
+}
+
 const DRAW={
   'rato-de-ferro':ironRat,'automato-fabril':factoryBot,'besouro-a-vapor':steamBeetle,
   'cao-mecanico':mechDog,'sentinela-urbano':urbanSentinel,'drone-de-vigilancia':surveillanceDrone,
-  'bug-de-codigo':codeBug,'firewall-vivo':firewallCreature,'espectro-digital':digitalSpecter
+  'bug-de-codigo':codeBug,'firewall-vivo':firewallCreature,'espectro-digital':digitalSpecter,
+  'rover-corrompido':lunarRover,'sentinela-astral':cosmicSentinel,'raia-nebulosa':nebulaManta
 };
 function modernPlayerTexture(era,facing,frame){return `modern-${era}-player-${FACES.includes(facing)?facing:'down'}-${frame%4}`;}
 function modernCreatureTexture(era,species,left,frame){return `modern-${era}-${species}-${left?'left':'right'}-${frame%4}`;}
@@ -2124,6 +2299,7 @@ function createModernArt(scene,era){
     });
   for(const left of [false,true])for(let f=0;f<4;f++)
     texture(scene,modernBossTexture(era,left,f),190,204,c=>{
+      if(era==='espacial'){orbitalGuardian(c,f,left);return;}
       c.translate(21,31);c.scale(1.32,1.30);
       if(left){c.translate(112,0);c.scale(-1,1);}
       const representative={industrial:'automato-fabril',contemporanea:'sentinela-urbano',digital:'firewall-vivo'}[era];
@@ -2196,8 +2372,8 @@ class Creature {
     this.scene=scene;this.id=id;this.era=config.era||'cretaceo';
     this.species=MODERN_SPECIES[this.era]?MODERN_SPECIES[this.era][id%3]:CIVILIZATION_SPECIES[this.era]?CIVILIZATION_SPECIES[this.era][id%3]:this.era==='pleistoceno'?PLEISTOCENE_SPECIES[id%PLEISTOCENE_SPECIES.length]:creaturesList[id%creaturesList.length];
     this.x=x;this.y=y;this.radius=15;this.hp=3;
-    this.behavior=MODERN_SPECIES[this.era]?['investida','resistente','flanqueador'][(id+(['industrial','contemporanea','digital'].indexOf(this.era)))%3]:CIVILIZATION_SPECIES[this.era]?['investida','resistente','flanqueador'][(id+(['antiga','medieval','renascimento'].indexOf(this.era)))%3]:this.era==='pleistoceno'?['investida','resistente','resistente'][id%3]:behaviorForCreature(id);
-    this.baseSpeed=MODERN_SPECIES[this.era]?({industrial:[82,60,86],contemporanea:[88,75,94],digital:[96,72,103]})[this.era][id%3]:CIVILIZATION_SPECIES[this.era]?({antiga:[78,56,82],medieval:[85,74,61],renascimento:[74,88,71]})[this.era][id%3]:this.era==='pleistoceno'?[80,55,45][id%3]:55+(id%3)*10;
+    this.behavior=MODERN_SPECIES[this.era]?['investida','resistente','flanqueador'][(id+(['industrial','contemporanea','digital','espacial'].indexOf(this.era)))%3]:CIVILIZATION_SPECIES[this.era]?['investida','resistente','flanqueador'][(id+(['antiga','medieval','renascimento'].indexOf(this.era)))%3]:this.era==='pleistoceno'?['investida','resistente','resistente'][id%3]:behaviorForCreature(id);
+    this.baseSpeed=MODERN_SPECIES[this.era]?({industrial:[82,60,86],contemporanea:[88,75,94],digital:[96,72,103],espacial:[92,85,108]})[this.era][id%3]:CIVILIZATION_SPECIES[this.era]?({antiga:[78,56,82],medieval:[85,74,61],renascimento:[74,88,71]})[this.era][id%3]:this.era==='pleistoceno'?[80,55,45][id%3]:55+(id%3)*10;
     this.speed=this.baseSpeed*(config.speedMultiplier||1);
     this.aggression=config.aggression||1;
     this.alive=true;
@@ -2800,7 +2976,7 @@ return {CivilizationBoss};
 const {ModernBoss} = (() => {
 
 
-/** Chefes VI–VIII: IA de perseguição, três fases, ataques e avisos próprios. */
+/** Chefes VI–IX: IA de perseguição, três fases, ataques e avisos próprios. */
 class ModernBoss {
   constructor(scene,x,y,era){
     this.scene=scene;this.x=x;this.y=y;this.era=era;this.id=99600;this.isBoss=true;
@@ -2902,6 +3078,7 @@ class ModernBoss {
     if(a.type==='steamline')this.scene.applyCombatSlow?.(.77,1100,'VAPOR QUENTE');
     if(a.type==='signalburst')this.scene.applyCombatSlow?.(.66,1000,'INTERFERÊNCIA');
     if(a.type==='glitchring')this.scene.applyCombatSlow?.(.65,1050,'FALHA DIGITAL');
+    if(a.type==='gravitywell')this.scene.applyCombatSlow?.(.57,1400,'CAMPO GRAVITACIONAL');
     this.scene.damagePlayer(this,1);
     if(a.type==='pressureburst'||a.type==='glitchring')this.scene.makeImpact(target.x,target.y-17,this.config.color,22);
   }
@@ -2973,8 +3150,8 @@ class MenuScene extends Phaser.Scene {
     const titleSize=Math.min(98,Math.max(49,w*.095));
     this.add.text(w/2,h*.27,'ERA',{fontFamily:'Georgia,serif',fontSize:`${titleSize}px`,fontStyle:'bold',color:'#f3e3b5',stroke:'#0b241c',strokeThickness:5}).setOrigin(.5);
     this.add.text(w/2,h*.39,'E V O L U T I O N',{fontFamily:'Arial',fontSize:`${Math.min(23,Math.max(13,w*.023))}px`,fontStyle:'bold',color:'#c8dabc'}).setOrigin(.5);
-    this.add.text(w/2,h*.49,'CAPÍTULOS I–VIII · DO CRETÁCEO AO DIGITAL',{fontFamily:'Arial',fontSize:'15px',fontStyle:'bold',color:'#e9c17f',letterSpacing:3}).setOrigin(.5);
-    this.add.text(w/2,h*.57,'Atravesse oito eras, evolua as armas e vença os guardiões de cada período.',{fontFamily:'Arial',fontSize:'13px',color:'#b6c9b2',align:'center',wordWrap:{width:Math.min(520,w*.75)}}).setOrigin(.5);
+    this.add.text(w/2,h*.49,'CAPÍTULOS I–IX · DO CRETÁCEO À ERA ESPACIAL',{fontFamily:'Arial',fontSize:'15px',fontStyle:'bold',color:'#e9c17f',letterSpacing:3}).setOrigin(.5);
+    this.add.text(w/2,h*.57,'Atravesse nove eras, evolua as armas e vença os guardiões de cada período.',{fontFamily:'Arial',fontSize:'13px',color:'#b6c9b2',align:'center',wordWrap:{width:Math.min(520,w*.75)}}).setOrigin(.5);
     const start=this.add.text(w/2,h*.72,'COMEÇAR EXPEDIÇÃO',{fontFamily:'Arial',fontSize:'18px',fontStyle:'bold',color:'#193329',backgroundColor:'#e6ce93',padding:{x:27,y:16}}).setOrigin(.5).setInteractive({useHandCursor:true});
     start.on('pointerover',()=>start.setStyle({backgroundColor:'#ffe1a4'}));
     start.on('pointerout',()=>start.setStyle({backgroundColor:'#e6ce93'}));
@@ -3102,14 +3279,15 @@ const {GameScene} = (() => {
 
 
 
+
 class GameScene extends Phaser.Scene {
   constructor() { super('GameScene'); }
 
   init(data={}){
     const params=typeof window!=='undefined'?new URLSearchParams(window.location.search):new URLSearchParams();
     const testing=Number(params.get('testeChefe')||params.get('testeEra'));
-    const debugIndex=Number.isInteger(testing)&&testing>=1&&testing<=8?testing-1:0;
-    this.eraIndex=Number.isInteger(data.eraIndex)?Math.max(0,Math.min(7,data.eraIndex)):debugIndex;
+    const debugIndex=Number.isInteger(testing)&&testing>=1&&testing<=9?testing-1:0;
+    this.eraIndex=Number.isInteger(data.eraIndex)?Math.max(0,Math.min(8,data.eraIndex)):debugIndex;
     this.era=eraAt(this.eraIndex);
     this.carryProgress=data.progress||null;
   }
@@ -3127,7 +3305,7 @@ class GameScene extends Phaser.Scene {
       SETTINGS.tileWidth, SETTINGS.tileHeight,
       SETTINGS.mapRows * SETTINGS.tileWidth / 2, SETTINGS.tileHeight / 2
     );
-    this.world=this.eraIndex>=5?new ModernWorld(this,this.projection,this.era.id):this.eraIndex>=2?new CivilizationWorld(this,this.projection,this.era.id):this.eraIndex===1?new PleistoceneWorld(this,this.projection):new WorldGenerator(this,this.projection);
+    this.world=this.eraIndex===8?new SpaceWorld(this,this.projection):this.eraIndex>=5?new ModernWorld(this,this.projection,this.era.id):this.eraIndex>=2?new CivilizationWorld(this,this.projection,this.era.id):this.eraIndex===1?new PleistoceneWorld(this,this.projection):new WorldGenerator(this,this.projection);
     this.world.create(SETTINGS.mapColumns, SETTINGS.mapRows);
     this.createAtmosphere();
     this.navigation = new NavigationGrid({
@@ -3288,7 +3466,7 @@ class GameScene extends Phaser.Scene {
     for(let i=0;i<24;i++){
       const tileX=2+(i*17%29),tileY=2+(i*11%23);
       const p=this.projection.toScreen(tileX,tileY);
-      const mote=this.add.circle(p.x+(i*13)%38,p.y-24,1.4+i%2,this.eraIndex===1?0xeaf8fc:0xd4dca0,.17+i%3*.06).setDepth(p.y+40);
+      const mote=this.add.circle(p.x+(i*13)%38,p.y-24,1.4+i%2,this.eraIndex===1?0xeaf8fc:this.eraIndex===8?0x8fcfe6:0xd4dca0,.17+i%3*.06).setDepth(p.y+40);
       this.tweens.add({targets:mote,y:p.y-44-(i%4)*6,alpha:.08,yoyo:true,repeat:-1,duration:1400+(i*97)%1700});
       this.ambientMotes.push(mote);
     }
@@ -3887,12 +4065,12 @@ class EraCompleteScene extends Phaser.Scene {
     const title=this.add.text(w/2,h*.225,`ERA ${String(this.era.number).padStart(2,'0')} CONCLUÍDA`,{
       fontFamily:'Arial',fontSize:`${Math.min(16,Math.max(12,w*.021))}px`,fontStyle:'bold',color:'#f0d69d',letterSpacing:3
     }).setOrigin(.5);
-    const headline=this.add.text(w/2,h*.35,this.nextEra?'A HISTÓRIA AVANÇA':'OITO ERAS SUPERADAS!',{
+    const headline=this.add.text(w/2,h*.35,this.nextEra?'A HISTÓRIA AVANÇA':'NOVE ERAS SUPERADAS!',{
       fontFamily:'Georgia,serif',fontSize:`${fs}px`,fontStyle:'bold',color:'#f7e0b5'
     }).setOrigin(.5);
     const desc=this.nextEra?
       `O guardião da ${this.era.name} foi derrotado.\nPróximo capítulo: ${this.nextEra.name}.\nArmas, melhorias e experiência acompanham a jornada.`:
-      `Concluíste os oito primeiros capítulos da expedição!\nPróximas eras planejadas: Espacial e Extinção.`;
+      `Concluíste os nove primeiros capítulos da expedição!\nPróximo desafio em desenvolvimento: Era da Extinção.`;
     this.add.text(w/2,h*.48,desc,{fontFamily:'Arial',fontSize:`${Math.min(16,Math.max(12,w*.02))}px`,color:'#d4e2dd',align:'center',lineSpacing:6,wordWrap:{width:Math.min(w*.83,660)}}).setOrigin(.5);
     const time=`${Math.floor(this.seconds/60)}:${String(this.seconds%60).padStart(2,'0')}`;
     this.add.text(w/2,h*.62,`${this.kills} ELIMINAÇÕES  •  NÍVEL ${this.level}  •  ${time}`,{

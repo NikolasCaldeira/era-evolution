@@ -1,6 +1,6 @@
-# ERA: Evolution — Ciclo 14 · Revolução Industrial → Digital
+# ERA: Evolution — Ciclo 15 · Era Espacial
 
-Jogo roguelike de sobrevivência 2.5D em **Phaser 3.90**, com oito eras jogáveis, progressão contínua e reinício integral após a derrota.
+Jogo roguelike de sobrevivência 2.5D em **Phaser 3.90**, com nove eras jogáveis, progressão contínua e reinício integral após a derrota.
 
 ## Capítulos
 
@@ -13,7 +13,9 @@ Jogo roguelike de sobrevivência 2.5D em **Phaser 3.90**, com oito eras jogávei
 7. **Contemporânea** — cidade, barreiras urbanas e veículos, cão mecânico, sentinela urbano e drone de vigilância; chefe **Colosso Blindado** (investida blindada, varredura de sinal e zonas de alerta)
 8. **Digital** — circuitos, servidores e barreiras eletrônicas, bug de código, firewall vivo e espectro digital; chefe **Núcleo Corrompido** (grade de dados, pulso corrompido e tempestade de pacotes)
 
-As Eras **09 — Espacial** e **10 — Extinção** estão planejadas, mas ainda não são jogáveis.
+**Era 09 — Espacial** é jogável. A **Era 10 — Extinção** permanece em desenvolvimento.
+
+9. **Espacial** — posto lunar, domos científicos, antenas, painéis solares e rochas espaciais; rover corrompido, sentinela astral e raia nebulosa; chefe **Sentinela Orbital** (feixes orbitais, poço gravitacional, meteoros e anel de plasma)
 
 ## Mecânicas principais
 
@@ -22,7 +24,7 @@ As Eras **09 — Espacial** e **10 — Extinção** estão planejadas, mas ainda
 - A cada 10 eliminações, aparece uma relíquia de evolução de arma. Cada 10 fragmentos oferece três melhorias diferentes.
 - Projéteis automáticos em 360°; cinco armas com comportamentos próprios e alternância por Q/E ou teclas 1–5.
 - Inimigos têm três pontos de vida. O desafio cresce pelo número, velocidade e agressividade das criaturas, com limites para controlar a população do mapa.
-- Chefes das Eras VI–VIII possuem **três fases**, ataques sinalizados e espaços de esquiva. A fase final pode convocar apoio.
+- Chefes das Eras VI–IX possuem **três fases**, ataques sinalizados e espaços de esquiva. A fase final pode convocar apoio.
 - Dificuldade e fluidez das Eras 01 e 04 continuarão sendo aperfeiçoadas em ciclos futuros, depois da expansão de conteúdo.
 
 ## Comandos
@@ -42,6 +44,7 @@ As Eras **09 — Espacial** e **10 — Extinção** estão planejadas, mas ainda
 - `?testeEra=6` / `?testeChefe=6`: Revolução Industrial
 - `?testeEra=7` / `?testeChefe=7`: Contemporânea
 - `?testeEra=8` / `?testeChefe=8`: Digital
+- `?testeEra=9` / `?testeChefe=9`: Espacial
 
 Os parâmetros de teste criam **partidas novas de depuração**, sem progressão permanente.
 

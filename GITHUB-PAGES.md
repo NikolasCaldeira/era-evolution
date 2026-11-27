@@ -1,9 +1,11 @@
-# Publicação GitHub Pages — Ciclo 14
+# GitHub Pages — Ciclo 15
 
-O workflow `.github/workflows/deploy.yml` executa `npm install`, `npm test`, `npm run build` e publica o diretório `dist/` no GitHub Pages após cada push na branch `main`.
+O workflow publica automaticamente `dist/` após `npm test` e `npm run build` na branch `main`.
 
-URL: https://nikolascaldeira.github.io/era-evolution/
+**Jogo:** https://nikolascaldeira.github.io/era-evolution/
 
-Atalhos: `?testeEra=6`, `?testeChefe=6`, `?testeEra=7`, `?testeChefe=7`, `?testeEra=8`, `?testeChefe=8`.
+**Era 09:** https://nikolascaldeira.github.io/era-evolution/?testeEra=9
 
-Para identificar problemas de fluidez, usa F4 e compara FPS entre eras; os efeitos gráficos poderão ser otimizados após a conclusão das dez eras.
+**Chefe 09:** https://nikolascaldeira.github.io/era-evolution/?testeChefe=9
+
+A Era da Extinção (10) ainda não é jogável.

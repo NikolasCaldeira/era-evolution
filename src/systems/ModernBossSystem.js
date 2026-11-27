@@ -1,4 +1,4 @@
-/** Chefes das Eras VI–VIII: três conjuntos de ataques e avisos geométricos. */
+/** Chefes das Eras VI–IX: três conjuntos de ataques e avisos geométricos. */
 export const MODERN_BOSSES=Object.freeze({
   industrial:Object.freeze({
     name:'TITÃ A VAPOR',health:390,speed:80,color:0xf2bd7a,
@@ -17,6 +17,12 @@ export const MODERN_BOSSES=Object.freeze({
     attacks:['datagrid','glitchring','packetstorm','datagrid'],
     attackNames:{datagrid:'GRADE DE DADOS',glitchring:'PULSO CORROMPIDO',packetstorm:'TEMPESTADE DE PACOTES',summon:'CÓPIAS DIGITAIS'},
     hint:'GRADE · PULSO · PACOTES · CÓPIAS'
+  }),
+  espacial:Object.freeze({
+    name:'SENTINELA ORBITAL',health:575,speed:112,color:0xa2dcf9,
+    attacks:['orbitalbeam','gravitywell','meteorstorm','plasmaring'],
+    attackNames:{orbitalbeam:'FEIXES ORBITAIS',gravitywell:'POÇO GRAVITACIONAL',meteorstorm:'TEMPESTADE DE METEOROS',plasmaring:'ANEL DE PLASMA',summon:'REFORÇOS CÓSMICOS'},
+    hint:'FEIXES · GRAVIDADE · METEOROS · PLASMA · APOIO'
   })
 });
 const point=(x,y)=>({x,y});
@@ -43,6 +49,10 @@ export function modernAttackPlan(era,type,from,target){
     case 'datagrid':return [-85,0,85].map(offset=>line(offset,485,17));
     case 'glitchring':return [{kind:'ring',x:from.x,y:from.y,inner:83,outer:197}];
     case 'packetstorm':return [-1,0,1].map(i=>circle(target.x+side.x*i*100+dir.x*55*(i%2),target.y+side.y*i*100+dir.y*55*(i%2),39));
+    case 'orbitalbeam':return [-78,0,78].map(offset=>line(offset,510,22));
+    case 'gravitywell':return [circle(target.x,target.y,67)];
+    case 'meteorstorm':return [-1,0,1].map(i=>circle(target.x+side.x*i*96+dir.x*(i===0?40:0),target.y+side.y*i*96+dir.y*(i===0?40:0),42));
+    case 'plasmaring':return [{kind:'ring',x:from.x,y:from.y,inner:92,outer:208}];
     default:throw new Error(`Ataque moderno inexistente: ${type}`);
   }
 }
